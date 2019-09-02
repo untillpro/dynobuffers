@@ -113,15 +113,11 @@ func (b *Buffer) Get(name string) (value interface{}, isSet bool) {
 			return b.bytes[offset], true
 		}
 	}
-	// field is var-size
-	switch b.schema.fieldTypes[name] {
-	case FieldTypeString:
-		varSizeValueOffset := b.varSizeValuesOffsets[name]
-		offset := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset : varSizeValueOffset+4]))
-		size := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset+4 : varSizeValueOffset+8]))
-		return string(b.bytes[offset : offset+size]), true
-	}
-	return nil, false
+	// field is string
+	varSizeValueOffset := b.varSizeValuesOffsets[name]
+	offset := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset : varSizeValueOffset+4]))
+	size := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset+4 : varSizeValueOffset+8]))
+	return string(b.bytes[offset : offset+size]), true
 }
 
 // ReadBuffer creates Buffer from bytes using schema
@@ -152,9 +148,20 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 // Value type must be in [int32, int64, float32, float64, string, bool], error otherwise.
 // Byte buffer is not modified
 func (b *Buffer) Set(name string, value interface{}) error {
-	if value != nil && intfToFieldType(value) == FieldTypeUnspecified {
-		return errors.New("value is of wrong type")
+	if value != nil {
+		ft:=intfToFieldType(value)
+		if ft == FieldTypeUnspecified {
+			return errors.New("value is of unsupported type")
+		}
+		if schemaFieldType, ok := b.schema.fieldTypes[name]; ok {
+			if schemaFieldType != ft {
+				return errors.New("value type differs from field type")
+			} 
+		} else {
+			return errors.New("nosuch field in the schema")
+		}
 	}
+	
 	b.modifiedFields[name] = &fieldModification{value, true}
 	return nil
 }
@@ -215,7 +222,7 @@ func (b *Buffer) ToBytes() []byte {
 					varSizeValuesLengths = append(varSizeValuesLengths, int(size))
 				}
 			}
-		}
+		} 
 		bitNum += 2
 	}
 
@@ -291,10 +298,6 @@ func YamlToSchema(yamlStr string) (*Schema, error) {
 			} else {
 				return nil, errors.New("unknown field type: " + typeStr)
 			}
-			if err != nil {
-				return nil, err
-			}
-
 		}
 	}
 	return schema, nil
@@ -346,10 +349,9 @@ func encodeIntf(intf interface{}, ft FieldType) []byte {
 			return []byte{1}
 		}
 		return []byte{0}
-	case FieldTypeByte:
+	default: // FieldTypeByte
 		return []byte{intf.(byte)}
 	}
-	panic("unsupported field type")
 }
 
 func setBit(bytes []byte, pos uint) []byte {
