@@ -26,6 +26,8 @@ const (
 	FieldTypeString
 	// FieldTypeBool s.e.
 	FieldTypeBool
+	// FieldTypeByte byte
+	FieldTypeByte
 )
 
 var fieldTypesMap = map[string]FieldType{
@@ -35,6 +37,7 @@ var fieldTypesMap = map[string]FieldType{
 	"double": FieldTypeDouble,
 	"string": FieldTypeString,
 	"bool":   FieldTypeBool,
+	"byte":   FieldTypeByte,
 }
 
 var fixedSizeFieldsSizesMap = map[FieldType]int{
@@ -43,6 +46,7 @@ var fixedSizeFieldsSizesMap = map[FieldType]int{
 	FieldTypeFloat:  4,
 	FieldTypeDouble: 8,
 	FieldTypeBool:   1,
+	FieldTypeByte:   1,
 }
 
 type fieldModification struct {
@@ -74,11 +78,11 @@ func NewBuffer(schema *Schema) *Buffer {
 // If Set() was called for the field then old value is still returned.
 // Value == nil && !isSet -> is not set or no such field in schema.
 func (b *Buffer) Get(name string) (value interface{}, isSet bool) {
-	order, ok := b.schema.fieldsOrder[name]
+	fieldOrder, ok := b.schema.fieldsOrder[name]
 	if !ok {
 		return nil, false
 	}
-	bitNum := uint(order-int(order/8)*8) * 2
+	bitNum := uint(fieldOrder-int(fieldOrder/8)*8) * 2
 	if hasBit(b.storedFieldsInfo, bitNum) {
 		if hasBit(b.storedFieldsInfo, bitNum+1) {
 			// field is set to nil
@@ -105,6 +109,8 @@ func (b *Buffer) Get(name string) (value interface{}, isSet bool) {
 			return value, true
 		case FieldTypeBool:
 			return b.bytes[offset] != 0, true
+		case FieldTypeByte:
+			return b.bytes[offset], true
 		}
 	}
 	// field is var-size
@@ -123,9 +129,9 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 	b := NewBuffer(schema)
 	b.bytes = bytes
 
-	varSizeFieldsTablePos := int(binary.LittleEndian.Uint32(bytes[:4]))
+	varSizeValuesOffsetsPos := int(binary.LittleEndian.Uint32(bytes[:4]))
 	fixedSizeValuesPos := int(binary.LittleEndian.Uint32(bytes[4:8]))
-	b.storedFieldsInfo = bytes[8:varSizeFieldsTablePos]
+	b.storedFieldsInfo = bytes[8:varSizeValuesOffsetsPos]
 
 	for _, fieldName := range schema.fieldsOrderedList {
 		ft := schema.fieldTypes[fieldName]
@@ -134,8 +140,8 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 			b.fixedSizeValuesOffsets[fieldName] = fixedSizeValuesPos
 			fixedSizeValuesPos += fixedFieldSize
 		} else {
-			b.varSizeValuesOffsets[fieldName] = varSizeFieldsTablePos
-			varSizeFieldsTablePos += 4
+			b.varSizeValuesOffsets[fieldName] = varSizeValuesOffsetsPos
+			varSizeValuesOffsetsPos += 8
 		}
 	}
 
@@ -162,12 +168,12 @@ func (b *Buffer) Unset(name string) {
 // ToBytes returns initial byte array with modifications made by Set().
 // Note: current Buffer still keep initial byte array, current modifications are not discarded
 func (b *Buffer) ToBytes() []byte {
-	storedFieldsInfo := make([]byte, int(len(b.schema.fieldsOrderedList)/8)+1)
+	storedFieldsInfo := make([]byte, int(len(b.schema.fieldsOrderedList)*2/8)+1)
 	copy(storedFieldsInfo, b.storedFieldsInfo)
 	fixedSizeValues := []byte{}
 	varSizeValues := []byte{}
-	varSizeOffsets := []byte{}
-	varSizeLengths := []int{}
+	varSizeValuesOffsets := []byte{}
+	varSizeValuesLengths := []int{}
 	bitNum := uint(0)
 	for _, fieldName := range b.schema.fieldsOrderedList {
 		ft := b.schema.fieldTypes[fieldName]
@@ -183,11 +189,11 @@ func (b *Buffer) ToBytes() []byte {
 						// var-size value is modified
 						mIntfBytes := encodeIntf(fm.value, ft)
 						varSizeValues = append(varSizeValues, mIntfBytes...)
-						varSizeLengths = append(varSizeLengths, len(mIntfBytes))
+						varSizeValuesLengths = append(varSizeValuesLengths, len(mIntfBytes))
 					}
 				}
 			} else {
-				storedFieldsInfo = clearBit(storedFieldsInfo, bitNum) 
+				storedFieldsInfo = clearBit(storedFieldsInfo, bitNum)
 				storedFieldsInfo = clearBit(storedFieldsInfo, bitNum+1)
 			}
 		} else if hasBit(b.storedFieldsInfo, bitNum) {
@@ -206,7 +212,7 @@ func (b *Buffer) ToBytes() []byte {
 					offset := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset : varSizeValueOffset+4]))
 					size := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset+4 : varSizeValueOffset+8]))
 					varSizeValues = append(varSizeValues, b.bytes[offset:offset+size]...)
-					varSizeLengths = append(varSizeLengths, int(size))
+					varSizeValuesLengths = append(varSizeValuesLengths, int(size))
 				}
 			}
 		}
@@ -215,24 +221,26 @@ func (b *Buffer) ToBytes() []byte {
 
 	res := make([]byte, 8)
 	res = append(res, storedFieldsInfo...)
-	varSizeOffsetsLen := len(varSizeLengths) * 4 * 2
-	offset := len(res) + varSizeOffsetsLen + len(fixedSizeValues)
-	for _, varSizeFieldLen := range varSizeLengths {
+
+	varSizeValuesOffsetsLen := len(varSizeValuesLengths) * 4 * 2
+	varSaizeValueOffset := len(res) + len(fixedSizeValues) + varSizeValuesOffsetsLen
+	for _, varSizeValueLen := range varSizeValuesLengths {
 		tmp := make([]byte, 4)
-		binary.LittleEndian.PutUint32(tmp, uint32(offset))
-		varSizeOffsets = append(varSizeOffsets, tmp...)
-		binary.LittleEndian.PutUint32(tmp, uint32(varSizeFieldLen))
-		varSizeOffsets = append(varSizeOffsets, tmp...)
-		offset += varSizeFieldLen
+		binary.LittleEndian.PutUint32(tmp, uint32(varSaizeValueOffset))
+		varSizeValuesOffsets = append(varSizeValuesOffsets, tmp...)
+		binary.LittleEndian.PutUint32(tmp, uint32(varSizeValueLen))
+		varSizeValuesOffsets = append(varSizeValuesOffsets, tmp...)
+		varSaizeValueOffset += varSizeValueLen
 	}
-	res = append(res, varSizeOffsets...)
+
+	res = append(res, varSizeValuesOffsets...)
 	res = append(res, fixedSizeValues...)
 	res = append(res, varSizeValues...)
 	tmp := make([]byte, 4)
 	binary.LittleEndian.PutUint32(tmp, uint32(len(storedFieldsInfo)+8))
-	copy(res[0:3], tmp)
-	binary.LittleEndian.PutUint32(tmp, uint32(len(storedFieldsInfo)+8+len(varSizeOffsets)))
-	copy(res[4:7], tmp)
+	copy(res[:4], tmp)
+	binary.LittleEndian.PutUint32(tmp, uint32(len(storedFieldsInfo)+8+len(varSizeValuesOffsets)))
+	copy(res[4:8], tmp)
 	return res
 }
 
@@ -243,7 +251,7 @@ type Schema struct {
 	fieldsOrderedList []string
 }
 
-// NewSchema create new empty schema for manual 
+// NewSchema create new empty schema for manual
 func NewSchema() *Schema {
 	return &Schema{map[string]FieldType{}, map[string]int{}, []string{}}
 }
@@ -257,14 +265,14 @@ func (s *Schema) AddField(name string, ft FieldType) {
 
 // YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
 //
-// Field types: 
+// Field types:
 // `int` -> `int32`\r\n
 // - `long` -> `int64`
 // - `float` -> `float32`
 // - `double` -> `float64`
 // - `bool` -> `bool`
 // - `string` -> `string`
-// 
+//
 // Example:
 // `name: string
 // price: float
@@ -306,6 +314,8 @@ func intfToFieldType(intf interface{}) FieldType {
 		return FieldTypeString
 	case bool:
 		return FieldTypeBool
+	case byte:
+		return FieldTypeByte
 	}
 	return FieldTypeUnspecified
 }
@@ -336,6 +346,8 @@ func encodeIntf(intf interface{}, ft FieldType) []byte {
 			return []byte{1}
 		}
 		return []byte{0}
+	case FieldTypeByte:
+		return []byte{intf.(byte)}
 	}
 	panic("unsupported field type")
 }
@@ -344,7 +356,7 @@ func setBit(bytes []byte, pos uint) []byte {
 	byteNum := int(pos / 8)
 	if byteNum >= len(bytes) {
 		tmp := make([]byte, byteNum-len(bytes)+1)
-		copy(bytes[len(bytes)-1:], tmp)
+		bytes = append(bytes, tmp...)
 	}
 	bytes[byteNum] |= (1 << uint(pos-uint(byteNum*8)))
 	return bytes
@@ -360,10 +372,10 @@ func hasBit(bytes []byte, pos uint) bool {
 }
 
 func clearBit(bytes []byte, pos uint) []byte {
-	byteNum := int(pos/8)
+	byteNum := int(pos / 8)
 	if byteNum >= len(bytes) {
 		tmp := make([]byte, byteNum-len(bytes)+1)
-		copy(bytes[len(bytes)-1:], tmp)
+		bytes = append(bytes, tmp...)
 	}
 	mask := ^(1 << pos)
 	tmp := int(bytes[byteNum])

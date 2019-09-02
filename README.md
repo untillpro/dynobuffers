@@ -66,14 +66,16 @@ Fielded byte array with get\set by name
 	```go
 	b = dynobuffers.ReadBuffer(bytes, schema)
 	```
-- Modify Buffer 
+- Work Buffer 
 	```go
+	value, isSet := b.Get("price") // value is interface{} of float32, isSet == true
 	b.Set("price", nil)
 	b.Unset("name")
 	bytes = b.ToBytes()
 	```
+- See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
+
 #To do
 - Lists of nested objects
 - Lists of primitives?
-- Store specified fields amount in the beginning of byte buffer
 - Written in New -> read in Old -> write in Old -> New fields are kept.
