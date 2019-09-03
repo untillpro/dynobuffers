@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2018-present unTill Pro, Ltd. and Contributors
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 package dynobuffers
 
 import (
@@ -158,7 +165,7 @@ func (b *Buffer) Set(name string, value interface{}) error {
 				return errors.New("value type differs from field type")
 			} 
 		} else {
-			return errors.New("nosuch field in the schema")
+			return errors.New("no such field in the schema")
 		}
 	}
 	

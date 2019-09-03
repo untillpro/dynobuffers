@@ -5,25 +5,25 @@ Fielded byte array with get\set by name
 # Abilities
 - Read raw bytes from array converting to the required type described in the Schema
 - Non-set, unset and set to nil fields takes no place
-- Supported types 
-  - `int32, int64, float32, float64, bool, string`
+- Supported types
+  - `int32, int64, float32, float64, bool, string (var-size), byte`
 - Schema versioning
   - Any data written with Schema of any version will be correctly read using Schema of any other version if new fields are appended to the end
     - Written in old Schema, read in New Schema -> nil result, field considered as unset
-    - Written in new Schema, read in old Schema -> nil result, 
+    - Written in new Schema, read in old Schema -> nil result
 
 # Limitations
 - Written in New -> read in Old -> write in Old -> New fields are lost (todo)
 - No arrays (todo)
 - No nested objects (todo)
+- No blobs (use strings?)?
 
-#Installation
+# Installation
 `go get github.com/untillpro/dynobuffers`
 
 # Usage
 - Describe Schema
-  - By yaml
-  Field types:
+  - By yaml. Field types:
     - `int` -> `int32`
     - `long` -> `int64`
     - `float` -> `float32`
@@ -44,14 +44,14 @@ Fielded byte array with get\set by name
 	```
   - Manually
 	```go
-	schema := NewSchema()
+	schema := dynobuffers.NewSchema()
 	schema.AddField("name", dynobuffers.FieldTypeString)
 	schema.AddField("price", dynobuffers.FieldTypeFloat)
 	schema.AddField("quantity", dynobuffers.FieldTypeInt)
 	```
 - Create Dyno Buffer using Schema
 	```go
-	b := NewBuffer(schema)
+	b := dynobuffers.NewBuffer(schema)
 	```
 - Set\modify fields according to the Schema
 	```go
@@ -69,7 +69,7 @@ Fielded byte array with get\set by name
 	```go
 	b = dynobuffers.ReadBuffer(bytes, schema)
 	```
-- Work Buffer 
+- Work with Buffer 
 	```go
 	value, isSet := b.Get("price") // value is interface{} of float32, isSet == true
 	b.Set("price", nil)
