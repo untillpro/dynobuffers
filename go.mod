@@ -1,4 +1,4 @@
-module github.com/untillpro/dynobuffers
+module github.com/host6/dynobuffers
 
 go 1.12
 
