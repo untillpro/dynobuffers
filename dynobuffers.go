@@ -8,9 +8,12 @@
 package dynobuffers
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"math"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -89,7 +92,7 @@ func (b *Buffer) Get(name string) (value interface{}, isSet bool) {
 	if !ok {
 		return nil, false
 	}
-	bitNum := uint(fieldOrder-int(fieldOrder/8)*8) * 2
+	bitNum := fieldOrder * 2
 	if hasBit(b.storedFieldsInfo, bitNum) {
 		if hasBit(b.storedFieldsInfo, bitNum+1) {
 			// field is set to nil
@@ -136,7 +139,10 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 	fixedSizeValuesPos := int(binary.LittleEndian.Uint32(bytes[4:8]))
 	b.storedFieldsInfo = bytes[8:varSizeValuesOffsetsPos]
 
-	for _, fieldName := range schema.fieldsOrderedList {
+	for i, fieldName := range schema.fieldsOrderedList {
+		if !hasBit(b.storedFieldsInfo, i*2) || hasBit(b.storedFieldsInfo, i*2+1) {
+			continue
+		}
 		ft := schema.fieldTypes[fieldName]
 		if fixedFieldSize, ok := fixedSizeFieldsSizesMap[ft]; ok {
 			// fixed-size
@@ -156,19 +162,16 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 // Byte buffer is not modified
 func (b *Buffer) Set(name string, value interface{}) error {
 	if value != nil {
-		ft:=intfToFieldType(value)
-		if ft == FieldTypeUnspecified {
-			return errors.New("value is of unsupported type")
-		}
+		ft := intfToFieldType(value)
 		if schemaFieldType, ok := b.schema.fieldTypes[name]; ok {
 			if schemaFieldType != ft {
 				return errors.New("value type differs from field type")
-			} 
+			}
 		} else {
 			return errors.New("no such field in the schema")
 		}
 	}
-	
+
 	b.modifiedFields[name] = &fieldModification{value, true}
 	return nil
 }
@@ -188,7 +191,7 @@ func (b *Buffer) ToBytes() []byte {
 	varSizeValues := []byte{}
 	varSizeValuesOffsets := []byte{}
 	varSizeValuesLengths := []int{}
-	bitNum := uint(0)
+	bitNum := 0
 	for _, fieldName := range b.schema.fieldsOrderedList {
 		ft := b.schema.fieldTypes[fieldName]
 		if fm, ok := b.modifiedFields[fieldName]; ok {
@@ -229,7 +232,7 @@ func (b *Buffer) ToBytes() []byte {
 					varSizeValuesLengths = append(varSizeValuesLengths, int(size))
 				}
 			}
-		} 
+		}
 		bitNum += 2
 	}
 
@@ -256,6 +259,35 @@ func (b *Buffer) ToBytes() []byte {
 	binary.LittleEndian.PutUint32(tmp, uint32(len(storedFieldsInfo)+8+len(varSizeValuesOffsets)))
 	copy(res[4:8], tmp)
 	return res
+}
+
+// ToJSON s.e.
+func (b *Buffer) ToJSON() string {
+	buf := bytes.NewBufferString("")
+	e := json.NewEncoder(buf)
+	buf.WriteString("{")
+	for _, fieldName := range b.schema.fieldsOrderedList {
+		if fm, ok := b.modifiedFields[fieldName]; ok {
+			if fm.isSet {
+				buf.WriteString("\"" + fieldName + "\": ")
+				e.Encode(fm.value)
+				buf.WriteString(",")
+			}
+		} else {
+			// not modified but had a value
+			value, isSet := b.Get(fieldName)
+			if isSet {
+				buf.WriteString("\"" + fieldName + "\": ")
+				e.Encode(value)
+				buf.WriteString(",")
+			}
+		}
+	}
+	if buf.Len() > 1 {
+		buf.Truncate(buf.Len() - 1)
+	}
+	buf.WriteString("}")
+	return strings.Replace(buf.String(), "\n", "", -1)
 }
 
 // Schema s.e.
@@ -361,34 +393,35 @@ func encodeIntf(intf interface{}, ft FieldType) []byte {
 	}
 }
 
-func setBit(bytes []byte, pos uint) []byte {
+func setBit(bytes []byte, pos int) []byte {
 	byteNum := int(pos / 8)
 	if byteNum >= len(bytes) {
 		tmp := make([]byte, byteNum-len(bytes)+1)
 		bytes = append(bytes, tmp...)
 	}
-	bytes[byteNum] |= (1 << uint(pos-uint(byteNum*8)))
+	bytes[byteNum] |= (1 << uint(pos-byteNum*8))
 	return bytes
 }
 
-func hasBit(bytes []byte, pos uint) bool {
+func hasBit(bytes []byte, pos int) bool {
 	byteNum := int(pos / 8)
 	if byteNum >= len(bytes) {
 		return false
 	}
-	val := bytes[byteNum] & (1 << uint(pos-uint(byteNum*8)))
+	val := bytes[byteNum] & (1 << uint(pos-byteNum*8))
 	return val > 0
 }
 
-func clearBit(bytes []byte, pos uint) []byte {
+func clearBit(bytes []byte, pos int) []byte {
 	byteNum := int(pos / 8)
 	if byteNum >= len(bytes) {
 		tmp := make([]byte, byteNum-len(bytes)+1)
 		bytes = append(bytes, tmp...)
 	}
-	mask := ^(1 << pos)
+	mask := ^(1 << uint(pos))
 	tmp := int(bytes[byteNum])
 	tmp &= mask
 	bytes[byteNum] = byte(tmp)
 	return bytes
 }
+

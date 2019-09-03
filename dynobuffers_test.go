@@ -8,6 +8,8 @@
 package dynobuffers
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,9 +76,6 @@ func TestBasicUsage(t *testing.T) {
 	assert.False(t, isSet)
 
 	// errors
-	// unsupported type
-	err = b.Set("name", int(1))
-	assert.NotNil(t, err)
 	// type mismatch
 	err = b.Set("name", int32(1))
 	assert.NotNil(t, err)
@@ -142,17 +141,21 @@ func TestUnsetField(t *testing.T) {
 	}
 	b := NewBuffer(s)
 	err = b.Set("name", "cola")
-	if err != nil {
-		t.Fatal(err)
-	}
+	err = b.Set("price", float32(0.123))
+	err = b.Set("quantity", int32(42))
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	b.Unset("name")
+	b.Set("price", nil)
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual, isSet := b.Get("name")
 	assert.Nil(t, actual)
 	assert.False(t, isSet)
+	actual, _ = b.Get("price")
+	assert.Nil(t, actual)
+	actual, _ = b.Get("quantity")
+	assert.Equal(t, int32(42), actual)
 }
 
 func TestWriteNewReadOld(t *testing.T) {
@@ -332,11 +335,69 @@ func Benchmark(b *testing.B) {
 	}
 }
 
+func TestToJSON(t *testing.T) {
+	schema, err := YamlToSchema(schemaStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := NewBuffer(schema)
+	dest := map[string]interface{}{}
+	jsonStr := b.ToJSON()
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 0)
+
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
+	jsonStr = b.ToJSON()
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 3)
+	assert.Equal(t, "cola", dest["name"])
+	assert.Equal(t, float64(0.123), dest["price"])
+	assert.Equal(t, float64(42), dest["quantity"])
+
+	bytes := b.ToBytes()
+	b = ReadBuffer(bytes, schema)
+
+	jsonStr = b.ToJSON()
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 3)
+	assert.Equal(t, "cola", dest["name"])
+	assert.Equal(t, float64(0.123), dest["price"])
+	assert.Equal(t, float64(42), dest["quantity"])
+
+	b.Unset("name")
+	b.Set("price", nil)
+	jsonStr = b.ToJSON()
+	dest = map[string]interface{}{}
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 2)
+	assert.Nil(t, dest["price"])
+	assert.Equal(t, float64(42), dest["quantity"])
+
+	bytes = b.ToBytes()
+	b = ReadBuffer(bytes, schema)
+	jsonStr = b.ToJSON()
+	dest = map[string]interface{}{}
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 2)
+	assert.Nil(t, dest["price"])
+	assert.Equal(t, float64(42), dest["quantity"])
+}
+
+
+
+func testToJSON(b *Buffer) {
+	json := b.ToJSON()
+	fmt.Println(json)
+}
+
 // for debug purposes
-func bits(b byte) string {
+func bits(bytes []byte) string {
 	res := ""
-	for i := 0; i < 8; i++ {
-		if hasBit([]byte{b}, uint(i)) {
+	for i := 0; i < len(bytes)*7; i++ {
+		if hasBit(bytes, i) {
 			res += "1"
 		} else {
 			res += "0"
