@@ -82,6 +82,7 @@ type fieldInfo struct {
 	isSet         bool
 	isNil         bool
 	fixedSize     int
+	name          string
 }
 
 // NewBuffer s.e.
@@ -143,33 +144,32 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 	fixedSizeValuesPos := int(binary.LittleEndian.Uint32(bytes[4:8]))
 	b.storageMask = bytes[8:varSizeValuesOffsetsPos]
 
-	for i, fieldName := range schema.fieldsOrderedList {
+	for i, fiSchema := range schema.fieldsOrderedList {
 		if !hasBit(b.storageMask, i*2) {
 			continue
 		}
-		ft := schema.fieldTypes[fieldName]
 		fi := &fieldInfo{}
+		fi.fixedSize = fiSchema.fixedSize
+		fi.ft = fiSchema.ft
+		fi.isFixedSize = fiSchema.isFixedSize
+		fi.name = fiSchema.name
+		fi.order = fiSchema.order
 		fi.isSet = true
 		fi.isNil = hasBit(b.storageMask, i*2+1)
-		fi.order = i
-		fi.ft = ft
 
-		if fixedFieldSize, ok := fixedSizeFieldsSizesMap[ft]; ok {
+		if fi.isFixedSize {
 			// fixed-size
-			fi.isFixedSize = true
 			if !fi.isNil {
 				fi.offset = fixedSizeValuesPos
-				fi.fixedSize = fixedFieldSize
-				fixedSizeValuesPos += fixedFieldSize
+				fixedSizeValuesPos += fi.fixedSize
 			}
 		} else {
-			fi.isFixedSize = false
 			if !fi.isNil {
 				fi.offset = varSizeValuesOffsetsPos
 				varSizeValuesOffsetsPos += 8
 			}
 		}
-		b.fields[fieldName] = fi
+		b.fields[fi.name] = fi
 	}
 
 	return b
@@ -233,9 +233,8 @@ func (b *Buffer) ToBytes() []byte {
 	varSizeValuesOffsets := []byte{}
 	varSizeValuesLengths := []int{}
 	bitNum := 0
-	for _, fieldName := range b.schema.fieldsOrderedList {
-
-		fi, ok := b.fields[fieldName]
+	for _, fiOrdered := range b.schema.fieldsOrderedList {
+		fi, ok := b.fields[fiOrdered.name]
 		if !ok {
 			break
 		}
@@ -338,19 +337,30 @@ func (b *Buffer) ToJSON() string {
 type Schema struct {
 	fieldTypes        map[string]FieldType
 	fieldsOrder       map[string]int
-	fieldsOrderedList []string
+	fieldsOrderedList []*fieldInfo
 }
 
 // NewSchema create new empty schema for manual
 func NewSchema() *Schema {
-	return &Schema{map[string]FieldType{}, map[string]int{}, []string{}}
+	return &Schema{map[string]FieldType{}, map[string]int{}, []*fieldInfo{}}
 }
 
 // AddField appends schema with new field
 func (s *Schema) AddField(name string, ft FieldType) {
 	s.fieldTypes[name] = ft
 	s.fieldsOrder[name] = len(s.fieldsOrderedList)
-	s.fieldsOrderedList = append(s.fieldsOrderedList, name)
+	fi := &fieldInfo{}
+
+	if fixedSize, ok := fixedSizeFieldsSizesMap[ft]; ok {
+		fi.fixedSize = fixedSize
+		fi.isFixedSize = true
+	} else {
+		fi.isFixedSize = false
+	}
+	fi.order = len(s.fieldsOrderedList)
+	fi.name = name
+	fi.ft = ft
+	s.fieldsOrderedList = append(s.fieldsOrderedList, fi)
 }
 
 // YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`

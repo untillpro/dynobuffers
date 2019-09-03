@@ -312,29 +312,6 @@ byte: byte
 	assert.Equal(t, false, actual)
 }
 
-func Benchmark(b *testing.B) {
-	b.StopTimer()
-	s, _ := YamlToSchema(schemaStrNew)
-	bf := NewBuffer(s)
-	bf.Set("name", "cola")
-	bf.Set("price", float32(0.123))
-	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
-
-	b.StartTimer()
-	bf = ReadBuffer(bytes, s)
-	sum := float32(0)
-	for i := 0; i < b.N; i++ {
-		intf, _ := bf.Get("price")
-		price := intf.(float32)
-		intf, _ = bf.Get("quantity")
-		quantity := intf.(int32)
-		sum += price * float32(quantity)
-		// p.Set("newField", 1)
-		// p.ToBytes()
-	}
-}
-
 func TestToJSON(t *testing.T) {
 	schema, err := YamlToSchema(schemaStr)
 	if err != nil {
@@ -388,12 +365,7 @@ func TestToJSON(t *testing.T) {
 
 func Benchmark(b *testing.B) {
 	b.StopTimer()
-	s, _ := YamlToSchema(`
-name: string
-price: float
-quantity: int
-newField: long
-`)
+	s, _ := YamlToSchema(schemaStrNew)
 	bf := NewBuffer(s)
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
@@ -401,9 +373,9 @@ newField: long
 	bytes := bf.ToBytes()
 
 	b.StartTimer()
-	bf = ReadBuffer(bytes, s)
 	sum := float32(0)
 	for i := 0; i < b.N; i++ {
+		bf = ReadBuffer(bytes, s)
 		intf, _ := bf.Get("price")
 		price := intf.(float32)
 		intf, _ = bf.Get("quantity")
