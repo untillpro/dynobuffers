@@ -66,30 +66,21 @@ type fieldModification struct {
 
 // Buffer s.e.
 type Buffer struct {
-	bytes       []byte
-	storageMask []byte
-	fields      map[string]*fieldInfo
-	schema      *Schema
-}
-
-type fieldInfo struct {
-	order         int
-	offset        int
-	ft            FieldType
-	isFixedSize   bool
-	isModified    bool
-	modifiedValue interface{}
-	isSet         bool
-	isNil         bool
-	fixedSize     int
-	name          string
+	bytes                  []byte
+	storedFieldsInfo       []byte
+	modifiedFields         map[string]*fieldModification
+	fixedSizeValuesOffsets map[string]int
+	varSizeValuesOffsets   map[string]int
+	schema                 *Schema
 }
 
 // NewBuffer s.e.
 func NewBuffer(schema *Schema) *Buffer {
 	b := &Buffer{}
+	b.modifiedFields = map[string]*fieldModification{}
 	b.schema = schema
-	b.fields = map[string]*fieldInfo{}
+	b.fixedSizeValuesOffsets = map[string]int{}
+	b.varSizeValuesOffsets = map[string]int{}
 	return b
 }
 
@@ -97,42 +88,46 @@ func NewBuffer(schema *Schema) *Buffer {
 // If Set() was called for the field then old value is still returned.
 // Value == nil && !isSet -> is not set or no such field in schema.
 func (b *Buffer) Get(name string) (value interface{}, isSet bool) {
-	fi, ok := b.fields[name]
+	fieldOrder, ok := b.schema.fieldsOrder[name]
 	if !ok {
 		return nil, false
 	}
-	bitNum := fi.order * 2
-	if hasBit(b.storageMask, bitNum+1) {
-		// field is set to nil
-		return nil, true
+	bitNum := fieldOrder * 2
+	if hasBit(b.storedFieldsInfo, bitNum) {
+		if hasBit(b.storedFieldsInfo, bitNum+1) {
+			// field is set to nil
+			return nil, true
+		}
+	} else {
+		// field is unset or no field in the Schema
+		return nil, false
 	}
-	if fi.isFixedSize {
+	if offset, ok := b.fixedSizeValuesOffsets[name]; ok {
 		// field is fixed-size
-		switch fi.ft {
+		switch b.schema.fieldTypes[name] {
 		case FieldTypeInt:
-			return int32(binary.LittleEndian.Uint32(b.bytes[fi.offset : fi.offset+4])), true
+			return int32(binary.LittleEndian.Uint32(b.bytes[offset : offset+4])), true
 		case FieldTypeLong:
-			return int64(binary.LittleEndian.Uint64(b.bytes[fi.offset : fi.offset+8])), true
+			return int64(binary.LittleEndian.Uint64(b.bytes[offset : offset+8])), true
 		case FieldTypeFloat:
-			bits := binary.LittleEndian.Uint32(b.bytes[fi.offset : fi.offset+4])
+			bits := binary.LittleEndian.Uint32(b.bytes[offset : offset+4])
 			value = math.Float32frombits(bits)
 			return value, true
 		case FieldTypeDouble:
-			bits := binary.LittleEndian.Uint64(b.bytes[fi.offset : fi.offset+8])
+			bits := binary.LittleEndian.Uint64(b.bytes[offset : offset+8])
 			value = math.Float64frombits(bits)
 			return value, true
 		case FieldTypeBool:
-			return b.bytes[fi.offset] != 0, true
+			return b.bytes[offset] != 0, true
 		case FieldTypeByte:
-			return b.bytes[fi.offset], true
+			return b.bytes[offset], true
 		}
-	} else {
-		// field is string
-		offset := int32(binary.LittleEndian.Uint32(b.bytes[fi.offset : fi.offset+4]))
-		size := int32(binary.LittleEndian.Uint32(b.bytes[fi.offset+4 : fi.offset+8]))
-		return string(b.bytes[offset : offset+size]), true
 	}
-	return nil, false
+	// field is string
+	varSizeValueOffset := b.varSizeValuesOffsets[name]
+	offset := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset : varSizeValueOffset+4]))
+	size := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset+4 : varSizeValueOffset+8]))
+	return string(b.bytes[offset : offset+size]), true
 }
 
 // ReadBuffer creates Buffer from bytes using schema
@@ -142,34 +137,21 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 
 	varSizeValuesOffsetsPos := int(binary.LittleEndian.Uint32(bytes[:4]))
 	fixedSizeValuesPos := int(binary.LittleEndian.Uint32(bytes[4:8]))
-	b.storageMask = bytes[8:varSizeValuesOffsetsPos]
+	b.storedFieldsInfo = bytes[8:varSizeValuesOffsetsPos]
 
-	for i, fiSchema := range schema.fieldsOrderedList {
-		if !hasBit(b.storageMask, i*2) {
+	for i, fieldName := range schema.fieldsOrderedList {
+		if !hasBit(b.storedFieldsInfo, i*2) || hasBit(b.storedFieldsInfo, i*2+1) {
 			continue
 		}
-		fi := &fieldInfo{}
-		fi.fixedSize = fiSchema.fixedSize
-		fi.ft = fiSchema.ft
-		fi.isFixedSize = fiSchema.isFixedSize
-		fi.name = fiSchema.name
-		fi.order = fiSchema.order
-		fi.isSet = true
-		fi.isNil = hasBit(b.storageMask, i*2+1)
-
-		if fi.isFixedSize {
+		ft := schema.fieldTypes[fieldName]
+		if fixedFieldSize, ok := fixedSizeFieldsSizesMap[ft]; ok {
 			// fixed-size
-			if !fi.isNil {
-				fi.offset = fixedSizeValuesPos
-				fixedSizeValuesPos += fi.fixedSize
-			}
+			b.fixedSizeValuesOffsets[fieldName] = fixedSizeValuesPos
+			fixedSizeValuesPos += fixedFieldSize
 		} else {
-			if !fi.isNil {
-				fi.offset = varSizeValuesOffsetsPos
-				varSizeValuesOffsetsPos += 8
-			}
+			b.varSizeValuesOffsets[fieldName] = varSizeValuesOffsetsPos
+			varSizeValuesOffsetsPos += 8
 		}
-		b.fields[fi.name] = fi
 	}
 
 	return b
@@ -179,11 +161,9 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 // Value type must be in [int32, int64, float32, float64, string, bool], error otherwise.
 // Byte buffer is not modified
 func (b *Buffer) Set(name string, value interface{}) error {
-	var schemaFieldType FieldType
 	if value != nil {
 		ft := intfToFieldType(value)
-		if sft, ok := b.schema.fieldTypes[name]; ok {
-			schemaFieldType = sft
+		if schemaFieldType, ok := b.schema.fieldTypes[name]; ok {
 			if schemaFieldType != ft {
 				return errors.New("value type differs from field type")
 			}
@@ -191,64 +171,40 @@ func (b *Buffer) Set(name string, value interface{}) error {
 			return errors.New("no such field in the schema")
 		}
 	}
-	fi, ok := b.fields[name]
-	if !ok {
-		fi = &fieldInfo{}
-		fi.ft = schemaFieldType
-		if fixedFieldSize, ok := fixedSizeFieldsSizesMap[schemaFieldType]; ok {
-			fi.fixedSize = fixedFieldSize
-			fi.isFixedSize = true
-		} else {
-			fi.isFixedSize = false
-		}
-		fi.isSet = true
-		fi.isNil = false
-		b.fields[name] = fi
-	}
-	fi.isModified = true
-	fi.modifiedValue = value
+
+	b.modifiedFields[name] = &fieldModification{value, true}
 	return nil
 }
 
 // Unset field to remove it on ToBytes().
 // Note: Get() still returns previous value
 func (b *Buffer) Unset(name string) {
-	fi, ok := b.fields[name]
-	if !ok {
-		fi = &fieldInfo{}
-		b.fields[name] = fi
-	}
-	fi.isModified = true
-	fi.isSet = false
-	fi.modifiedValue = nil
+	b.modifiedFields[name] = &fieldModification{nil, false}
 }
 
 // ToBytes returns initial byte array with modifications made by Set().
 // Note: current Buffer still keep initial byte array, current modifications are not discarded
 func (b *Buffer) ToBytes() []byte {
 	storedFieldsInfo := make([]byte, int(len(b.schema.fieldsOrderedList)*2/8)+1)
-	copy(storedFieldsInfo, b.storageMask)
+	copy(storedFieldsInfo, b.storedFieldsInfo)
 	fixedSizeValues := []byte{}
 	varSizeValues := []byte{}
 	varSizeValuesOffsets := []byte{}
 	varSizeValuesLengths := []int{}
 	bitNum := 0
-	for _, fiOrdered := range b.schema.fieldsOrderedList {
-		fi, ok := b.fields[fiOrdered.name]
-		if !ok {
-			break
-		}
-		if fi.isModified {
-			if fi.isSet {
+	for _, fieldName := range b.schema.fieldsOrderedList {
+		ft := b.schema.fieldTypes[fieldName]
+		if fm, ok := b.modifiedFields[fieldName]; ok {
+			if fm.isSet {
 				storedFieldsInfo = setBit(storedFieldsInfo, bitNum)
-				if fi.modifiedValue == nil {
+				if fm.value == nil {
 					storedFieldsInfo = setBit(storedFieldsInfo, bitNum+1)
 				} else {
-					if fi.isFixedSize {
-						fixedSizeValues = append(fixedSizeValues, encodeIntf(fi.modifiedValue, fi.ft)...)
+					if _, ok := fixedSizeFieldsSizesMap[ft]; ok {
+						fixedSizeValues = append(fixedSizeValues, encodeIntf(fm.value, ft)...)
 					} else {
 						// var-size value is modified
-						mIntfBytes := encodeIntf(fi.modifiedValue, fi.ft)
+						mIntfBytes := encodeIntf(fm.value, ft)
 						varSizeValues = append(varSizeValues, mIntfBytes...)
 						varSizeValuesLengths = append(varSizeValuesLengths, len(mIntfBytes))
 					}
@@ -257,18 +213,19 @@ func (b *Buffer) ToBytes() []byte {
 				storedFieldsInfo = clearBit(storedFieldsInfo, bitNum)
 				storedFieldsInfo = clearBit(storedFieldsInfo, bitNum+1)
 			}
-		} else if fi.isSet {
+		} else if hasBit(b.storedFieldsInfo, bitNum) {
 			// not modified but had a value
 			storedFieldsInfo = setBit(storedFieldsInfo, bitNum)
-			if fi.isNil {
+			if hasBit(b.storedFieldsInfo, bitNum+1) {
 				// was set to null
 				storedFieldsInfo = setBit(storedFieldsInfo, bitNum+1)
 			} else {
 				// had value
-				if fi.isFixedSize {
-					fixedSizeValues = append(fixedSizeValues, b.bytes[fi.offset:fi.offset+fi.fixedSize]...)
+				if fieldSize, ok := fixedSizeFieldsSizesMap[ft]; ok {
+					offset := b.fixedSizeValuesOffsets[fieldName]
+					fixedSizeValues = append(fixedSizeValues, b.bytes[offset:offset+fieldSize]...)
 				} else {
-					varSizeValueOffset := fi.offset
+					varSizeValueOffset := b.varSizeValuesOffsets[fieldName]
 					offset := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset : varSizeValueOffset+4]))
 					size := int32(binary.LittleEndian.Uint32(b.bytes[varSizeValueOffset+4 : varSizeValueOffset+8]))
 					varSizeValues = append(varSizeValues, b.bytes[offset:offset+size]...)
@@ -309,11 +266,11 @@ func (b *Buffer) ToJSON() string {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
-	for fieldName, fi := range b.fields {
-		if fi.isModified {
-			if fi.isSet {
+	for _, fieldName := range b.schema.fieldsOrderedList {
+		if fm, ok := b.modifiedFields[fieldName]; ok {
+			if fm.isSet {
 				buf.WriteString("\"" + fieldName + "\": ")
-				e.Encode(fi.modifiedValue)
+				e.Encode(fm.value)
 				buf.WriteString(",")
 			}
 		} else {
@@ -337,30 +294,19 @@ func (b *Buffer) ToJSON() string {
 type Schema struct {
 	fieldTypes        map[string]FieldType
 	fieldsOrder       map[string]int
-	fieldsOrderedList []*fieldInfo
+	fieldsOrderedList []string
 }
 
 // NewSchema create new empty schema for manual
 func NewSchema() *Schema {
-	return &Schema{map[string]FieldType{}, map[string]int{}, []*fieldInfo{}}
+	return &Schema{map[string]FieldType{}, map[string]int{}, []string{}}
 }
 
 // AddField appends schema with new field
 func (s *Schema) AddField(name string, ft FieldType) {
 	s.fieldTypes[name] = ft
 	s.fieldsOrder[name] = len(s.fieldsOrderedList)
-	fi := &fieldInfo{}
-
-	if fixedSize, ok := fixedSizeFieldsSizesMap[ft]; ok {
-		fi.fixedSize = fixedSize
-		fi.isFixedSize = true
-	} else {
-		fi.isFixedSize = false
-	}
-	fi.order = len(s.fieldsOrderedList)
-	fi.name = name
-	fi.ft = ft
-	s.fieldsOrderedList = append(s.fieldsOrderedList, fi)
+	s.fieldsOrderedList = append(s.fieldsOrderedList, name)
 }
 
 // YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
@@ -478,3 +424,4 @@ func clearBit(bytes []byte, pos int) []byte {
 	bytes[byteNum] = byte(tmp)
 	return bytes
 }
+
