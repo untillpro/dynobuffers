@@ -1,4 +1,4 @@
-module untillbuffers
+module dynobuffers
 
 go 1.12
 

@@ -17,6 +17,9 @@ Fielded byte array with get\set by name
 - No arrays (todo)
 - No nested objects (todo)
 
+#Installation
+`go get github.com/untillpro/dynobuffers`
+
 # Usage
 - Describe Schema
   - By yaml
