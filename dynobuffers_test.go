@@ -322,9 +322,9 @@ func Benchmark(b *testing.B) {
 	bytes := bf.ToBytes()
 
 	b.StartTimer()
-	bf = ReadBuffer(bytes, s)
 	sum := float32(0)
 	for i := 0; i < b.N; i++ {
+		bf = ReadBuffer(bytes, s)
 		intf, _ := bf.Get("price")
 		price := intf.(float32)
 		intf, _ = bf.Get("quantity")
