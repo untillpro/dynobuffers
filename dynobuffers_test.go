@@ -9,9 +9,9 @@ package dynobuffers
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,18 +36,9 @@ func TestBasicUsage(t *testing.T) {
 
 	// create new from sratch
 	b := NewBuffer(s)
-	err = b.Set("name", "cola")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("price", float32(0.123))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("quantity", int32(42))
-	if err != nil {
-		t.Fatal(err)
-	}
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
 	bytes := b.ToBytes()
 
 	// create from bytes
@@ -77,11 +68,11 @@ func TestBasicUsage(t *testing.T) {
 
 	// errors
 	// type mismatch
-	err = b.Set("name", int32(1))
-	assert.NotNil(t, err)
-	// unknown field
-	err = b.Set("unknownField", int32(1))
-	assert.NotNil(t, err)
+	assert.Panics(t, func() {
+		b.Set("name", int32(1))
+	})
+	// unknown field - nothing happens
+	b.Set("unknownField", int32(1))
 }
 
 func TestSetNullValue(t *testing.T) {
@@ -90,14 +81,8 @@ func TestSetNullValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := NewBuffer(s)
-	err = b.Set("name", "cola")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("price", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b.Set("name", "cola")
+	b.Set("price", nil)
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual, _ := b.Get("name")
@@ -140,9 +125,9 @@ func TestUnsetField(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := NewBuffer(s)
-	err = b.Set("name", "cola")
-	err = b.Set("price", float32(0.123))
-	err = b.Set("quantity", int32(42))
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	b.Unset("name")
@@ -164,22 +149,10 @@ func TestWriteNewReadOld(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := NewBuffer(schemaNew)
-	err = b.Set("name", "cola")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("price", float32(0.123))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("quantity", int32(42))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("newField", int64(1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
+	b.Set("newField", int64(1))
 	bytesNew := b.ToBytes()
 
 	schemaOld, err := YamlToSchema(schemaStr)
@@ -206,18 +179,9 @@ func TestWriteOldReadNew(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := NewBuffer(schemaOld)
-	err = b.Set("name", "cola")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("price", float32(0.123))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("quantity", int32(42))
-	if err != nil {
-		t.Fatal(err)
-	}
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
 	bytesOld := b.ToBytes()
 
 	schemaNew, err := YamlToSchema(schemaStrNew)
@@ -260,38 +224,14 @@ byte: byte
 		t.Fatal(err)
 	}
 	b := NewBuffer(s)
-	err = b.Set("int", int32(1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("long", int64(2))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("float", float32(3))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("double", float64(4))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("string", "str")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("boolFalse", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("boolTrue", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = b.Set("byte", byte(5))
-	if err != nil {
-		t.Fatal(err)
-	}
+	b.Set("int", int32(1))
+	b.Set("long", int64(2))
+	b.Set("float", float32(3))
+	b.Set("double", float64(4))
+	b.Set("string", "str")
+	b.Set("boolFalse", false)
+	b.Set("boolTrue", true)
+	b.Set("byte", byte(5))
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual, _ := b.Get("int")
@@ -312,8 +252,44 @@ byte: byte
 	assert.Equal(t, false, actual)
 }
 
-func Benchmark(b *testing.B) {
-	b.StopTimer()
+type byVal struct {
+	// fb       *flatbuffers.Builder
+	_t flatbuffers.Table
+	// m        map[string]interface{}
+}
+
+func Benchmark0Allocs(b *testing.B) {
+	res := 0
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		x := getX()
+		res += int(x._t.Pos)
+	}
+	assert.True(b, res > 0)
+	// assert.True(b, res != 0)
+}
+
+func Benchmark1Alloc(b *testing.B) {
+	res := 0
+	var x *byVal
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		x = getX()
+		res += int(x._t.Pos)
+	}
+	assert.True(b, res > 0)
+	// assert.True(b, res != 0)
+}
+
+func getX() *byVal {
+	res := &byVal{}
+	res._t.Pos = 1
+	return res
+}
+
+func BenchmarkReadTyped(b *testing.B) {
 	s, _ := YamlToSchema(schemaStrNew)
 	bf := NewBuffer(s)
 	bf.Set("name", "cola")
@@ -321,10 +297,30 @@ func Benchmark(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes := bf.ToBytes()
 
-	b.StartTimer()
+	b.ResetTimer()
 	sum := float32(0)
 	for i := 0; i < b.N; i++ {
-		bf = ReadBuffer(bytes, s)
+		bf := ReadBuffer(bytes, s)
+		price, _ := bf.GetFloat32("price")
+		quantity, _ := bf.GetInt32("quantity")
+		sum += price * float32(quantity)
+		// p.Set("newField", 1)
+		// p.ToBytes()
+	}
+}
+
+func BenchmarkUntyped(b *testing.B) {
+	s, _ := YamlToSchema(schemaStrNew)
+	bf := NewBuffer(s)
+	bf.Set("name", "cola")
+	bf.Set("price", float32(0.123))
+	bf.Set("quantity", int32(42))
+	bytes := bf.ToBytes()
+
+	b.ResetTimer()
+	sum := float32(0)
+	for i := 0; i < b.N; i++ {
+		bf := ReadBuffer(bytes, s)
 		intf, _ := bf.Get("price")
 		price := intf.(float32)
 		intf, _ = bf.Get("quantity")
@@ -384,24 +380,4 @@ func TestToJSON(t *testing.T) {
 	assert.True(t, len(dest) == 2)
 	assert.Nil(t, dest["price"])
 	assert.Equal(t, float64(42), dest["quantity"])
-}
-
-
-
-func testToJSON(b *Buffer) {
-	json := b.ToJSON()
-	fmt.Println(json)
-}
-
-// for debug purposes
-func bits(bytes []byte) string {
-	res := ""
-	for i := 0; i < len(bytes)*7; i++ {
-		if hasBit(bytes, i) {
-			res += "1"
-		} else {
-			res += "0"
-		}
-	}
-	return res
 }
