@@ -1,6 +1,6 @@
 # Dyno Buffers
 
-Wrapper for FlatBuffers which adds get\set by name ability
+Wrapper for [FlatBuffers](https://github.com/google/flatbuffers) with get\set by name feature
 
 # Abilities
 - Uses FlatBuffer to read\write raw bytes from\to array converting to the required type described in the Schema.
