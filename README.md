@@ -1,11 +1,11 @@
 # Dyno Buffers
 
-Wrapper for [FlatBuffers](https://github.com/google/flatbuffers) with get\set by name feature
+Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) with get\set by name feature
 
-# Abilities
-- Uses FlatBuffer to read\write raw bytes from\to array converting to the required type described in the Schema.
-- No codegen, no compilers, no serialization. Just fields description and get\set by name.
-- In contrast to FlatBuffers detects if the field was unset or initially not set
+# Features
+- Uses FlatBuffer to read\write values from\to byte array converting to the required type described in the Schema.
+- No codegen, no compilers, no (de)serialization. Just fields description and get\set by name.
+- In contrast to FlatBuffers tracks if the field was unset or initially not set
 - Supported types
   - `int32, int64, float32, float64, bool, string, byte`
 - Schema versioning
