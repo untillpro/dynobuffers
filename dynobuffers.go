@@ -229,7 +229,7 @@ func (b *Buffer) Set(name string, value interface{}) {
 	}
 }
 
-// ToBytes returns initial byte array with modifications made by Set().
+// ToBytes returns byte array in FlatBuffer format with field modified by Set() and fields which initially had values
 // Note: initial byte array is kept, current modifications are not discarded
 func (b *Buffer) ToBytes() []byte {
 	bl := flatbuffers.NewBuilder(0)
