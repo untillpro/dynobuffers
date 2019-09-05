@@ -1,14 +1,13 @@
 # Dyno Buffers
 
-Fielded byte array with get\set by name
+Wrapper for FlatBuffers which adds get\set by name ability
 
 # Abilities
-- 
-- Read raw bytes from array converting to the required type described in the Schema
-- No codegen, no wrappers, no compilers. Just fields description and get\set by name
-- Non-set, unset and set to nil fields takes no place
+- Uses FlatBuffer to read\write raw bytes from\to array converting to the required type described in the Schema.
+- No codegen, no compilers, no serialization. Just fields description and get\set by name.
+- In contrast to FlatBuffers detects if the field was unset or initially not set
 - Supported types
-  - `int32, int64, float32, float64, bool, string (var-size), byte`
+  - `int32, int64, float32, float64, bool, string, byte`
 - Schema versioning
   - Any data written with Schema of any version will be correctly read using Schema of any other version
     - Written in old Schema, read in New Schema -> nil result on new field read, field considered as unset
@@ -33,13 +32,13 @@ Fielded byte array with get\set by name
     - `double` -> `float64`
     - `bool` -> `bool`
     - `string` -> `string`
+    - `byte` -> `byte`
 	```go
 	var schemaStr = `
 	name: string
 	price: float
 	quantity: int
 	`
-
 	schema, err := dynobuffers.YamlToSchema(schemaStr)
 	if err != nil {
 		panic(err)
@@ -58,11 +57,8 @@ Fielded byte array with get\set by name
 	```
 - Set\modify fields according to the Schema
 	```go
-	err := b.Set("price", float32(0.123))
-	if err != nil {
-		panic(err) // current schema has no such field or value of wrong type is provided
-	}
-	b.Set("name", nil)
+	b.Set("price", float32(0.123))
+	b.Set("name", nil) // unset field
 	```
 - To bytes array
 	```go
@@ -74,25 +70,13 @@ Fielded byte array with get\set by name
 	```
 - Work with Buffer 
 	```go
-	value, isSet := b.Get("price")
-	b.Set("price", nil)
-	b.Unset("name")
+	value, ok := b.GetFloat32("price") // read typed. !ok -> field is unset or no such field in the schema. Works faster and takes less memory allocations than Get()
+	b.Get("price") // read untyped. nil -> field is unset or no such field in the schema
+	b.Set("price", nil) 
 	bytes = b.ToBytes()
 	```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
-# Binary format
-All offsets are non-relative. All fields are ordered by the Schema
-
-| var-size values offsets pos | fixed-size values pos | bit mask | fixed-size values | var-size values offsets | var-size values |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| 4 bytes | 4 bytes | len (fieldsAmount/4 + 1) | len sum(fixed-size fields sizes) | len (var-size fields amount)*8 | |
-| |	| for each field in the buffer: 1st bit - is field set, 2nd bit - is field set to nil | field types are taken from the Schema  | for each field: 1nd 4 bytes - value pos, 2nd 4 bytes - value size                 |                 |
-| | |           |       |            |                 |
-															
-
 # To do
-- Lists of nested objects
-- Lists of primitives?
+- Lists?
 - Written in New -> read in Old -> write in Old -> New fields are kept.
-- Store numbers in var-size Avro format?

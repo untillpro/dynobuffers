@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,8 +27,19 @@ quantity: int
 newField: long
 `
 
+var allTypesYaml = `
+int: int
+long: long
+float: float
+double: double
+string: string
+boolTrue: bool
+boolFalse: bool
+byte: byte
+`
+
 func TestBasicUsage(t *testing.T) {
-	s, err := YamlToSchema(schemaStr)
+	s, err := YamlToSchema(schemaStrNew)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,108 +49,114 @@ func TestBasicUsage(t *testing.T) {
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
+	b.Set("unknownField", "") // no errors, nothing will be made on ToBytes()
 	bytes := b.ToBytes()
 
 	// create from bytes
 	b = ReadBuffer(bytes, s)
 
-	actual, _ := b.Get("name")
+	actual := b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
-	actual, _ = b.Get("price")
+	actual = b.Get("price")
 	assert.Equal(t, float32(0.123), actual.(float32))
-	actual, _ = b.Get("quantity")
+	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
 
 	// modify existing
 	b.Set("price", float32(0.124))
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	actual, _ = b.Get("name")
+	actual = b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
-	actual, _ = b.Get("price")
+	actual = b.Get("price")
 	assert.Equal(t, float32(0.124), actual.(float32))
-	actual, _ = b.Get("quantity")
+	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
 
-	actual, isSet := b.Get("unknownField")
+	// unset or unknown field -> nil
+	actual = b.Get("unknownField")
 	assert.Nil(t, actual)
-	assert.False(t, isSet)
-
-	// errors
-	// type mismatch
-	assert.Panics(t, func() {
-		b.Set("name", int32(1))
-	})
-	// unknown field - nothing happens
-	b.Set("unknownField", int32(1))
+	_, ok := b.GetInt("unknownField")
+	assert.False(t, ok)
+	// field was not set -> nil
+	actual = b.Get("newField")
+	assert.Nil(t, actual)
 }
 
-func TestSetNullValue(t *testing.T) {
-	s, err := YamlToSchema(schemaStr)
+func TestNilFields(t *testing.T) {
+	s, err := YamlToSchema(allTypesYaml)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// test initially unset
 	b := NewBuffer(s)
-	b.Set("name", "cola")
-	b.Set("price", nil)
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	actual, _ := b.Get("name")
-	assert.Equal(t, string("cola"), actual)
-	actual, isSet := b.Get("price")
-	assert.Nil(t, actual)
-	assert.True(t, isSet)
+	testNilFields(t, b)
 
-	// test set null in existing
-	b.Set("name", nil)
+	//test initially set to nil
+	b.Set("int", nil)
+	b.Set("long", nil)
+	b.Set("float", nil)
+	b.Set("double", nil)
+	b.Set("string", nil)
+	b.Set("boolFalse", nil)
+	b.Set("boolTrue", nil)
+	b.Set("byte", nil)
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	actual, isSet = b.Get("name")
-	assert.Nil(t, actual)
-	assert.True(t, isSet)
-	actual, isSet = b.Get("price")
-	assert.Nil(t, actual)
-	assert.True(t, isSet)
-}
+	testNilFields(t, b)
 
-func TestNonSetField(t *testing.T) {
-	s, err := YamlToSchema(schemaStr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b := NewBuffer(s)
-	bytes := b.ToBytes()
-	b = ReadBuffer(bytes, s)
-	actual, isSet := b.Get("name")
-	assert.Nil(t, actual)
-	assert.False(t, isSet)
-	actual, isSet = b.Get("price")
-	assert.Nil(t, actual)
-	assert.False(t, isSet)
-}
-
-func TestUnsetField(t *testing.T) {
-	s, err := YamlToSchema(schemaStr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b := NewBuffer(s)
-	b.Set("name", "cola")
-	b.Set("price", float32(0.123))
-	b.Set("quantity", int32(42))
-	bytes := b.ToBytes()
-	b = ReadBuffer(bytes, s)
-	b.Unset("name")
-	b.Set("price", nil)
+	// test unset
+	b.Set("int", int32(1))
+	b.Set("long", int64(2))
+	b.Set("float", float32(3))
+	b.Set("double", float64(4))
+	b.Set("string", "str")
+	b.Set("boolFalse", false)
+	b.Set("boolTrue", true)
+	b.Set("byte", byte(5))
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	actual, isSet := b.Get("name")
-	assert.Nil(t, actual)
+	b.Set("int", nil)
+	b.Set("long", nil)
+	b.Set("float", nil)
+	b.Set("double", nil)
+	b.Set("string", nil)
+	b.Set("boolFalse", nil)
+	b.Set("boolTrue", nil)
+	b.Set("byte", nil)
+	bytes = b.ToBytes()
+	b = ReadBuffer(bytes, s)
+	testNilFields(t, b)
+}
+
+func testNilFields(t *testing.T, b *Buffer) {
+	assert.Nil(t, b.Get("int"))
+	_, isSet := b.GetInt("int")
 	assert.False(t, isSet)
-	actual, _ = b.Get("price")
-	assert.Nil(t, actual)
-	actual, _ = b.Get("quantity")
-	assert.Equal(t, int32(42), actual)
+	assert.Nil(t, b.Get("long"))
+	_, isSet = b.GetLong("long")
+	assert.False(t, isSet)
+	assert.Nil(t, b.Get("float"))
+	_, isSet = b.GetFloat("float")
+	assert.False(t, isSet)
+	assert.Nil(t, b.Get("double"))
+	_, isSet = b.GetDouble("double")
+	assert.False(t, isSet)
+	assert.Nil(t, b.Get("string"))
+	_, isSet = b.GetString("string")
+	assert.False(t, isSet)
+	assert.Nil(t, b.Get("boolFalse"))
+	_, isSet = b.GetBool("boolFalse")
+	assert.False(t, isSet)
+	assert.Nil(t, b.Get("boolTrue"))
+	_, isSet = b.GetBool("boolTrue")
+	assert.False(t, isSet)
+	assert.Nil(t, b.Get("byte"))
+	_, isSet = b.GetByte("byte")
+	assert.False(t, isSet)
 }
 
 func TestWriteNewReadOld(t *testing.T) {
@@ -161,16 +177,15 @@ func TestWriteNewReadOld(t *testing.T) {
 	}
 	b = ReadBuffer(bytesNew, schemaOld)
 
-	actual, _ := b.Get("name")
+	actual := b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
-	actual, _ = b.Get("price")
+	actual = b.Get("price")
 	assert.Equal(t, float32(0.123), actual.(float32))
-	actual, _ = b.Get("quantity")
+	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
 
-	actual, isSet := b.Get("newField")
+	actual = b.Get("newField")
 	assert.Nil(t, actual)
-	assert.False(t, isSet)
 }
 
 func TestWriteOldReadNew(t *testing.T) {
@@ -190,16 +205,15 @@ func TestWriteOldReadNew(t *testing.T) {
 	}
 	b = ReadBuffer(bytesOld, schemaNew)
 
-	actual, _ := b.Get("name")
+	actual := b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
-	actual, _ = b.Get("price")
+	actual = b.Get("price")
 	assert.Equal(t, float32(0.123), actual.(float32))
-	actual, _ = b.Get("quantity")
+	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
 
-	actual, isSet := b.Get("newField")
+	actual = b.Get("newField")
 	assert.Nil(t, actual)
-	assert.False(t, isSet)
 }
 
 func TestYamlToSchemaErrors(t *testing.T) {
@@ -209,126 +223,89 @@ func TestYamlToSchemaErrors(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestSchemaHasField(t *testing.T) {
+	s, err := YamlToSchema(schemaStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.True(t, s.HasField("name"))
+	assert.True(t, s.HasField("price"))
+	assert.True(t, s.HasField("quantity"))
+	assert.False(t, s.HasField("unexisting"))
+}
+
 func TestFieldTypes(t *testing.T) {
-	s, err := YamlToSchema(`
-int: int
-long: long
-float: float
-double: double
-string: string
-boolTrue: bool
-boolFalse: bool
-byte: byte
-`)
+	testFieldValues(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
+}
+
+func TestDefaultValuesAreValidValues(t *testing.T) {
+	// in FlatBuffers setting field to default value is considered as the field is unset
+	testFieldValues(t, int32(0), int64(0), float32(0), float64(0), "", byte(0))
+}
+
+func testFieldValues(t *testing.T, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) {
+	s, err := YamlToSchema(allTypesYaml)
 	if err != nil {
 		t.Fatal(err)
 	}
 	b := NewBuffer(s)
-	b.Set("int", int32(1))
-	b.Set("long", int64(2))
-	b.Set("float", float32(3))
-	b.Set("double", float64(4))
-	b.Set("string", "str")
+	b.Set("int", expectedInt32)
+	b.Set("long", expectedInt64)
+	b.Set("float", expectedFloat32)
+	b.Set("double", expectedFloat64)
+	b.Set("string", expectedString)
 	b.Set("boolFalse", false)
 	b.Set("boolTrue", true)
-	b.Set("byte", byte(5))
+	b.Set("byte", expectedByte)
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	actual, _ := b.Get("int")
-	assert.Equal(t, int32(1), actual)
-	actual, _ = b.Get("long")
-	assert.Equal(t, int64(2), actual)
-	actual, _ = b.Get("float")
-	assert.Equal(t, float32(3), actual)
-	actual, _ = b.Get("double")
-	assert.Equal(t, float64(4), actual)
-	actual, _ = b.Get("string")
-	assert.Equal(t, "str", actual)
-	actual, _ = b.Get("byte")
-	assert.Equal(t, byte(5), actual)
-	actual, _ = b.Get("boolTrue")
+	actual := b.Get("int")
+	actualInt, isSet := b.GetInt("int")
+	assert.Equal(t, expectedInt32, actual)
+	assert.Equal(t, expectedInt32, actualInt)
+	assert.True(t, isSet)
+
+	actual = b.Get("long")
+	actualLong, isSet := b.GetLong("long")
+	assert.Equal(t, expectedInt64, actual)
+	assert.Equal(t, expectedInt64, actualLong)
+	assert.True(t, isSet)
+
+	actual = b.Get("float")
+	actualFloat, isSet := b.GetFloat("float")
+	assert.Equal(t, expectedFloat32, actual)
+	assert.Equal(t, expectedFloat32, actualFloat)
+	assert.True(t, isSet)
+
+	actual = b.Get("double")
+	actualDouble, isSet := b.GetDouble("double")
+	assert.Equal(t, expectedFloat64, actual)
+	assert.Equal(t, expectedFloat64, actualDouble)
+	assert.True(t, isSet)
+
+	actual = b.Get("string")
+	actualString, isSet := b.GetString("string")
+	assert.Equal(t, expectedString, actual)
+	assert.Equal(t, expectedString, actualString)
+	assert.True(t, isSet)
+
+	actual = b.Get("byte")
+	actualByte, isSet := b.GetByte("byte")
+	assert.Equal(t, expectedByte, actual)
+	assert.Equal(t, expectedByte, actualByte)
+	assert.True(t, isSet)
+
+	actual = b.Get("boolTrue")
+	actualBool, isSet := b.GetBool("boolTrue")
 	assert.Equal(t, true, actual)
-	actual, _ = b.Get("boolFalse")
+	assert.Equal(t, true, actualBool)
+	assert.True(t, isSet)
+
+	actual = b.Get("boolFalse")
+	actualBool, isSet = b.GetBool("boolFalse")
 	assert.Equal(t, false, actual)
-}
-
-type byVal struct {
-	// fb       *flatbuffers.Builder
-	_t flatbuffers.Table
-	// m        map[string]interface{}
-}
-
-func Benchmark0Allocs(b *testing.B) {
-	res := 0
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		x := getX()
-		res += int(x._t.Pos)
-	}
-	assert.True(b, res > 0)
-	// assert.True(b, res != 0)
-}
-
-func Benchmark1Alloc(b *testing.B) {
-	res := 0
-	var x *byVal
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		x = getX()
-		res += int(x._t.Pos)
-	}
-	assert.True(b, res > 0)
-	// assert.True(b, res != 0)
-}
-
-func getX() *byVal {
-	res := &byVal{}
-	res._t.Pos = 1
-	return res
-}
-
-func BenchmarkReadTyped(b *testing.B) {
-	s, _ := YamlToSchema(schemaStrNew)
-	bf := NewBuffer(s)
-	bf.Set("name", "cola")
-	bf.Set("price", float32(0.123))
-	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
-
-	b.ResetTimer()
-	sum := float32(0)
-	for i := 0; i < b.N; i++ {
-		bf := ReadBuffer(bytes, s)
-		price, _ := bf.GetFloat32("price")
-		quantity, _ := bf.GetInt32("quantity")
-		sum += price * float32(quantity)
-		// p.Set("newField", 1)
-		// p.ToBytes()
-	}
-}
-
-func BenchmarkUntyped(b *testing.B) {
-	s, _ := YamlToSchema(schemaStrNew)
-	bf := NewBuffer(s)
-	bf.Set("name", "cola")
-	bf.Set("price", float32(0.123))
-	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
-
-	b.ResetTimer()
-	sum := float32(0)
-	for i := 0; i < b.N; i++ {
-		bf := ReadBuffer(bytes, s)
-		intf, _ := bf.Get("price")
-		price := intf.(float32)
-		intf, _ = bf.Get("quantity")
-		quantity := intf.(int32)
-		sum += price * float32(quantity)
-		// p.Set("newField", 1)
-		// p.ToBytes()
-	}
+	assert.Equal(t, false, actualBool)
+	assert.True(t, isSet)
 }
 
 func TestToJSON(t *testing.T) {
@@ -343,6 +320,7 @@ func TestToJSON(t *testing.T) {
 	json.Unmarshal([]byte(jsonStr), &dest)
 	assert.True(t, len(dest) == 0)
 
+	// basic test
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
@@ -353,31 +331,42 @@ func TestToJSON(t *testing.T) {
 	assert.Equal(t, float64(0.123), dest["price"])
 	assert.Equal(t, float64(42), dest["quantity"])
 
-	bytes := b.ToBytes()
-	b = ReadBuffer(bytes, schema)
-
-	jsonStr = b.ToJSON()
-	json.Unmarshal([]byte(jsonStr), &dest)
-	assert.True(t, len(dest) == 3)
-	assert.Equal(t, "cola", dest["name"])
-	assert.Equal(t, float64(0.123), dest["price"])
-	assert.Equal(t, float64(42), dest["quantity"])
-
-	b.Unset("name")
-	b.Set("price", nil)
+	// test field initially not set
+	b = NewBuffer(schema)
+	b.Set("name", "cola")
+	b.Set("quantity", int32(42))
 	jsonStr = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal([]byte(jsonStr), &dest)
 	assert.True(t, len(dest) == 2)
-	assert.Nil(t, dest["price"])
+	assert.Equal(t, "cola", dest["name"])
 	assert.Equal(t, float64(42), dest["quantity"])
 
+	// test field not set on ReadBuffer
+	bytes := b.ToBytes()
+	b = ReadBuffer(bytes, schema)
+
+	jsonStr = b.ToJSON()
+	dest = map[string]interface{}{}
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 2)
+	assert.Equal(t, "cola", dest["name"])
+	assert.Equal(t, float64(42), dest["quantity"])
+
+	// test unset field
+	b.Set("quantity", nil)
+	jsonStr = b.ToJSON()
+	dest = map[string]interface{}{}
+	json.Unmarshal([]byte(jsonStr), &dest)
+	assert.True(t, len(dest) == 1)
+	assert.Equal(t, "cola", dest["name"])
+
+	// test read unset field
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, schema)
 	jsonStr = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal([]byte(jsonStr), &dest)
-	assert.True(t, len(dest) == 2)
-	assert.Nil(t, dest["price"])
-	assert.Equal(t, float64(42), dest["quantity"])
+	assert.True(t, len(dest) == 1)
+	assert.Equal(t, "cola", dest["name"])
 }
