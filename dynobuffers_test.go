@@ -61,6 +61,7 @@ func TestBasicUsage(t *testing.T) {
 	assert.Equal(t, float32(0.123), actual.(float32))
 	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
+	actual = b.Get("newField")
 
 	// modify existing
 	b.Set("price", float32(0.124))
@@ -91,6 +92,7 @@ func TestNilFields(t *testing.T) {
 
 	// test initially unset
 	b := NewBuffer(s)
+	testNilFields(t, b)
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
@@ -234,16 +236,25 @@ func TestSchemaHasField(t *testing.T) {
 	assert.False(t, s.HasField("unexisting"))
 }
 
+func TestToBytesFilledUnmodified(t *testing.T) {
+	b := getBufferAllFields(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
+	bytes := b.ToBytes()
+	b = ReadBuffer(bytes, b.schema)
+	testFieldValues(t, b, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
+}
+
 func TestFieldTypes(t *testing.T) {
-	testFieldValues(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
+	b := getBufferAllFields(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
+	testFieldValues(t, b, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 }
 
 func TestDefaultValuesAreValidValues(t *testing.T) {
 	// in FlatBuffers setting field to default value is considered as the field is unset
-	testFieldValues(t, int32(0), int64(0), float32(0), float64(0), "", byte(0))
+	b := getBufferAllFields(t, int32(0), int64(0), float32(0), float64(0), "", byte(0))
+	testFieldValues(t, b, int32(0), int64(0), float32(0), float64(0), "", byte(0))
 }
 
-func testFieldValues(t *testing.T, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) {
+func getBufferAllFields(t *testing.T, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) *Buffer {
 	s, err := YamlToSchema(allTypesYaml)
 	if err != nil {
 		t.Fatal(err)
@@ -259,6 +270,10 @@ func testFieldValues(t *testing.T, expectedInt32 int32, expectedInt64 int64, exp
 	b.Set("byte", expectedByte)
 	bytes := b.ToBytes()
 	b = ReadBuffer(bytes, s)
+	return b
+}
+
+func testFieldValues(t *testing.T, b *Buffer, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) {
 	actual := b.Get("int")
 	actualInt, ok := b.GetInt("int")
 	assert.Equal(t, expectedInt32, actual)
@@ -369,4 +384,29 @@ func TestToJSON(t *testing.T) {
 	json.Unmarshal([]byte(jsonStr), &dest)
 	assert.True(t, len(dest) == 1)
 	assert.Equal(t, "cola", dest["name"])
+}
+
+func TestDifferentOrder(t *testing.T) {
+	s, err := YamlToSchema(schemaStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := NewBuffer(s)
+	b.Set("quantity", int32(42))
+	b.Set("Name", "cola")
+	b.Set("price", float32(0.123))
+	bytes := b.ToBytes()
+
+	b = ReadBuffer(bytes, s)
+	b.Set("price", float32(0.124))
+	b.Set("name", "new cola")
+	bytes = b.ToBytes()
+
+	b = ReadBuffer(bytes, s)
+	actual := b.Get("name")
+	assert.Equal(t, "new cola", actual.(string))
+	actual = b.Get("price")
+	assert.Equal(t, float32(0.124), actual.(float32))
+	actual = b.Get("quantity")
+	assert.Equal(t, int32(42), actual.(int32))
 }

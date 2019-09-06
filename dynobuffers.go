@@ -51,21 +51,28 @@ var yamlFieldTypesMap = map[string]FieldType{
 
 // Buffer is wrapper for FlatBuffers
 type Buffer struct {
-	schema               *Schema
-	modifiedFields       map[string]interface{}
-	modifiedStringFields map[string]interface{}
-	tab                  flatbuffers.Table
+	schema         *Schema
+	modifiedFields []*modifiedField
+	tab            flatbuffers.Table
 }
 
 type field struct {
+	name  string
 	ft    FieldType
 	order int
 }
 
+type modifiedField struct {
+	field
+	value       interface{}
+	strUOffsetT flatbuffers.UOffsetT
+}
+
 // Schema s.e.
 type Schema struct {
-	fields            map[string]*field
-	fieldsOrderedList []string
+	fields        map[string]*field
+	fieldsOrdered []*field
+	stringFields  []*field
 }
 
 // NewBuffer creates new empty Buffer
@@ -75,7 +82,7 @@ func NewBuffer(schema *Schema) *Buffer {
 	return b
 }
 
-// GetInt returns int32 value by name and if the schema contains the field and the value was set
+// GetInt returns int32 value by name and if the schema contains the field and the value was set to non-nil
 func (b *Buffer) GetInt(name string) (int32, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -84,7 +91,7 @@ func (b *Buffer) GetInt(name string) (int32, bool) {
 	return int32(0), false
 }
 
-// GetFloat returns float32 value by name and if the schema contains the field and if the value was set
+// GetFloat returns float32 value by name and if the schema contains the field and if the value was set to non-nil
 func (b *Buffer) GetFloat(name string) (float32, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -93,7 +100,7 @@ func (b *Buffer) GetFloat(name string) (float32, bool) {
 	return float32(0), false
 }
 
-// GetString returns string value by name and if the schema contains the field and if the value was set
+// GetString returns string value by name and if the schema contains the field and if the value was set to non-nil
 func (b *Buffer) GetString(name string) (string, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -102,7 +109,7 @@ func (b *Buffer) GetString(name string) (string, bool) {
 	return "", false
 }
 
-// GetLong returns int64 value by name and if the schema contains the field and if the value was set
+// GetLong returns int64 value by name and if the schema contains the field and if the value was set to non-nil
 func (b *Buffer) GetLong(name string) (int64, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -111,7 +118,7 @@ func (b *Buffer) GetLong(name string) (int64, bool) {
 	return int64(0), false
 }
 
-// GetDouble returns float64 value by name and if the schema contains the field and if the value was set
+// GetDouble returns float64 value by name and if the schema contains the field and if the value was set to non-nil
 func (b *Buffer) GetDouble(name string) (float64, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -120,7 +127,7 @@ func (b *Buffer) GetDouble(name string) (float64, bool) {
 	return float64(0), false
 }
 
-// GetByte returns byte value by name and if the schema contains the field and if the value was set
+// GetByte returns byte value by name and if the schema contains the field and if the value was set to non-nil
 func (b *Buffer) GetByte(name string) (byte, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -129,7 +136,7 @@ func (b *Buffer) GetByte(name string) (byte, bool) {
 	return byte(0), false
 }
 
-// GetBool returns bool value by name and if the schema contains the field and if the value was set
+// GetBool returns bool value by name and if the schema contains the field and if the value was set to non-nil
 func (b *Buffer) GetBool(name string) (bool, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -137,8 +144,11 @@ func (b *Buffer) GetBool(name string) (bool, bool) {
 	}
 	return false, false
 }
- 
+
 func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
+	if len(b.tab.Bytes) == 0 {
+		return 0
+	}
 	if f, ok := b.schema.fields[name]; ok {
 		return b.getFieldUOffsetTByOrder(f.order)
 	}
@@ -146,57 +156,53 @@ func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
 }
 
 func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
+	if len(b.tab.Bytes) == 0 {
+		return 0
+	}
 	return flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((order + 2) * 2)))
+}
+
+func (b *Buffer) getByStringField(f *field) (string, bool) {
+	o := b.getFieldUOffsetTByOrder(f.order)
+	if o == 0 {
+		return "", false
+	}
+	return string(b.tab.ByteVector(o + b.tab.Pos)), true
+}
+
+func (b *Buffer) getByField(f *field) interface{} {
+	o := b.getFieldUOffsetTByOrder(f.order)
+	if o == 0 {
+		return nil
+	}
+	uOffsetT := o + b.tab.Pos
+	switch f.ft {
+	case FieldTypeInt:
+		return b.tab.GetInt32(uOffsetT)
+	case FieldTypeLong:
+		return b.tab.GetInt64(uOffsetT)
+	case FieldTypeFloat:
+		return b.tab.GetFloat32(uOffsetT)
+	case FieldTypeDouble:
+		return b.tab.GetFloat64(uOffsetT)
+	case FieldTypeByte:
+		return b.tab.GetByte(uOffsetT)
+	case FieldTypeBool:
+		return b.tab.GetBool(uOffsetT)
+	default:
+		return string(b.tab.ByteVector(uOffsetT))
+	}
 }
 
 // Get returns stored field value by name.
 // nil -> field is unset or no such field in the schema
 func (b *Buffer) Get(name string) interface{} {
-	if len(b.tab.Bytes) == 0 {
-		return nil
-	}
 	f, ok := b.schema.fields[name]
 	if !ok {
 		return nil
 	}
-	o := b.getFieldUOffsetTByOrder(f.order)
-	switch f.ft {
-	case FieldTypeInt:
-		if o != 0 {
-			return b.tab.GetInt32(o + b.tab.Pos)
-		}
-		return nil
-	case FieldTypeLong:
-		if o != 0 {
-			return b.tab.GetInt64(o + b.tab.Pos)
-		}
-		return nil
-	case FieldTypeFloat:
-		if o != 0 {
-			return b.tab.GetFloat32(o + b.tab.Pos)
-		}
-		return nil
-	case FieldTypeDouble:
-		if o != 0 {
-			return b.tab.GetFloat64(o + b.tab.Pos)
-		}
-		return nil
-	case FieldTypeByte:
-		if o != 0 {
-			return b.tab.GetByte(o + b.tab.Pos)
-		}
-		return nil
-	case FieldTypeBool:
-		if o != 0 {
-			return b.tab.GetBool(o + b.tab.Pos)
-		}
-		return nil
-	default:
-		if o != 0 {
-			return string(b.tab.ByteVector(o + b.tab.Pos))
-		}
-		return nil
-	}
+	return b.getByField(f)
+
 }
 
 // ReadBuffer creates Buffer from bytes using provided Schema
@@ -216,53 +222,49 @@ func (b *Buffer) Set(name string, value interface{}) {
 	if !ok {
 		return
 	}
-	if f.ft == FieldTypeString {
-		if b.modifiedStringFields == nil {
-			b.modifiedStringFields = map[string]interface{}{}
-		}
-		b.modifiedStringFields[name] = value
-	} else {
-		if b.modifiedFields == nil {
-			b.modifiedFields = map[string]interface{}{}
-		}
-		b.modifiedFields[name] = value
+	if len(b.modifiedFields) == 0 {
+		b.modifiedFields = make([]*modifiedField, len(b.schema.fieldsOrdered))
 	}
+	b.modifiedFields[f.order] = &modifiedField{field{name, f.ft, f.order}, value, 0}
 }
 
-// ToBytes returns byte array in FlatBuffer format with field modified by Set() and fields which initially had values
-// Note: initial byte array is kept, current modifications are not discarded
+// ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
+// Note: initial byte array and current modifications are kept
 func (b *Buffer) ToBytes() []byte {
 	bl := flatbuffers.NewBuilder(0)
-	stringUOffsetTs := map[string]flatbuffers.UOffsetT{}
-	for _, fieldName := range b.schema.fieldsOrderedList {
-		if b.schema.fields[fieldName].ft == FieldTypeString {
-			var strToWrite interface{}
-			if modifiedString, ok := b.modifiedStringFields[fieldName]; ok {
-				strToWrite = modifiedString
-			} else {
-				strToWrite = b.Get(fieldName)
+
+	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.schema.fieldsOrdered))
+	if len(b.modifiedFields) == 0 {
+		b.modifiedFields = make([]*modifiedField, len(b.schema.fieldsOrdered))		
+	}
+
+	for _, stringField := range b.schema.stringFields {
+		modifiedStringField := b.modifiedFields[stringField.order]
+		if modifiedStringField != nil {
+			if modifiedStringField.value != nil {
+				strUOffsetTs[stringField.order] = bl.CreateString(modifiedStringField.value.(string))
 			}
-			if strToWrite != nil {
-				stringUOffsetTs[fieldName] = bl.CreateString(strToWrite.(string))
+		} else {
+			if strToWrite, ok := b.getByStringField(stringField); ok {
+				strUOffsetTs[stringField.order] = bl.CreateString(strToWrite)
 			}
 		}
 	}
+
 	bl.StartObject(len(b.schema.fields))
-	for i, fieldName := range b.schema.fieldsOrderedList {
-		if strUOffsetT, ok := stringUOffsetTs[fieldName]; ok {
-			bl.PrependUOffsetTSlot(i, strUOffsetT, 0)
+	for _, f := range b.schema.fieldsOrdered {
+		if f.ft == FieldTypeString {
+			if strUOffsetTs[f.order] > 0 {
+				bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
+			}
 		} else {
-			ft := b.schema.fields[fieldName].ft
-			if value, ok := b.modifiedFields[fieldName]; !ok {
-				// get existing only if the object was read
-				value = b.Get(fieldName)
-				if value != nil {
-					encodeValue(bl, fieldName, ft, i, value)
+			modifiedField := b.modifiedFields[f.order]
+			if modifiedField != nil {
+				if modifiedField.value != nil {
+					encodeValue(bl, f, modifiedField.value)
 				}
 			} else {
-				if value != nil {
-					encodeValue(bl, fieldName, ft, i, value)
-				}
+				copyNonStringField(bl, b, f)
 			}
 		}
 	}
@@ -271,8 +273,31 @@ func (b *Buffer) ToBytes() []byte {
 	return bl.FinishedBytes()
 }
 
-func encodeValue(bl *flatbuffers.Builder, fieldName string, ft FieldType, order int, value interface{}) {
-	switch ft {
+func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *field) {
+	offset := src.getFieldUOffsetTByOrder(f.order)
+	if offset == 0 {
+		return
+	}
+	offset += src.tab.Pos
+	switch f.ft {
+	case FieldTypeInt:
+		dest.PrependInt32(src.tab.GetInt32(offset))
+	case FieldTypeLong:
+		dest.PrependInt64(src.tab.GetInt64(offset))
+	case FieldTypeFloat:
+		dest.PrependFloat32(src.tab.GetFloat32(offset))
+	case FieldTypeDouble:
+		dest.PrependFloat64(src.tab.GetFloat64(offset))
+	case FieldTypeByte:
+		dest.PrependByte(src.tab.GetByte(offset))
+	case FieldTypeBool:
+		dest.PrependBool(src.tab.GetBool(offset))
+	}
+	dest.Slot(f.order)
+}
+
+func encodeValue(bl *flatbuffers.Builder, f *field, value interface{}) {
+	switch f.ft {
 	case FieldTypeInt:
 		bl.PrependInt32(value.(int32))
 	case FieldTypeLong:
@@ -286,7 +311,7 @@ func encodeValue(bl *flatbuffers.Builder, fieldName string, ft FieldType, order 
 	case FieldTypeBool:
 		bl.PrependBool(value.(bool))
 	}
-	bl.Slot(order)
+	bl.Slot(f.order)
 }
 
 // ToJSON returns JSON flat key->value string
@@ -294,17 +319,20 @@ func (b *Buffer) ToJSON() string {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
-	for _, fieldName := range b.schema.fieldsOrderedList {
+	for _, f := range b.schema.fields {
 		var value interface{}
-		if strValue, ok := b.modifiedStringFields[fieldName]; ok {
-			value = strValue
-		} else if nonStrValue, ok := b.modifiedFields[fieldName]; ok {
-			value = nonStrValue
+		if len(b.modifiedFields) == 0 {
+			value = b.getByField(f)
 		} else {
-			value = b.Get(fieldName)
+			modifiedField := b.modifiedFields[f.order]
+			if modifiedField != nil {
+				value = modifiedField.value
+			} else {
+				value = b.getByField(f)
+			}
 		}
 		if value != nil {
-			buf.WriteString("\"" + fieldName + "\": ")
+			buf.WriteString("\"" + f.name + "\": ")
 			e.Encode(value)
 			buf.WriteString(",")
 		}
@@ -318,13 +346,17 @@ func (b *Buffer) ToJSON() string {
 
 // NewSchema creates new empty schema
 func NewSchema() *Schema {
-	return &Schema{map[string]*field{}, []string{}}
+	return &Schema{map[string]*field{}, []*field{}, []*field{}}
 }
 
 // AddField appends schema with new field
 func (s *Schema) AddField(name string, ft FieldType) {
-	s.fields[name] = &field{ft, len(s.fieldsOrderedList)}
-	s.fieldsOrderedList = append(s.fieldsOrderedList, name)
+	newField := &field{name, ft, len(s.fields)}
+	s.fields[name] = newField
+	s.fieldsOrdered = append(s.fieldsOrdered, newField)
+	if ft == FieldTypeString {
+		s.stringFields = append(s.stringFields, newField)
+	}
 }
 
 // HasField returns if the Schema contains the specified field
