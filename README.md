@@ -72,7 +72,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	```go
 	value, ok := b.GetFloat32("price") // read typed. !ok -> field is unset or no such field in the schema. Works faster and takes less memory allocations than Get()
 	b.Get("price") // read untyped. nil -> field is unset or no such field in the schema
-	b.Set("price", nil) 
+	b.Set("price", nil) // set to nil means unset
 	bytes = b.ToBytes()
 	```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
