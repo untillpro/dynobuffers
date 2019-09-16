@@ -54,7 +54,6 @@ func TestBasicUsage(t *testing.T) {
 
 	// create from bytes
 	b = ReadBuffer(bytes, s)
-
 	actual := b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
 	actual = b.Get("price")
@@ -65,10 +64,11 @@ func TestBasicUsage(t *testing.T) {
 
 	// modify existing
 	b.Set("price", float32(0.124))
+	b.Set("name", nil) // set to nil is equivalent to unset
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual = b.Get("name")
-	assert.Equal(t, "cola", actual.(string))
+	assert.Nil(t, actual)
 	actual = b.Get("price")
 	assert.Equal(t, float32(0.124), actual.(float32))
 	actual = b.Get("quantity")
