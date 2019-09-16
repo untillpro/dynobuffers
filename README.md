@@ -80,16 +80,47 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	bytes = b.ToBytes()
 	```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
-- Benchmarks
-  - [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) for read benchmarks comparing to Avro, FlatBuffers, JSON
-  - [benchmarks\benchReadWrite_test.go](benchmarks\benchReadWrite_test.go) for read and write benchmarks comparing to Avro, FlatBuffers, JSON
-  - Benchmarks naming
-    - BenchmarkWrite... - benchmark read, change 1 field and write
-    - BenchmarkRead... - benchmark read only
-    - ...Simple... - schema with 3 fields, read and multiply 2 fields
-    - ...Article... - schema with 123 fields
-    - ...ReadFewFields... - read and multiply 2 fields
-    - ...ReadAllFields... - read all fields
+
+# Benchmarks
+## Description
+- [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
+- [benchmarks\benchReadWrite_test.go](benchmarks\benchReadWrite_test.go) read and write benchmarks comparing to Avro, FlatBuffers, JSON
+- Benchmarks naming
+  - BenchmarkWrite... - benchmark read, change 1 field and write
+  - BenchmarkRead... - benchmark read only
+  - ...Simple... - schema with 3 fields, read and multiply 2 fields
+  - ...Article... - schema with 123 fields
+  - ...ReadFewFields... - read and multiply 2 fields
+  - ...ReadAllFields... - read all fields
+## Results
+- Schema of 123 fields, read and multiply 2 fields, change 1 field and write
+```
+DynoBuffers    	  	    200000	      8763 ns/op	    5240 B/op	      41 allocs/op
+FlatBuffers         	    300000	      5702 ns/op	    3672 B/op	      19 allocs/op
+Json                	     10000	    201575 ns/op	   29096 B/op	     857 allocs/op
+LinkedInAvro                100000	     25173 ns/op	   11929 B/op	     176 allocs/op
+```
+- Schema of 3 fields, read and multiply 2 fields
+```
+DynoBuffers               20000000	      65.0 ns/op	       0 B/op	       0 allocs/op
+FlatBuffers               50000000	      33.2 ns/op	       0 B/op	       0 allocs/op
+Json                        500000	      2660 ns/op	     760 B/op	      21 allocs/op
+LinkedInAvro               2000000	       859 ns/op	     744 B/op	      10 allocs/op
+```
+- Schema of 123 fields, read and multiple 2 fields
+```
+DynoBuffers     	  20000000	      83.2 ns/op	       0 B/op	       0 allocs/op
+FlatBuffers          	 100000000	      26.5 ns/op	       0 B/op	       0 allocs/op
+Json                 	     10000	    108663 ns/op	   13730 B/op	     604 allocs/op
+LinkedInAvro         	    100000	     14936 ns/op	   11257 B/op	     149 allocs/op
+```
+- Schema of 123 fields, simply read all fields
+```
+DynoBuffers      	    300000	      4935 ns/op	      35 B/op	      11 allocs/op
+FlatBuffers          	   1000000	      1421 ns/op	       0 B/op	       0 allocs/op
+Json                 	     10000	    116814 ns/op	   14130 B/op	     603 allocs/op
+LinkedInAvro         	    100000	     19187 ns/op	   11257 B/op	     149 allocs/op
+```
 
 # To do
 - Lists?

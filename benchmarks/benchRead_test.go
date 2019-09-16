@@ -786,6 +786,162 @@ func BenchmarkReadDynoBufferArticleReadAllFieldsTyped(b *testing.B) {
 	}
 }
 
+func BenchmarkReadLinkedInAvroArticleReadAllFields(b *testing.B) {
+	schemaStr, err := ioutil.ReadFile("article.avsc")
+	if err != nil {
+		b.Fatal(err)
+	}
+	codec, err := goavro.NewCodec(string(schemaStr))
+	if err != nil {
+		b.Fatal(err)
+	}
+	articleData, err := ioutil.ReadFile("articleData.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	native, _, err := codec.NativeFromTextual(articleData)
+	if err != nil {
+		b.Fatal(err)
+	}
+	bytes, err := codec.BinaryFromNative(nil, native)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		native, _, err = codec.NativeFromBinary(bytes)
+		if err != nil {
+			b.Fatal(err)
+		}
+		decoded := native.(map[string]interface{})
+		_ = decoded["id"]
+		_ = decoded["article_number"]
+		_ = decoded["name"]
+		_ = decoded["internal_name"]
+		_ = decoded["article_manual"]
+		_ = decoded["article_hash"]
+		_ = decoded["id_courses"]
+		_ = decoded["id_departament"]
+		_ = decoded["pc_bitmap"]
+		_ = decoded["pc_color"]
+		_ = decoded["pc_text"]
+		_ = decoded["pc_font_name"]
+		_ = decoded["pc_font_size"]
+		_ = decoded["pc_font_attr"]
+		_ = decoded["pc_font_color"]
+		_ = decoded["rm_text"]
+		_ = decoded["rm_font_size"]
+		_ = decoded["id_packing"]
+		_ = decoded["id_commission"]
+		_ = decoded["id_promotions"]
+		_ = decoded["savepoints"]
+		_ = decoded["quantity"]
+		_ = decoded["hideonhold"]
+		_ = decoded["barcode"]
+		_ = decoded["time_active"]
+		_ = decoded["aftermin"]
+		_ = decoded["periodmin"]
+		_ = decoded["roundmin"]
+		_ = decoded["id_currency"]
+		_ = decoded["control_active"]
+		_ = decoded["control_time"]
+		_ = decoded["plu_number_vanduijnen"]
+		_ = decoded["sequence"]
+		_ = decoded["rm_sequence"]
+		_ = decoded["purchase_price"]
+		_ = decoded["id_vd_group"]
+		_ = decoded["menu"]
+		_ = decoded["sensitive"]
+		_ = decoded["sensitive_option"]
+		_ = decoded["daily_stock"]
+		_ = decoded["info"]
+		_ = decoded["warning_level"]
+		_ = decoded["free_after_pay"]
+		_ = decoded["id_food_group"]
+		_ = decoded["article_type"]
+		_ = decoded["id_inventory_item"]
+		_ = decoded["id_recipe"]
+		_ = decoded["id_unity_sales"]
+		_ = decoded["can_savepoints"]
+		_ = decoded["show_in_kitchen_screen"]
+		_ = decoded["decrease_savepoints"]
+		_ = decoded["hht_color"]
+		_ = decoded["hht_font_name"]
+		_ = decoded["hht_font_size"]
+		_ = decoded["hht_font_attr"]
+		_ = decoded["hht_font_color"]
+		_ = decoded["tip"]
+		_ = decoded["id_beco_group"]
+		_ = decoded["id_beco_location"]
+		_ = decoded["bc_standard_dosage"]
+		_ = decoded["bc_alternative_dosage"]
+		_ = decoded["bc_disablebalance"]
+		_ = decoded["bc_use_locations"]
+		_ = decoded["time_rate"]
+		_ = decoded["id_free_option"]
+		_ = decoded["party_article"]
+		_ = decoded["id_pua_groups"]
+		_ = decoded["promo"]
+		_ = decoded["one_hand_limit"]
+		_ = decoded["consolidate_quantity"]
+		_ = decoded["consolidate_alias_name"]
+		_ = decoded["hq_id"]
+		_ = decoded["is_active"]
+		_ = decoded["is_active_modified"]
+		_ = decoded["is_active_modifier"]
+		_ = decoded["rent_price_type"]
+		_ = decoded["id_rental_group"]
+		_ = decoded["condition_check_in_order"]
+		_ = decoded["weight_required"]
+		_ = decoded["daily_numeric_1"]
+		_ = decoded["daily_numeric_2"]
+		_ = decoded["prep_min"]
+		_ = decoded["id_article_ksp"]
+		_ = decoded["warn_min"]
+		_ = decoded["empty_article"]
+		_ = decoded["bc_debitcredit"]
+		_ = decoded["prep_sec"]
+		_ = decoded["id_suppliers"]
+		_ = decoded["main_price"]
+		_ = decoded["oman_text"]
+		_ = decoded["id_age_groups"]
+		_ = decoded["surcharge"]
+		_ = decoded["info_data"]
+		_ = decoded["pos_disabled"]
+		_ = decoded["ml_name"]
+		_ = decoded["ml_ks_name"]
+		_ = decoded["alt_articles"]
+		_ = decoded["alt_alias"]
+		_ = decoded["need_prep"]
+		_ = decoded["auto_onhold"]
+		_ = decoded["id_ks_wf"]
+		_ = decoded["ks_wf_type"]
+		_ = decoded["ask_course"]
+		_ = decoded["popup_info"]
+		_ = decoded["allow_order_items"]
+		_ = decoded["must_combined"]
+		_ = decoded["block_discount"]
+		_ = decoded["has_default_options"]
+		_ = decoded["hht_default_setting"]
+		_ = decoded["oman_default_setting"]
+		_ = decoded["id_rent_periods"]
+		_ = decoded["delay_separate_mins"]
+		_ = decoded["id_ksc"]
+		_ = decoded["ml_pc_text"]
+		_ = decoded["ml_rm_text"]
+		_ = decoded["ml_oman_text"]
+		_ = decoded["pos_article_type"]
+		_ = decoded["single_free_option"]
+		_ = decoded["ks_single_item"]
+		_ = decoded["allergen"]
+		_ = decoded["auto_resetcourse"]
+		_ = decoded["block_transfer"]
+		_ = decoded["id_size_modifier"]
+	}
+
+}
+
 func BenchmarkMap(b *testing.B) {
 	scheme := map[string]interface{}{}
 	for i := 0; i < 122; i++ {
