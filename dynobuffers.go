@@ -319,7 +319,7 @@ func (b *Buffer) ToJSON() string {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
-	for _, f := range b.schema.fields {
+	for _, f := range b.schema.fieldsOrdered {
 		var value interface{}
 		if len(b.modifiedFields) == 0 {
 			value = b.getByField(f)
