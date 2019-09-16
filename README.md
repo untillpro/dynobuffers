@@ -80,6 +80,16 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	bytes = b.ToBytes()
 	```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
+- Benchmarks
+  - [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) for read benchmarks comparing to Avro, FlatBuffers, JSON
+  - [benchmarks\benchReadWrite_test.go](benchmarks\benchReadWrite_test.go) for read and write benchmarks comparing to Avro, FlatBuffers, JSON
+  - Benchmarks naming
+    - BenchmarkWrite... - benchmark read, change 1 field and write
+    - BenchmarkRead... - benchmark read only
+    - ...Simple... - schema with 3 fields, read and multiply 2 fields
+    - ...Article... - schema with 123 fields
+    - ...ReadFewFields... - read and multiply 2 fields
+    - ...ReadAllFields... - read all fields
 
 # To do
 - Lists?
