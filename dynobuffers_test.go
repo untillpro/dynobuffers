@@ -49,7 +49,7 @@ func TestBasicUsage(t *testing.T) {
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
-	b.Set("unknownField", "") // no errors, nothing will be made on ToBytes()
+	b.Set("unknownField", "") // no errors, nothing will be me on ToBytes()
 	bytes := b.ToBytes()
 
 	// create from bytes
