@@ -235,7 +235,7 @@ func (b *Buffer) ToBytes() []byte {
 
 	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.schema.fieldsOrdered))
 	if len(b.modifiedFields) == 0 {
-		b.modifiedFields = make([]*modifiedField, len(b.schema.fieldsOrdered))		
+		b.modifiedFields = make([]*modifiedField, len(b.schema.fieldsOrdered))
 	}
 
 	for _, stringField := range b.schema.stringFields {
@@ -365,19 +365,77 @@ func (s *Schema) HasField(name string) bool {
 	return ok
 }
 
+func (s *Schema) MarshalText() (text []byte, err error) {
+	return []byte(s.ToYaml()), nil
+}
+
+// CanBeAssigned checks if correct value is provided for the field. Returns if schema contains such field and its type equal to the value type
+func (s *Schema) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
+	f, ok := s.fields[fieldName]
+	if !ok {
+		return false
+	}
+	var ft FieldType
+	switch fieldValue.(type) {
+	case int32:
+		ft = FieldTypeInt
+	case int64:
+		ft = FieldTypeLong
+	case float32:
+		ft = FieldTypeFloat
+	case float64:
+		ft = FieldTypeDouble
+	case byte:
+		ft = FieldTypeByte
+	case string:
+		ft = FieldTypeString
+	case bool:
+		ft = FieldTypeBool
+	default:
+		return false
+	}
+	return ft == f.ft
+}
+
+func (s *Schema) UnmarshalText(text []byte) error {
+	newS, err := YamlToSchema(string(text))
+	if err != nil {
+		return err
+	}
+	s.fields = newS.fields
+	s.fieldsOrdered = newS.fieldsOrdered
+	s.stringFields = newS.stringFields
+	return nil
+}
+
+func (s *Schema) ToYaml() string {
+	buf := bytes.NewBufferString("")
+	for _, f := range s.fieldsOrdered {
+		ftStr := ""
+		for yamlFtStr, ft := range yamlFieldTypesMap {
+			if ft == f.ft {
+				ftStr = yamlFtStr
+				break
+			}
+		}
+		buf.WriteString(f.name + ": " + ftStr + "\n")
+	}
+	return buf.String()
+}
+
 /*
-YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
+ YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
 
-Field types:
-  - `int` -> `int32`
-  - `long` -> `int64`
-  - `float` -> `float32`
-  - `double` -> `float64`
-  - `bool` -> `bool`
-  - `string` -> `string`
-  - `byte` -> `byte`
+ Field types:
+   - `int` -> `int32`
+   - `long` -> `int64`
+   - `float` -> `float32`
+   - `double` -> `float64`
+   - `bool` -> `bool`
+   - `string` -> `string`
+   - `byte` -> `byte`
 
-See [dynobuffers_test.go](dynobuffers_test.go) for examples
+ See [dynobuffers_test.go](dynobuffers_test.go) for examples
 */
 func YamlToSchema(yamlStr string) (*Schema, error) {
 	schema := NewSchema()
