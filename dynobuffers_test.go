@@ -9,9 +9,11 @@ package dynobuffers
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 )
 
 var schemaStr = `
@@ -409,4 +411,52 @@ func TestDifferentOrder(t *testing.T) {
 	assert.Equal(t, float32(0.124), actual.(float32))
 	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
+}
+
+func TestSchemaToFromYaml(t *testing.T) {
+	schema, err := YamlToSchema(schemaStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes, err := yaml.Marshal(schema)
+	schemaNew := NewSchema()
+	err = yaml.Unmarshal(bytes, &schemaNew)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.True(t, reflect.DeepEqual(schema.fieldsOrdered, schemaNew.fieldsOrdered))
+	assert.True(t, reflect.DeepEqual(schema.fields, schemaNew.fields))
+	assert.True(t, reflect.DeepEqual(schema.stringFields, schemaNew.stringFields))
+
+	schemaNew = NewSchema()
+	err = yaml.Unmarshal([]byte("wrong "), &schemaNew)
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestCanBeAssigned(t *testing.T) {
+	schema, err := YamlToSchema(allTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.False(t, schema.CanBeAssigned("unexisting", 0))
+	assert.False(t, schema.CanBeAssigned("string", 0))
+	assert.True(t, schema.CanBeAssigned("string", "str"))
+	assert.False(t, schema.CanBeAssigned("int", 0))
+	assert.True(t, schema.CanBeAssigned("int", int32(0)))
+	assert.False(t, schema.CanBeAssigned("long", 0))
+	assert.True(t, schema.CanBeAssigned("long", int64(0)))
+	assert.False(t, schema.CanBeAssigned("float", 0))
+	assert.True(t, schema.CanBeAssigned("float", float32(0)))
+	assert.False(t, schema.CanBeAssigned("double", 0))
+	assert.True(t, schema.CanBeAssigned("double", float64(0)))
+	assert.False(t, schema.CanBeAssigned("string", 0))
+	assert.True(t, schema.CanBeAssigned("string", "str"))
+	assert.False(t, schema.CanBeAssigned("boolTrue", 0))
+	assert.True(t, schema.CanBeAssigned("boolTrue", true))
+	assert.False(t, schema.CanBeAssigned("byte", "str"))
+	assert.True(t, schema.CanBeAssigned("byte", byte(0)))
 }
