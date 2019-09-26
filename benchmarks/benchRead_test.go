@@ -6,10 +6,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/host6/dynobuffers"
-
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
+	"github.com/untillpro/dynobuffers"
 )
 
 func BenchmarkReadDynoBuffersSimpleTyped(b *testing.B) {

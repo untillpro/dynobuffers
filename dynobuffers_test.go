@@ -9,6 +9,7 @@ package dynobuffers
 
 import (
 	"encoding/json"
+	"math"
 	"reflect"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestBasicUsage(t *testing.T) {
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
-	b.Set("unknownField", "") // no errors, nothing will be me on ToBytes()
+	b.Set("unknownField", "") // no errors, nothing will be made on ToBytes()
 	bytes := b.ToBytes()
 
 	// create from bytes
@@ -66,7 +67,7 @@ func TestBasicUsage(t *testing.T) {
 
 	// modify existing
 	b.Set("price", float32(0.124))
-	b.Set("name", nil) // set to nil is equivalent to unset
+	b.Set("name", nil) // set to nil means unset
 	bytes = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual = b.Get("name")
@@ -442,21 +443,75 @@ func TestCanBeAssigned(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.False(t, schema.CanBeAssigned("unexisting", 0))
-	assert.False(t, schema.CanBeAssigned("string", 0))
-	assert.True(t, schema.CanBeAssigned("string", "str"))
-	assert.False(t, schema.CanBeAssigned("int", 0))
-	assert.True(t, schema.CanBeAssigned("int", int32(0)))
-	assert.False(t, schema.CanBeAssigned("long", 0))
-	assert.True(t, schema.CanBeAssigned("long", int64(0)))
-	assert.False(t, schema.CanBeAssigned("float", 0))
-	assert.True(t, schema.CanBeAssigned("float", float32(0)))
-	assert.False(t, schema.CanBeAssigned("double", 0))
-	assert.True(t, schema.CanBeAssigned("double", float64(0)))
-	assert.False(t, schema.CanBeAssigned("string", 0))
-	assert.True(t, schema.CanBeAssigned("string", "str"))
-	assert.False(t, schema.CanBeAssigned("boolTrue", 0))
+	assert.False(t, schema.CanBeAssigned("unexisting", 0.123))
+
+	assert.False(t, schema.CanBeAssigned("int", 0.123))
+	assert.True(t, schema.CanBeAssigned("int", 0.0))
+	assert.True(t, schema.CanBeAssigned("int", -0.0))
+	assert.False(t, schema.CanBeAssigned("int", true))
+	assert.False(t, schema.CanBeAssigned("int", "sdsd"))
+	assert.False(t, schema.CanBeAssigned("int", math.MaxFloat32))
+	assert.False(t, schema.CanBeAssigned("int", math.MaxFloat64))
+	assert.False(t, schema.CanBeAssigned("int", math.MaxInt64))
+	assert.False(t, schema.CanBeAssigned("int", math.MaxInt32))
+	assert.True(t, schema.CanBeAssigned("int", float64(math.MaxInt32)))
+	assert.False(t, schema.CanBeAssigned("int", float64(5000000000000))) //int32 overflow
+	assert.False(t, schema.CanBeAssigned("int", byte(1)))
+
+	assert.False(t, schema.CanBeAssigned("long", 0.123))
+	assert.True(t, schema.CanBeAssigned("long", 0.0))
+	assert.True(t, schema.CanBeAssigned("long", -0.0))
+	assert.False(t, schema.CanBeAssigned("long", true))
+	assert.False(t, schema.CanBeAssigned("long", "sdsd"))
+	assert.False(t, schema.CanBeAssigned("long", math.MaxFloat32))
+	assert.False(t, schema.CanBeAssigned("long", math.MaxFloat64))
+	assert.False(t, schema.CanBeAssigned("long", math.MaxInt32))
+	assert.True(t, schema.CanBeAssigned("long", float64(math.MaxInt32)))
+	assert.False(t, schema.CanBeAssigned("long", float64(math.MaxInt64))) // unsupported
+	assert.False(t, schema.CanBeAssigned("long", math.MaxInt64))
+	assert.False(t, schema.CanBeAssigned("long", float64(500000000000000000000000))) // int64 overflow
+	assert.True(t, schema.CanBeAssigned("long", float64(5000000000000)))
+	assert.True(t, schema.CanBeAssigned("long", float64(math.MaxInt32)))
+
+	assert.False(t, schema.CanBeAssigned("string", 0.123))
+	assert.False(t, schema.CanBeAssigned("string", 0.0))
+	assert.False(t, schema.CanBeAssigned("string", -0.0))
+	assert.False(t, schema.CanBeAssigned("string", true))
+	assert.True(t, schema.CanBeAssigned("string", "sdsd"))
+	assert.False(t, schema.CanBeAssigned("string", math.MaxFloat32))
+	assert.False(t, schema.CanBeAssigned("string", math.MaxFloat64))
+	assert.False(t, schema.CanBeAssigned("string", float64(5000000000000)))
+	assert.False(t, schema.CanBeAssigned("string", float64(math.MaxInt32)))
+
+	assert.True(t, schema.CanBeAssigned("float", 0.123))
+	assert.True(t, schema.CanBeAssigned("float", 0.0))
+	assert.True(t, schema.CanBeAssigned("float", -0.0))
+	assert.False(t, schema.CanBeAssigned("float", true))
+	assert.False(t, schema.CanBeAssigned("float", "sdsd"))
+	assert.True(t, schema.CanBeAssigned("float", float64(math.MaxFloat32)))
+	assert.True(t, schema.CanBeAssigned("float", float64(math.MaxFloat64)))
+	assert.False(t, schema.CanBeAssigned("float", float64(5000000000000)))
+	assert.True(t, schema.CanBeAssigned("float", float64(math.MaxInt32)))
+
+	assert.True(t, schema.CanBeAssigned("double", 0.123))
+	assert.True(t, schema.CanBeAssigned("double", 0.0))
+	assert.True(t, schema.CanBeAssigned("double", -0.0))
+	assert.False(t, schema.CanBeAssigned("double", true))
+	assert.False(t, schema.CanBeAssigned("double", "sdsd"))
+	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxFloat32)))
+	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxFloat64)))
+	assert.True(t, schema.CanBeAssigned("double", float64(5000000000000)))
+	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxInt32)))
+	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxInt64)))
+
+	assert.False(t, schema.CanBeAssigned("boolTrue", 0.123))
+	assert.False(t, schema.CanBeAssigned("boolTrue", 0.0))
+	assert.False(t, schema.CanBeAssigned("boolTrue", -0.0))
 	assert.True(t, schema.CanBeAssigned("boolTrue", true))
-	assert.False(t, schema.CanBeAssigned("byte", "str"))
-	assert.True(t, schema.CanBeAssigned("byte", byte(0)))
+	assert.False(t, schema.CanBeAssigned("boolTrue", "sdsd"))
+	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxFloat32)))
+	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxFloat64)))
+	assert.False(t, schema.CanBeAssigned("boolTrue", float64(5000000000000)))
+	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxInt32)))
+	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxInt64)))
 }

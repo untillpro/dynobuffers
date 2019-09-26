@@ -1,9 +1,10 @@
 package dynobuffers
 
 import (
-	"github.com/host6/dynobuffers"
 	"math"
+
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/untillpro/dynobuffers"
 )
 
 func fillArticleFlatBuffers(bl *flatbuffers.Builder) flatbuffers.UOffsetT {
