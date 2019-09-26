@@ -17,13 +17,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var schemaStr = `
+var schemeStr = `
 name: string
 price: float
 quantity: int
 `
 
-var schemaStrNew = `
+var schemeStrNew = `
 name: string
 price: float
 quantity: int
@@ -42,7 +42,7 @@ byte: byte
 `
 
 func TestBasicUsage(t *testing.T) {
-	s, err := YamlToSchema(schemaStrNew)
+	s, err := YamlToScheme(schemeStrNew)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +77,13 @@ func TestBasicUsage(t *testing.T) {
 	actual = b.Get("quantity")
 	assert.Equal(t, int32(42), actual.(int32))
 
+	// set untyped int value
+	b.Set("quantity", 45)
+	bytes = b.ToBytes()
+	b = ReadBuffer(bytes, s)
+	actual = b.Get("quantity")
+	assert.Equal(t, int32(45), actual.(int32))
+
 	// unset or unknown field -> nil
 	actual = b.Get("unknownField")
 	assert.Nil(t, actual)
@@ -88,7 +95,7 @@ func TestBasicUsage(t *testing.T) {
 }
 
 func TestNilFields(t *testing.T) {
-	s, err := YamlToSchema(allTypesYaml)
+	s, err := YamlToScheme(allTypesYaml)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,22 +172,22 @@ func testNilFields(t *testing.T, b *Buffer) {
 }
 
 func TestWriteNewReadOld(t *testing.T) {
-	schemaNew, err := YamlToSchema(schemaStrNew)
+	schemeNew, err := YamlToScheme(schemeStrNew)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := NewBuffer(schemaNew)
+	b := NewBuffer(schemeNew)
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
 	b.Set("newField", int64(1))
 	bytesNew := b.ToBytes()
 
-	schemaOld, err := YamlToSchema(schemaStr)
+	schemeOld, err := YamlToScheme(schemeStr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = ReadBuffer(bytesNew, schemaOld)
+	b = ReadBuffer(bytesNew, schemeOld)
 
 	actual := b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
@@ -194,21 +201,21 @@ func TestWriteNewReadOld(t *testing.T) {
 }
 
 func TestWriteOldReadNew(t *testing.T) {
-	schemaOld, err := YamlToSchema(schemaStr)
+	schemeOld, err := YamlToScheme(schemeStr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := NewBuffer(schemaOld)
+	b := NewBuffer(schemeOld)
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
 	bytesOld := b.ToBytes()
 
-	schemaNew, err := YamlToSchema(schemaStrNew)
+	schemeNew, err := YamlToScheme(schemeStrNew)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = ReadBuffer(bytesOld, schemaNew)
+	b = ReadBuffer(bytesOld, schemeNew)
 
 	actual := b.Get("name")
 	assert.Equal(t, "cola", actual.(string))
@@ -221,15 +228,15 @@ func TestWriteOldReadNew(t *testing.T) {
 	assert.Nil(t, actual)
 }
 
-func TestYamlToSchemaErrors(t *testing.T) {
-	_, err := YamlToSchema("wrong yaml")
+func TestYamlToSchemeErrors(t *testing.T) {
+	_, err := YamlToScheme("wrong yaml")
 	assert.NotNil(t, err)
-	_, err = YamlToSchema("name: wrongType")
+	_, err = YamlToScheme("name: wrongType")
 	assert.NotNil(t, err)
 }
 
-func TestSchemaHasField(t *testing.T) {
-	s, err := YamlToSchema(schemaStr)
+func TestSchemeHasField(t *testing.T) {
+	s, err := YamlToScheme(schemeStr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +249,7 @@ func TestSchemaHasField(t *testing.T) {
 func TestToBytesFilledUnmodified(t *testing.T) {
 	b := getBufferAllFields(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 	bytes := b.ToBytes()
-	b = ReadBuffer(bytes, b.schema)
+	b = ReadBuffer(bytes, b.scheme)
 	testFieldValues(t, b, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 }
 
@@ -258,7 +265,7 @@ func TestDefaultValuesAreValidValues(t *testing.T) {
 }
 
 func getBufferAllFields(t *testing.T, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) *Buffer {
-	s, err := YamlToSchema(allTypesYaml)
+	s, err := YamlToScheme(allTypesYaml)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,12 +334,12 @@ func testFieldValues(t *testing.T, b *Buffer, expectedInt32 int32, expectedInt64
 }
 
 func TestToJSON(t *testing.T) {
-	schema, err := YamlToSchema(schemaStr)
+	scheme, err := YamlToScheme(schemeStr)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b := NewBuffer(schema)
+	b := NewBuffer(scheme)
 	dest := map[string]interface{}{}
 	jsonStr := b.ToJSON()
 	json.Unmarshal([]byte(jsonStr), &dest)
@@ -350,7 +357,7 @@ func TestToJSON(t *testing.T) {
 	assert.Equal(t, float64(42), dest["quantity"])
 
 	// test field initially not set
-	b = NewBuffer(schema)
+	b = NewBuffer(scheme)
 	b.Set("name", "cola")
 	b.Set("quantity", int32(42))
 	jsonStr = b.ToJSON()
@@ -362,7 +369,7 @@ func TestToJSON(t *testing.T) {
 
 	// test field not set on ReadBuffer
 	bytes := b.ToBytes()
-	b = ReadBuffer(bytes, schema)
+	b = ReadBuffer(bytes, scheme)
 
 	jsonStr = b.ToJSON()
 	dest = map[string]interface{}{}
@@ -381,7 +388,7 @@ func TestToJSON(t *testing.T) {
 
 	// test read unset field
 	bytes = b.ToBytes()
-	b = ReadBuffer(bytes, schema)
+	b = ReadBuffer(bytes, scheme)
 	jsonStr = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal([]byte(jsonStr), &dest)
@@ -390,7 +397,7 @@ func TestToJSON(t *testing.T) {
 }
 
 func TestDifferentOrder(t *testing.T) {
-	s, err := YamlToSchema(schemaStr)
+	s, err := YamlToScheme(schemeStr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,104 +421,105 @@ func TestDifferentOrder(t *testing.T) {
 	assert.Equal(t, int32(42), actual.(int32))
 }
 
-func TestSchemaToFromYaml(t *testing.T) {
-	schema, err := YamlToSchema(schemaStr)
+func TestSchemeToFromYaml(t *testing.T) {
+	scheme, err := YamlToScheme(schemeStr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bytes, err := yaml.Marshal(schema)
-	schemaNew := NewSchema()
-	err = yaml.Unmarshal(bytes, &schemaNew)
+	bytes, err := yaml.Marshal(scheme)
+	schemeNew := NewScheme()
+	err = yaml.Unmarshal(bytes, &schemeNew)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.True(t, reflect.DeepEqual(schema.fieldsOrdered, schemaNew.fieldsOrdered))
-	assert.True(t, reflect.DeepEqual(schema.fields, schemaNew.fields))
-	assert.True(t, reflect.DeepEqual(schema.stringFields, schemaNew.stringFields))
+	assert.True(t, reflect.DeepEqual(scheme.fieldsOrdered, schemeNew.fieldsOrdered))
+	assert.True(t, reflect.DeepEqual(scheme.fields, schemeNew.fields))
+	assert.True(t, reflect.DeepEqual(scheme.stringFields, schemeNew.stringFields))
 
-	schemaNew = NewSchema()
-	err = yaml.Unmarshal([]byte("wrong "), &schemaNew)
+	schemeNew = NewScheme()
+	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
 	if err == nil {
 		t.Fatal()
 	}
 }
 
 func TestCanBeAssigned(t *testing.T) {
-	schema, err := YamlToSchema(allTypesYaml)
+	scheme, err := YamlToScheme(allTypesYaml)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.False(t, schema.CanBeAssigned("unexisting", 0.123))
+	assert.False(t, scheme.CanBeAssigned("unexisting", 0.123))
 
-	assert.False(t, schema.CanBeAssigned("int", 0.123))
-	assert.True(t, schema.CanBeAssigned("int", 0.0))
-	assert.True(t, schema.CanBeAssigned("int", -0.0))
-	assert.False(t, schema.CanBeAssigned("int", true))
-	assert.False(t, schema.CanBeAssigned("int", "sdsd"))
-	assert.False(t, schema.CanBeAssigned("int", math.MaxFloat32))
-	assert.False(t, schema.CanBeAssigned("int", math.MaxFloat64))
-	assert.False(t, schema.CanBeAssigned("int", math.MaxInt64))
-	assert.False(t, schema.CanBeAssigned("int", math.MaxInt32))
-	assert.True(t, schema.CanBeAssigned("int", float64(math.MaxInt32)))
-	assert.False(t, schema.CanBeAssigned("int", float64(5000000000000))) //int32 overflow
-	assert.False(t, schema.CanBeAssigned("int", byte(1)))
+	assert.False(t, scheme.CanBeAssigned("int", 0.123))
+	assert.True(t, scheme.CanBeAssigned("int", 0.0))
+	assert.True(t, scheme.CanBeAssigned("int", -0.0))
+	assert.False(t, scheme.CanBeAssigned("int", true))
+	assert.False(t, scheme.CanBeAssigned("int", "sdsd"))
+	assert.False(t, scheme.CanBeAssigned("int", math.MaxFloat32))
+	assert.False(t, scheme.CanBeAssigned("int", math.MaxFloat64))
+	assert.False(t, scheme.CanBeAssigned("int", math.MaxInt64))
+	assert.False(t, scheme.CanBeAssigned("int", math.MaxInt32))
+	assert.True(t, scheme.CanBeAssigned("int", float64(math.MaxInt32)))
+	assert.False(t, scheme.CanBeAssigned("int", float64(5000000000000))) //int32 overflow
+	assert.False(t, scheme.CanBeAssigned("int", byte(1)))
 
-	assert.False(t, schema.CanBeAssigned("long", 0.123))
-	assert.True(t, schema.CanBeAssigned("long", 0.0))
-	assert.True(t, schema.CanBeAssigned("long", -0.0))
-	assert.False(t, schema.CanBeAssigned("long", true))
-	assert.False(t, schema.CanBeAssigned("long", "sdsd"))
-	assert.False(t, schema.CanBeAssigned("long", math.MaxFloat32))
-	assert.False(t, schema.CanBeAssigned("long", math.MaxFloat64))
-	assert.False(t, schema.CanBeAssigned("long", math.MaxInt32))
-	assert.True(t, schema.CanBeAssigned("long", float64(math.MaxInt32)))
-	assert.False(t, schema.CanBeAssigned("long", float64(math.MaxInt64))) // unsupported
-	assert.False(t, schema.CanBeAssigned("long", math.MaxInt64))
-	assert.False(t, schema.CanBeAssigned("long", float64(500000000000000000000000))) // int64 overflow
-	assert.True(t, schema.CanBeAssigned("long", float64(5000000000000)))
-	assert.True(t, schema.CanBeAssigned("long", float64(math.MaxInt32)))
+	assert.False(t, scheme.CanBeAssigned("long", 0.123))
+	assert.True(t, scheme.CanBeAssigned("long", 0.0))
+	assert.True(t, scheme.CanBeAssigned("long", -0.0))
+	assert.False(t, scheme.CanBeAssigned("long", true))
+	assert.False(t, scheme.CanBeAssigned("long", "sdsd"))
+	assert.False(t, scheme.CanBeAssigned("long", math.MaxFloat32))
+	assert.False(t, scheme.CanBeAssigned("long", math.MaxFloat64))
+	assert.False(t, scheme.CanBeAssigned("long", math.MaxInt32))
+	assert.True(t, scheme.CanBeAssigned("long", float64(math.MaxInt32)))
+	assert.False(t, scheme.CanBeAssigned("long", float64(math.MaxInt64))) // unsupported
+	assert.False(t, scheme.CanBeAssigned("long", math.MaxInt64))
+	assert.False(t, scheme.CanBeAssigned("long", float64(500000000000000000000000))) // int64 overflow
+	assert.True(t, scheme.CanBeAssigned("long", float64(5000000000000)))
+	assert.True(t, scheme.CanBeAssigned("long", float64(math.MaxInt32)))
 
-	assert.False(t, schema.CanBeAssigned("string", 0.123))
-	assert.False(t, schema.CanBeAssigned("string", 0.0))
-	assert.False(t, schema.CanBeAssigned("string", -0.0))
-	assert.False(t, schema.CanBeAssigned("string", true))
-	assert.True(t, schema.CanBeAssigned("string", "sdsd"))
-	assert.False(t, schema.CanBeAssigned("string", math.MaxFloat32))
-	assert.False(t, schema.CanBeAssigned("string", math.MaxFloat64))
-	assert.False(t, schema.CanBeAssigned("string", float64(5000000000000)))
-	assert.False(t, schema.CanBeAssigned("string", float64(math.MaxInt32)))
+	assert.False(t, scheme.CanBeAssigned("string", 0.123))
+	assert.False(t, scheme.CanBeAssigned("string", 0.0))
+	assert.False(t, scheme.CanBeAssigned("string", -0.0))
+	assert.False(t, scheme.CanBeAssigned("string", true))
+	assert.True(t, scheme.CanBeAssigned("string", "sdsd"))
+	assert.False(t, scheme.CanBeAssigned("string", math.MaxFloat32))
+	assert.False(t, scheme.CanBeAssigned("string", math.MaxFloat64))
+	assert.False(t, scheme.CanBeAssigned("string", float64(5000000000000)))
+	assert.False(t, scheme.CanBeAssigned("string", float64(math.MaxInt32)))
 
-	assert.True(t, schema.CanBeAssigned("float", 0.123))
-	assert.True(t, schema.CanBeAssigned("float", 0.0))
-	assert.True(t, schema.CanBeAssigned("float", -0.0))
-	assert.False(t, schema.CanBeAssigned("float", true))
-	assert.False(t, schema.CanBeAssigned("float", "sdsd"))
-	assert.True(t, schema.CanBeAssigned("float", float64(math.MaxFloat32)))
-	assert.True(t, schema.CanBeAssigned("float", float64(math.MaxFloat64)))
-	assert.False(t, schema.CanBeAssigned("float", float64(5000000000000)))
-	assert.True(t, schema.CanBeAssigned("float", float64(math.MaxInt32)))
+	assert.True(t, scheme.CanBeAssigned("float", 0.123))
+	assert.True(t, scheme.CanBeAssigned("float", 0.0))
+	assert.True(t, scheme.CanBeAssigned("float", -0.0))
+	assert.False(t, scheme.CanBeAssigned("float", true))
+	assert.False(t, scheme.CanBeAssigned("float", "sdsd"))
+	assert.True(t, scheme.CanBeAssigned("float", float64(math.MaxFloat32)))
+	assert.True(t, scheme.CanBeAssigned("float", float64(math.MaxFloat64)))
+	assert.False(t, scheme.CanBeAssigned("float", float64(5000000000000)))
+	assert.True(t, scheme.CanBeAssigned("float", float64(math.MaxInt32)))
 
-	assert.True(t, schema.CanBeAssigned("double", 0.123))
-	assert.True(t, schema.CanBeAssigned("double", 0.0))
-	assert.True(t, schema.CanBeAssigned("double", -0.0))
-	assert.False(t, schema.CanBeAssigned("double", true))
-	assert.False(t, schema.CanBeAssigned("double", "sdsd"))
-	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxFloat32)))
-	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxFloat64)))
-	assert.True(t, schema.CanBeAssigned("double", float64(5000000000000)))
-	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxInt32)))
-	assert.True(t, schema.CanBeAssigned("double", float64(math.MaxInt64)))
+	assert.True(t, scheme.CanBeAssigned("double", 0.123))
+	assert.True(t, scheme.CanBeAssigned("double", 0.0))
+	assert.True(t, scheme.CanBeAssigned("double", -0.0))
+	assert.False(t, scheme.CanBeAssigned("double", true))
+	assert.False(t, scheme.CanBeAssigned("double", "sdsd"))
+	assert.True(t, scheme.CanBeAssigned("double", float64(math.MaxFloat32)))
+	assert.True(t, scheme.CanBeAssigned("double", float64(math.MaxFloat64)))
+	assert.True(t, scheme.CanBeAssigned("double", float64(5000000000000)))
+	assert.True(t, scheme.CanBeAssigned("double", float64(math.MaxInt32)))
+	assert.True(t, scheme.CanBeAssigned("double", float64(math.MaxInt64)))
 
-	assert.False(t, schema.CanBeAssigned("boolTrue", 0.123))
-	assert.False(t, schema.CanBeAssigned("boolTrue", 0.0))
-	assert.False(t, schema.CanBeAssigned("boolTrue", -0.0))
-	assert.True(t, schema.CanBeAssigned("boolTrue", true))
-	assert.False(t, schema.CanBeAssigned("boolTrue", "sdsd"))
-	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxFloat32)))
-	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxFloat64)))
-	assert.False(t, schema.CanBeAssigned("boolTrue", float64(5000000000000)))
-	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxInt32)))
-	assert.False(t, schema.CanBeAssigned("boolTrue", float64(math.MaxInt64)))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", 0.123))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", 0.0))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", -0.0))
+	assert.True(t, scheme.CanBeAssigned("boolTrue", true))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", "sdsd"))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(math.MaxFloat32)))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(math.MaxFloat64)))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(5000000000000)))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(math.MaxInt32)))
+	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(math.MaxInt64)))
 }
+
