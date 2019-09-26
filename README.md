@@ -65,9 +65,9 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	bytes := b.ToBytes()
 	```
 - To JSON key-value
-        ```go
-        jsonStr := b.ToJSON()
-        ```
+    ```go
+    jsonStr := b.ToJSON()
+	```
 - Read Buffer from bytes using Schema
 	```go
 	b = dynobuffers.ReadBuffer(bytes, schema)

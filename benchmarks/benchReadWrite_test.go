@@ -1,7 +1,7 @@
 package dynobuffers
 
 import (
-	"github.com/host6/dynobuffers"
+	"github.com/untillpro/dynobuffers"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"

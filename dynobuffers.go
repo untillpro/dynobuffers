@@ -296,18 +296,35 @@ func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *field) {
 	dest.Slot(f.order)
 }
 
+func numberToFloat64(number interface{}) float64 {
+	switch number.(type) {
+	case float64:
+		return number.(float64)
+	case float32:
+		return float64(number.(float32))
+	case int64:
+		return float64(number.(int64))
+	case int32:
+		return float64(number.(int32))
+	case int:
+		return float64(number.(int))
+	default:
+		return float64(number.(byte))
+	}
+}
+
 func encodeValue(bl *flatbuffers.Builder, f *field, value interface{}) {
 	switch f.ft {
 	case FieldTypeInt:
-		bl.PrependInt32(value.(int32))
+		bl.PrependInt32(int32(numberToFloat64(value)))
 	case FieldTypeLong:
-		bl.PrependInt64(value.(int64))
+		bl.PrependInt64(int64(numberToFloat64(value)))
 	case FieldTypeFloat:
-		bl.PrependFloat32(value.(float32))
+		bl.PrependFloat32(float32(numberToFloat64(value)))
 	case FieldTypeDouble:
-		bl.PrependFloat64(value.(float64))
+		bl.PrependFloat64(float64(numberToFloat64(value)))
 	case FieldTypeByte:
-		bl.PrependByte(value.(byte))
+		bl.PrependByte(byte(numberToFloat64(value)))
 	case FieldTypeBool:
 		bl.PrependBool(value.(bool))
 	}
@@ -365,38 +382,49 @@ func (s *Schema) HasField(name string) bool {
 	return ok
 }
 
+// MarshalText used to conform to yaml.TextMarshaler interface
 func (s *Schema) MarshalText() (text []byte, err error) {
 	return []byte(s.ToYaml()), nil
 }
 
 // CanBeAssigned checks if correct value is provided for the field. Returns if schema contains such field and its type equal to the value type
+// Numbers must be float64 only
 func (s *Schema) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
 	f, ok := s.fields[fieldName]
 	if !ok {
 		return false
 	}
-	var ft FieldType
-	switch fieldValue.(type) {
-	case int32:
-		ft = FieldTypeInt
-	case int64:
-		ft = FieldTypeLong
-	case float32:
-		ft = FieldTypeFloat
-	case float64:
-		ft = FieldTypeDouble
-	case byte:
-		ft = FieldTypeByte
-	case string:
-		ft = FieldTypeString
-	case bool:
-		ft = FieldTypeBool
+	switch f.ft {
+	case FieldTypeBool:
+		_, ok := fieldValue.(bool)
+		return ok
+	case FieldTypeString:
+		_, ok := fieldValue.(string)
+		return ok
 	default:
-		return false
+		float64Src, ok := fieldValue.(float64)
+		if !ok {
+			return false
+		}
+		if float64Src == 0 {
+			return true
+		}
+
+		if float64Src == float64(int32(float64Src)) {
+			// это int32
+			return f.ft == FieldTypeInt || f.ft == FieldTypeLong || f.ft == FieldTypeDouble || f.ft == FieldTypeFloat
+		} else if float64Src == float64(int64(float64Src)) {
+			return f.ft == FieldTypeLong || f.ft == FieldTypeDouble
+		} else if float64Src == float64(float32(float64Src)) {
+			// это реально float32
+			return f.ft == FieldTypeDouble || f.ft == FieldTypeFloat
+		} else {
+			return f.ft == FieldTypeDouble || f.ft == FieldTypeFloat
+		}
 	}
-	return ft == f.ft
 }
 
+// UnmarshalText is used to conform to yaml.TextMarshaler inteface
 func (s *Schema) UnmarshalText(text []byte) error {
 	newS, err := YamlToSchema(string(text))
 	if err != nil {
@@ -408,35 +436,30 @@ func (s *Schema) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// ToYaml returns schema in yaml format
 func (s *Schema) ToYaml() string {
 	buf := bytes.NewBufferString("")
 	for _, f := range s.fieldsOrdered {
-		ftStr := ""
-		for yamlFtStr, ft := range yamlFieldTypesMap {
-			if ft == f.ft {
-				ftStr = yamlFtStr
+		for ftStr, curFt := range yamlFieldTypesMap {
+			if curFt == f.ft {
+				buf.WriteString(f.name + ": " + ftStr + "\n")
 				break
 			}
 		}
-		buf.WriteString(f.name + ": " + ftStr + "\n")
 	}
 	return buf.String()
 }
 
-/*
- YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
-
- Field types:
-   - `int` -> `int32`
-   - `long` -> `int64`
-   - `float` -> `float32`
-   - `double` -> `float64`
-   - `bool` -> `bool`
-   - `string` -> `string`
-   - `byte` -> `byte`
-
- See [dynobuffers_test.go](dynobuffers_test.go) for examples
-*/
+// YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
+//  Field types:
+//    - `int` -> `int32`
+//    - `long` -> `int64`
+//    - `float` -> `float32`
+//    - `double` -> `float64`
+//    - `bool` -> `bool`
+//    - `string` -> `string`
+//    - `byte` -> `byte`
+//  See [dynobuffers_test.go](dynobuffers_test.go) for examples
 func YamlToSchema(yamlStr string) (*Schema, error) {
 	schema := NewSchema()
 	yamlParsed := yaml.MapSlice{}
