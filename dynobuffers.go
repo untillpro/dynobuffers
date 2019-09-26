@@ -51,7 +51,7 @@ var yamlFieldTypesMap = map[string]FieldType{
 
 // Buffer is wrapper for FlatBuffers
 type Buffer struct {
-	schema         *Schema
+	scheme         *Scheme
 	modifiedFields []*modifiedField
 	tab            flatbuffers.Table
 }
@@ -68,21 +68,21 @@ type modifiedField struct {
 	strUOffsetT flatbuffers.UOffsetT
 }
 
-// Schema s.e.
-type Schema struct {
+// Scheme s.e.
+type Scheme struct {
 	fields        map[string]*field
 	fieldsOrdered []*field
 	stringFields  []*field
 }
 
 // NewBuffer creates new empty Buffer
-func NewBuffer(schema *Schema) *Buffer {
+func NewBuffer(scheme *Scheme) *Buffer {
 	b := &Buffer{}
-	b.schema = schema
+	b.scheme = scheme
 	return b
 }
 
-// GetInt returns int32 value by name and if the schema contains the field and the value was set to non-nil
+// GetInt returns int32 value by name and if the scheme contains the field and the value was set to non-nil
 func (b *Buffer) GetInt(name string) (int32, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -91,7 +91,7 @@ func (b *Buffer) GetInt(name string) (int32, bool) {
 	return int32(0), false
 }
 
-// GetFloat returns float32 value by name and if the schema contains the field and if the value was set to non-nil
+// GetFloat returns float32 value by name and if the scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetFloat(name string) (float32, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -100,7 +100,7 @@ func (b *Buffer) GetFloat(name string) (float32, bool) {
 	return float32(0), false
 }
 
-// GetString returns string value by name and if the schema contains the field and if the value was set to non-nil
+// GetString returns string value by name and if the scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetString(name string) (string, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -109,7 +109,7 @@ func (b *Buffer) GetString(name string) (string, bool) {
 	return "", false
 }
 
-// GetLong returns int64 value by name and if the schema contains the field and if the value was set to non-nil
+// GetLong returns int64 value by name and if the scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetLong(name string) (int64, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -118,7 +118,7 @@ func (b *Buffer) GetLong(name string) (int64, bool) {
 	return int64(0), false
 }
 
-// GetDouble returns float64 value by name and if the schema contains the field and if the value was set to non-nil
+// GetDouble returns float64 value by name and if the scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetDouble(name string) (float64, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -127,7 +127,7 @@ func (b *Buffer) GetDouble(name string) (float64, bool) {
 	return float64(0), false
 }
 
-// GetByte returns byte value by name and if the schema contains the field and if the value was set to non-nil
+// GetByte returns byte value by name and if the scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetByte(name string) (byte, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -136,7 +136,7 @@ func (b *Buffer) GetByte(name string) (byte, bool) {
 	return byte(0), false
 }
 
-// GetBool returns bool value by name and if the schema contains the field and if the value was set to non-nil
+// GetBool returns bool value by name and if the scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetBool(name string) (bool, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
@@ -149,7 +149,7 @@ func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
 	if len(b.tab.Bytes) == 0 {
 		return 0
 	}
-	if f, ok := b.schema.fields[name]; ok {
+	if f, ok := b.scheme.fields[name]; ok {
 		return b.getFieldUOffsetTByOrder(f.order)
 	}
 	return 0
@@ -195,9 +195,9 @@ func (b *Buffer) getByField(f *field) interface{} {
 }
 
 // Get returns stored field value by name.
-// nil -> field is unset or no such field in the schema
+// nil -> field is unset or no such field in the scheme
 func (b *Buffer) Get(name string) interface{} {
-	f, ok := b.schema.fields[name]
+	f, ok := b.scheme.fields[name]
 	if !ok {
 		return nil
 	}
@@ -205,9 +205,9 @@ func (b *Buffer) Get(name string) interface{} {
 
 }
 
-// ReadBuffer creates Buffer from bytes using provided Schema
-func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
-	b := NewBuffer(schema)
+// ReadBuffer creates Buffer from bytes using provided Scheme
+func ReadBuffer(bytes []byte, scheme *Scheme) *Buffer {
+	b := NewBuffer(scheme)
 	rootUOffsetT := flatbuffers.GetUOffsetT(bytes)
 	b.tab.Bytes = bytes
 	b.tab.Pos = rootUOffsetT
@@ -218,12 +218,12 @@ func ReadBuffer(bytes []byte, schema *Schema) *Buffer {
 // Byte array is not modified.
 // Call ToBytes() to get modified byte array
 func (b *Buffer) Set(name string, value interface{}) {
-	f, ok := b.schema.fields[name]
+	f, ok := b.scheme.fields[name]
 	if !ok {
 		return
 	}
 	if len(b.modifiedFields) == 0 {
-		b.modifiedFields = make([]*modifiedField, len(b.schema.fieldsOrdered))
+		b.modifiedFields = make([]*modifiedField, len(b.scheme.fieldsOrdered))
 	}
 	b.modifiedFields[f.order] = &modifiedField{field{name, f.ft, f.order}, value, 0}
 }
@@ -233,12 +233,12 @@ func (b *Buffer) Set(name string, value interface{}) {
 func (b *Buffer) ToBytes() []byte {
 	bl := flatbuffers.NewBuilder(0)
 
-	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.schema.fieldsOrdered))
+	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.scheme.fieldsOrdered))
 	if len(b.modifiedFields) == 0 {
-		b.modifiedFields = make([]*modifiedField, len(b.schema.fieldsOrdered))
+		b.modifiedFields = make([]*modifiedField, len(b.scheme.fieldsOrdered))
 	}
 
-	for _, stringField := range b.schema.stringFields {
+	for _, stringField := range b.scheme.stringFields {
 		modifiedStringField := b.modifiedFields[stringField.order]
 		if modifiedStringField != nil {
 			if modifiedStringField.value != nil {
@@ -251,8 +251,8 @@ func (b *Buffer) ToBytes() []byte {
 		}
 	}
 
-	bl.StartObject(len(b.schema.fields))
-	for _, f := range b.schema.fieldsOrdered {
+	bl.StartObject(len(b.scheme.fields))
+	for _, f := range b.scheme.fieldsOrdered {
 		if f.ft == FieldTypeString {
 			if strUOffsetTs[f.order] > 0 {
 				bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
@@ -336,7 +336,7 @@ func (b *Buffer) ToJSON() string {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
-	for _, f := range b.schema.fieldsOrdered {
+	for _, f := range b.scheme.fieldsOrdered {
 		var value interface{}
 		if len(b.modifiedFields) == 0 {
 			value = b.getByField(f)
@@ -361,13 +361,13 @@ func (b *Buffer) ToJSON() string {
 	return strings.Replace(buf.String(), "\n", "", -1)
 }
 
-// NewSchema creates new empty schema
-func NewSchema() *Schema {
-	return &Schema{map[string]*field{}, []*field{}, []*field{}}
+// NewScheme creates new empty scheme
+func NewScheme() *Scheme {
+	return &Scheme{map[string]*field{}, []*field{}, []*field{}}
 }
 
-// AddField appends schema with new field
-func (s *Schema) AddField(name string, ft FieldType) {
+// AddField appends scheme with new field
+func (s *Scheme) AddField(name string, ft FieldType) {
 	newField := &field{name, ft, len(s.fields)}
 	s.fields[name] = newField
 	s.fieldsOrdered = append(s.fieldsOrdered, newField)
@@ -376,20 +376,20 @@ func (s *Schema) AddField(name string, ft FieldType) {
 	}
 }
 
-// HasField returns if the Schema contains the specified field
-func (s *Schema) HasField(name string) bool {
+// HasField returns if the Scheme contains the specified field
+func (s *Scheme) HasField(name string) bool {
 	_, ok := s.fields[name]
 	return ok
 }
 
 // MarshalText used to conform to yaml.TextMarshaler interface
-func (s *Schema) MarshalText() (text []byte, err error) {
+func (s *Scheme) MarshalText() (text []byte, err error) {
 	return []byte(s.ToYaml()), nil
 }
 
-// CanBeAssigned checks if correct value is provided for the field. Returns if schema contains such field and its type equal to the value type
+// CanBeAssigned checks if correct value is provided for the field. Returns if scheme contains such field and its type equal to the value type
 // Numbers must be float64 only
-func (s *Schema) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
+func (s *Scheme) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
 	f, ok := s.fields[fieldName]
 	if !ok {
 		return false
@@ -425,8 +425,8 @@ func (s *Schema) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
 }
 
 // UnmarshalText is used to conform to yaml.TextMarshaler inteface
-func (s *Schema) UnmarshalText(text []byte) error {
-	newS, err := YamlToSchema(string(text))
+func (s *Scheme) UnmarshalText(text []byte) error {
+	newS, err := YamlToScheme(string(text))
 	if err != nil {
 		return err
 	}
@@ -436,8 +436,8 @@ func (s *Schema) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// ToYaml returns schema in yaml format
-func (s *Schema) ToYaml() string {
+// ToYaml returns scheme in yaml format
+func (s *Scheme) ToYaml() string {
 	buf := bytes.NewBufferString("")
 	for _, f := range s.fieldsOrdered {
 		for ftStr, curFt := range yamlFieldTypesMap {
@@ -450,7 +450,7 @@ func (s *Schema) ToYaml() string {
 	return buf.String()
 }
 
-// YamlToSchema creates Schema by provided yaml `fieldName: yamlFieldType`
+// YamlToScheme creates Scheme by provided yaml `fieldName: yamlFieldType`
 //  Field types:
 //    - `int` -> `int32`
 //    - `long` -> `int64`
@@ -460,8 +460,8 @@ func (s *Schema) ToYaml() string {
 //    - `string` -> `string`
 //    - `byte` -> `byte`
 //  See [dynobuffers_test.go](dynobuffers_test.go) for examples
-func YamlToSchema(yamlStr string) (*Schema, error) {
-	schema := NewSchema()
+func YamlToScheme(yamlStr string) (*Scheme, error) {
+	scheme := NewScheme()
 	yamlParsed := yaml.MapSlice{}
 	err := yaml.Unmarshal([]byte(yamlStr), &yamlParsed)
 	if err != nil {
@@ -470,11 +470,11 @@ func YamlToSchema(yamlStr string) (*Schema, error) {
 	for _, mapItem := range yamlParsed {
 		if typeStr, ok := mapItem.Value.(string); ok {
 			if ft, ok := yamlFieldTypesMap[typeStr]; ok {
-				schema.AddField(mapItem.Key.(string), ft)
+				scheme.AddField(mapItem.Key.(string), ft)
 			} else {
 				return nil, errors.New("unknown field type: " + typeStr)
 			}
 		}
 	}
-	return schema, nil
+	return scheme, nil
 }
