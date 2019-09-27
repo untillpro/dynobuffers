@@ -433,8 +433,8 @@ func TestSchemeToFromYaml(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.True(t, reflect.DeepEqual(scheme.fieldsOrdered, schemeNew.fieldsOrdered))
-	assert.True(t, reflect.DeepEqual(scheme.fields, schemeNew.fields))
+	assert.True(t, reflect.DeepEqual(scheme.Fields, schemeNew.Fields))
+	assert.True(t, reflect.DeepEqual(scheme.fieldsMap, schemeNew.fieldsMap))
 	assert.True(t, reflect.DeepEqual(scheme.stringFields, schemeNew.stringFields))
 
 	schemeNew = NewScheme()
@@ -521,5 +521,20 @@ func TestCanBeAssigned(t *testing.T) {
 	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(5000000000000)))
 	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(math.MaxInt32)))
 	assert.False(t, scheme.CanBeAssigned("boolTrue", float64(math.MaxInt64)))
+
+	assert.False(t, scheme.CanBeAssigned("byte", 0.123))
+	assert.True(t, scheme.CanBeAssigned("byte", 0.0))
+	assert.True(t, scheme.CanBeAssigned("byte", -0.0))
+	assert.False(t, scheme.CanBeAssigned("byte", true))
+	assert.False(t, scheme.CanBeAssigned("byte", "sdsd"))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(-255)))
+	assert.True(t, scheme.CanBeAssigned("byte", float64(255)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(-256)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(256)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxFloat32)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxFloat64)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(5000000000000)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxInt32)))
+	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxInt64)))
 }
 

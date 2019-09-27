@@ -56,23 +56,24 @@ type Buffer struct {
 	tab            flatbuffers.Table
 }
 
-type field struct {
-	name  string
-	ft    FieldType
+// Field describes a scheme field
+type Field struct {
+	Name  string
+	Ft    FieldType
 	order int
 }
 
 type modifiedField struct {
-	field
+	Field
 	value       interface{}
 	strUOffsetT flatbuffers.UOffsetT
 }
 
 // Scheme s.e.
 type Scheme struct {
-	fields        map[string]*field
-	fieldsOrdered []*field
-	stringFields  []*field
+	fieldsMap    map[string]*Field
+	Fields       []*Field
+	stringFields []*Field
 }
 
 // NewBuffer creates new empty Buffer
@@ -149,7 +150,7 @@ func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
 	if len(b.tab.Bytes) == 0 {
 		return 0
 	}
-	if f, ok := b.scheme.fields[name]; ok {
+	if f, ok := b.scheme.fieldsMap[name]; ok {
 		return b.getFieldUOffsetTByOrder(f.order)
 	}
 	return 0
@@ -162,7 +163,7 @@ func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
 	return flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((order + 2) * 2)))
 }
 
-func (b *Buffer) getByStringField(f *field) (string, bool) {
+func (b *Buffer) getByStringField(f *Field) (string, bool) {
 	o := b.getFieldUOffsetTByOrder(f.order)
 	if o == 0 {
 		return "", false
@@ -170,13 +171,13 @@ func (b *Buffer) getByStringField(f *field) (string, bool) {
 	return string(b.tab.ByteVector(o + b.tab.Pos)), true
 }
 
-func (b *Buffer) getByField(f *field) interface{} {
+func (b *Buffer) getByField(f *Field) interface{} {
 	o := b.getFieldUOffsetTByOrder(f.order)
 	if o == 0 {
 		return nil
 	}
 	uOffsetT := o + b.tab.Pos
-	switch f.ft {
+	switch f.Ft {
 	case FieldTypeInt:
 		return b.tab.GetInt32(uOffsetT)
 	case FieldTypeLong:
@@ -197,7 +198,7 @@ func (b *Buffer) getByField(f *field) interface{} {
 // Get returns stored field value by name.
 // nil -> field is unset or no such field in the scheme
 func (b *Buffer) Get(name string) interface{} {
-	f, ok := b.scheme.fields[name]
+	f, ok := b.scheme.fieldsMap[name]
 	if !ok {
 		return nil
 	}
@@ -218,14 +219,14 @@ func ReadBuffer(bytes []byte, scheme *Scheme) *Buffer {
 // Byte array is not modified.
 // Call ToBytes() to get modified byte array
 func (b *Buffer) Set(name string, value interface{}) {
-	f, ok := b.scheme.fields[name]
+	f, ok := b.scheme.fieldsMap[name]
 	if !ok {
 		return
 	}
 	if len(b.modifiedFields) == 0 {
-		b.modifiedFields = make([]*modifiedField, len(b.scheme.fieldsOrdered))
+		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
 	}
-	b.modifiedFields[f.order] = &modifiedField{field{name, f.ft, f.order}, value, 0}
+	b.modifiedFields[f.order] = &modifiedField{Field{name, f.Ft, f.order}, value, 0}
 }
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
@@ -233,9 +234,9 @@ func (b *Buffer) Set(name string, value interface{}) {
 func (b *Buffer) ToBytes() []byte {
 	bl := flatbuffers.NewBuilder(0)
 
-	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.scheme.fieldsOrdered))
+	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.scheme.Fields))
 	if len(b.modifiedFields) == 0 {
-		b.modifiedFields = make([]*modifiedField, len(b.scheme.fieldsOrdered))
+		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
 	}
 
 	for _, stringField := range b.scheme.stringFields {
@@ -251,9 +252,9 @@ func (b *Buffer) ToBytes() []byte {
 		}
 	}
 
-	bl.StartObject(len(b.scheme.fields))
-	for _, f := range b.scheme.fieldsOrdered {
-		if f.ft == FieldTypeString {
+	bl.StartObject(len(b.scheme.fieldsMap))
+	for _, f := range b.scheme.Fields {
+		if f.Ft == FieldTypeString {
 			if strUOffsetTs[f.order] > 0 {
 				bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
 			}
@@ -273,13 +274,13 @@ func (b *Buffer) ToBytes() []byte {
 	return bl.FinishedBytes()
 }
 
-func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *field) {
+func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) {
 	offset := src.getFieldUOffsetTByOrder(f.order)
 	if offset == 0 {
 		return
 	}
 	offset += src.tab.Pos
-	switch f.ft {
+	switch f.Ft {
 	case FieldTypeInt:
 		dest.PrependInt32(src.tab.GetInt32(offset))
 	case FieldTypeLong:
@@ -313,8 +314,8 @@ func numberToFloat64(number interface{}) float64 {
 	}
 }
 
-func encodeValue(bl *flatbuffers.Builder, f *field, value interface{}) {
-	switch f.ft {
+func encodeValue(bl *flatbuffers.Builder, f *Field, value interface{}) {
+	switch f.Ft {
 	case FieldTypeInt:
 		bl.PrependInt32(int32(numberToFloat64(value)))
 	case FieldTypeLong:
@@ -336,7 +337,7 @@ func (b *Buffer) ToJSON() string {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
-	for _, f := range b.scheme.fieldsOrdered {
+	for _, f := range b.scheme.Fields {
 		var value interface{}
 		if len(b.modifiedFields) == 0 {
 			value = b.getByField(f)
@@ -349,7 +350,7 @@ func (b *Buffer) ToJSON() string {
 			}
 		}
 		if value != nil {
-			buf.WriteString("\"" + f.name + "\": ")
+			buf.WriteString("\"" + f.Name + "\": ")
 			e.Encode(value)
 			buf.WriteString(",")
 		}
@@ -363,14 +364,14 @@ func (b *Buffer) ToJSON() string {
 
 // NewScheme creates new empty scheme
 func NewScheme() *Scheme {
-	return &Scheme{map[string]*field{}, []*field{}, []*field{}}
+	return &Scheme{map[string]*Field{}, []*Field{}, []*Field{}}
 }
 
 // AddField appends scheme with new field
 func (s *Scheme) AddField(name string, ft FieldType) {
-	newField := &field{name, ft, len(s.fields)}
-	s.fields[name] = newField
-	s.fieldsOrdered = append(s.fieldsOrdered, newField)
+	newField := &Field{name, ft, len(s.fieldsMap)}
+	s.fieldsMap[name] = newField
+	s.Fields = append(s.Fields, newField)
 	if ft == FieldTypeString {
 		s.stringFields = append(s.stringFields, newField)
 	}
@@ -378,7 +379,7 @@ func (s *Scheme) AddField(name string, ft FieldType) {
 
 // HasField returns if the Scheme contains the specified field
 func (s *Scheme) HasField(name string) bool {
-	_, ok := s.fields[name]
+	_, ok := s.fieldsMap[name]
 	return ok
 }
 
@@ -390,11 +391,11 @@ func (s *Scheme) MarshalText() (text []byte, err error) {
 // CanBeAssigned checks if correct value is provided for the field. Returns if scheme contains such field and its type equal to the value type
 // Numbers must be float64 only
 func (s *Scheme) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
-	f, ok := s.fields[fieldName]
+	f, ok := s.fieldsMap[fieldName]
 	if !ok {
 		return false
 	}
-	switch f.ft {
+	switch f.Ft {
 	case FieldTypeBool:
 		_, ok := fieldValue.(bool)
 		return ok
@@ -409,17 +410,15 @@ func (s *Scheme) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
 		if float64Src == 0 {
 			return true
 		}
-
 		if float64Src == float64(int32(float64Src)) {
-			// это int32
-			return f.ft == FieldTypeInt || f.ft == FieldTypeLong || f.ft == FieldTypeDouble || f.ft == FieldTypeFloat
+			if float64Src >= 0 && float64Src <= 255 {
+				return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat || f.Ft == FieldTypeByte
+			}
+			return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
 		} else if float64Src == float64(int64(float64Src)) {
-			return f.ft == FieldTypeLong || f.ft == FieldTypeDouble
-		} else if float64Src == float64(float32(float64Src)) {
-			// это реально float32
-			return f.ft == FieldTypeDouble || f.ft == FieldTypeFloat
+			return f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble
 		} else {
-			return f.ft == FieldTypeDouble || f.ft == FieldTypeFloat
+			return f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
 		}
 	}
 }
@@ -430,8 +429,8 @@ func (s *Scheme) UnmarshalText(text []byte) error {
 	if err != nil {
 		return err
 	}
-	s.fields = newS.fields
-	s.fieldsOrdered = newS.fieldsOrdered
+	s.fieldsMap = newS.fieldsMap
+	s.Fields = newS.Fields
 	s.stringFields = newS.stringFields
 	return nil
 }
@@ -439,10 +438,10 @@ func (s *Scheme) UnmarshalText(text []byte) error {
 // ToYaml returns scheme in yaml format
 func (s *Scheme) ToYaml() string {
 	buf := bytes.NewBufferString("")
-	for _, f := range s.fieldsOrdered {
+	for _, f := range s.Fields {
 		for ftStr, curFt := range yamlFieldTypesMap {
-			if curFt == f.ft {
-				buf.WriteString(f.name + ": " + ftStr + "\n")
+			if curFt == f.Ft {
+				buf.WriteString(f.Name + ": " + ftStr + "\n")
 				break
 			}
 		}
