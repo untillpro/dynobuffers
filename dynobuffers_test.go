@@ -431,6 +431,7 @@ func TestSchemeToFromYaml(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	scheme.AddField("mandatory", FieldTypeInt, true)
 	bytes, err := yaml.Marshal(scheme)
 	schemeNew := NewScheme()
 	err = yaml.Unmarshal(bytes, &schemeNew)

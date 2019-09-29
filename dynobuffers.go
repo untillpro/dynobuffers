@@ -256,7 +256,7 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 
 	bl.StartObject(len(b.scheme.fieldsMap))
 	for _, f := range b.scheme.Fields {
-		isSet  := false
+		isSet := false
 		if f.Ft == FieldTypeString {
 			if strUOffsetTs[f.order] > 0 {
 				bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
@@ -450,6 +450,9 @@ func (s *Scheme) ToYaml() string {
 	for _, f := range s.Fields {
 		for ftStr, curFt := range yamlFieldTypesMap {
 			if curFt == f.Ft {
+				if f.IsMandatory {
+					ftStr = "~" + ftStr
+				}
 				buf.WriteString(f.Name + ": " + ftStr + "\n")
 				break
 			}
