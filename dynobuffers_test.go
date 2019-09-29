@@ -30,6 +30,11 @@ quantity: int
 newField: long
 `
 
+var schemeMandatory = `
+name: string
+price: ~float
+`
+
 var allTypesYaml = `
 int: int
 long: long
@@ -53,7 +58,7 @@ func TestBasicUsage(t *testing.T) {
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
 	b.Set("unknownField", "") // no errors, nothing will be made on ToBytes()
-	bytes := b.ToBytes()
+	bytes, _ := b.ToBytes()
 
 	// create from bytes
 	b = ReadBuffer(bytes, s)
@@ -68,7 +73,7 @@ func TestBasicUsage(t *testing.T) {
 	// modify existing
 	b.Set("price", float32(0.124))
 	b.Set("name", nil) // set to nil means unset
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual = b.Get("name")
 	assert.Nil(t, actual)
@@ -79,7 +84,7 @@ func TestBasicUsage(t *testing.T) {
 
 	// set untyped int value
 	b.Set("quantity", 45)
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	actual = b.Get("quantity")
 	assert.Equal(t, int32(45), actual.(int32))
@@ -103,7 +108,7 @@ func TestNilFields(t *testing.T) {
 	// test initially unset
 	b := NewBuffer(s)
 	testNilFields(t, b)
-	bytes := b.ToBytes()
+	bytes, _ := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
 
@@ -116,7 +121,7 @@ func TestNilFields(t *testing.T) {
 	b.Set("boolFalse", nil)
 	b.Set("boolTrue", nil)
 	b.Set("byte", nil)
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
 
@@ -129,7 +134,7 @@ func TestNilFields(t *testing.T) {
 	b.Set("boolFalse", false)
 	b.Set("boolTrue", true)
 	b.Set("byte", byte(5))
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	b.Set("int", nil)
 	b.Set("long", nil)
@@ -139,7 +144,7 @@ func TestNilFields(t *testing.T) {
 	b.Set("boolFalse", nil)
 	b.Set("boolTrue", nil)
 	b.Set("byte", nil)
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
 }
@@ -181,7 +186,7 @@ func TestWriteNewReadOld(t *testing.T) {
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
 	b.Set("newField", int64(1))
-	bytesNew := b.ToBytes()
+	bytesNew, _ := b.ToBytes()
 
 	schemeOld, err := YamlToScheme(schemeStr)
 	if err != nil {
@@ -209,7 +214,7 @@ func TestWriteOldReadNew(t *testing.T) {
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
-	bytesOld := b.ToBytes()
+	bytesOld, _ := b.ToBytes()
 
 	schemeNew, err := YamlToScheme(schemeStrNew)
 	if err != nil {
@@ -248,7 +253,7 @@ func TestSchemeHasField(t *testing.T) {
 
 func TestToBytesFilledUnmodified(t *testing.T) {
 	b := getBufferAllFields(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
-	bytes := b.ToBytes()
+	bytes, _ := b.ToBytes()
 	b = ReadBuffer(bytes, b.scheme)
 	testFieldValues(t, b, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 }
@@ -278,7 +283,7 @@ func getBufferAllFields(t *testing.T, expectedInt32 int32, expectedInt64 int64, 
 	b.Set("boolFalse", false)
 	b.Set("boolTrue", true)
 	b.Set("byte", expectedByte)
-	bytes := b.ToBytes()
+	bytes, _ := b.ToBytes()
 	b = ReadBuffer(bytes, s)
 	return b
 }
@@ -368,7 +373,7 @@ func TestToJSON(t *testing.T) {
 	assert.Equal(t, float64(42), dest["quantity"])
 
 	// test field not set on ReadBuffer
-	bytes := b.ToBytes()
+	bytes, _ := b.ToBytes()
 	b = ReadBuffer(bytes, scheme)
 
 	jsonStr = b.ToJSON()
@@ -387,7 +392,7 @@ func TestToJSON(t *testing.T) {
 	assert.Equal(t, "cola", dest["name"])
 
 	// test read unset field
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 	b = ReadBuffer(bytes, scheme)
 	jsonStr = b.ToJSON()
 	dest = map[string]interface{}{}
@@ -405,12 +410,12 @@ func TestDifferentOrder(t *testing.T) {
 	b.Set("quantity", int32(42))
 	b.Set("Name", "cola")
 	b.Set("price", float32(0.123))
-	bytes := b.ToBytes()
+	bytes, _ := b.ToBytes()
 
 	b = ReadBuffer(bytes, s)
 	b.Set("price", float32(0.124))
 	b.Set("name", "new cola")
-	bytes = b.ToBytes()
+	bytes, _ = b.ToBytes()
 
 	b = ReadBuffer(bytes, s)
 	actual := b.Get("name")
@@ -536,5 +541,32 @@ func TestCanBeAssigned(t *testing.T) {
 	assert.False(t, scheme.CanBeAssigned("byte", float64(5000000000000)))
 	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxInt32)))
 	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxInt64)))
+}
+
+func TestMandatoryFields(t *testing.T) {
+	scheme, err := YamlToScheme(schemeMandatory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := NewBuffer(scheme)
+	bytes, err := b.ToBytes()
+	assert.NotNil(t, err)
+	assert.Nil(t, bytes)
+
+	b.Set("name", "str")
+	bytes, err = b.ToBytes()
+	assert.NotNil(t, err)
+	assert.Nil(t, bytes)
+
+	b.Set("price", 0.123)
+	bytes, err = b.ToBytes()
+	assert.Nil(t, err)
+	assert.NotNil(t, bytes)
+
+	b = ReadBuffer(bytes, scheme) 
+	bytes, err = b.ToBytes()
+	assert.Nil(t, err)
+	assert.NotNil(t, bytes)
+
 }
 

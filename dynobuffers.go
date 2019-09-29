@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	flatbuffers "github.com/google/flatbuffers/go"
@@ -58,9 +59,10 @@ type Buffer struct {
 
 // Field describes a scheme field
 type Field struct {
-	Name  string
-	Ft    FieldType
-	order int
+	Name        string
+	Ft          FieldType
+	order       int
+	IsMandatory bool
 }
 
 type modifiedField struct {
@@ -226,12 +228,12 @@ func (b *Buffer) Set(name string, value interface{}) {
 	if len(b.modifiedFields) == 0 {
 		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
 	}
-	b.modifiedFields[f.order] = &modifiedField{Field{name, f.Ft, f.order}, value, 0}
+	b.modifiedFields[f.order] = &modifiedField{Field{name, f.Ft, f.order, f.IsMandatory}, value, 0}
 }
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
-func (b *Buffer) ToBytes() []byte {
+func (b *Buffer) ToBytes() ([]byte, error) {
 	bl := flatbuffers.NewBuilder(0)
 
 	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.scheme.Fields))
@@ -254,30 +256,36 @@ func (b *Buffer) ToBytes() []byte {
 
 	bl.StartObject(len(b.scheme.fieldsMap))
 	for _, f := range b.scheme.Fields {
+		isSet  := false
 		if f.Ft == FieldTypeString {
 			if strUOffsetTs[f.order] > 0 {
 				bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
+				isSet = true
 			}
 		} else {
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil {
 				if modifiedField.value != nil {
 					encodeValue(bl, f, modifiedField.value)
+					isSet = true
 				}
 			} else {
-				copyNonStringField(bl, b, f)
+				isSet = copyNonStringField(bl, b, f)
 			}
+		}
+		if f.IsMandatory && !isSet {
+			return nil, fmt.Errorf("Field %s is mandatory but not set", f.Name)
 		}
 	}
 	endUOffsetT := bl.EndObject()
 	bl.Finish(endUOffsetT)
-	return bl.FinishedBytes()
+	return bl.FinishedBytes(), nil
 }
 
-func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) {
+func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
 	offset := src.getFieldUOffsetTByOrder(f.order)
 	if offset == 0 {
-		return
+		return false
 	}
 	offset += src.tab.Pos
 	switch f.Ft {
@@ -295,6 +303,7 @@ func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) {
 		dest.PrependBool(src.tab.GetBool(offset))
 	}
 	dest.Slot(f.order)
+	return true
 }
 
 func numberToFloat64(number interface{}) float64 {
@@ -368,8 +377,8 @@ func NewScheme() *Scheme {
 }
 
 // AddField appends scheme with new field
-func (s *Scheme) AddField(name string, ft FieldType) {
-	newField := &Field{name, ft, len(s.fieldsMap)}
+func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
+	newField := &Field{name, ft, len(s.fieldsMap), isMandatory}
 	s.fieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
 	if ft == FieldTypeString {
@@ -468,8 +477,12 @@ func YamlToScheme(yamlStr string) (*Scheme, error) {
 	}
 	for _, mapItem := range yamlParsed {
 		if typeStr, ok := mapItem.Value.(string); ok {
+			isMandatory := typeStr[0:1] == "~"
+			if isMandatory {
+				typeStr = typeStr[1:]
+			}
 			if ft, ok := yamlFieldTypesMap[typeStr]; ok {
-				scheme.AddField(mapItem.Key.(string), ft)
+				scheme.AddField(mapItem.Key.(string), ft, isMandatory)
 			} else {
 				return nil, errors.New("unknown field type: " + typeStr)
 			}
