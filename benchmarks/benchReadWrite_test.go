@@ -1,23 +1,24 @@
 package dynobuffers
 
 import (
-	"github.com/untillpro/dynobuffers"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"testing"
+
+	"github.com/untillpro/dynobuffers"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
 )
 
 func BenchmarkWriteDynoBuffersSimpleTyped(b *testing.B) {
-	s := getSimpleSchema()
+	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
-	bf.Set("name", "cola")	
+	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 
 	b.ResetTimer()
 	sum := float32(0)
@@ -27,17 +28,17 @@ func BenchmarkWriteDynoBuffersSimpleTyped(b *testing.B) {
 		quantity, _ := bf.GetInt("quantity")
 		sum += price * float32(quantity)
 		bf.Set("quantity", int32(3))
-		_ = bf.ToBytes()
+		_, _ = bf.ToBytes()
 	}
 }
 
 func BenchmarkWriteDynoBuffersSimpleTypedReadWriteString(b *testing.B) {
-	s := getSimpleSchema()
+	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 
 	b.ResetTimer()
 	sum := float32(0)
@@ -48,17 +49,17 @@ func BenchmarkWriteDynoBuffersSimpleTypedReadWriteString(b *testing.B) {
 		_, _ = bf.GetString("name")
 		sum += price * float32(quantity)
 		bf.Set("name", "new")
-		_ = bf.ToBytes()
+		_, _ = bf.ToBytes()
 	}
 }
 
 func BenchmarkWriteDynoBuffersSimpleUntyped(b *testing.B) {
-	s := getSimpleSchema()
+	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 
 	b.ResetTimer()
 	sum := float32(0)
@@ -68,7 +69,7 @@ func BenchmarkWriteDynoBuffersSimpleUntyped(b *testing.B) {
 		quantity := bf.Get("quantity").(int32)
 		sum += price * float32(quantity)
 		bf.Set("quantity", int32(3))
-		_ = bf.ToBytes()
+		_, _ = bf.ToBytes()
 	}
 }
 
@@ -175,10 +176,10 @@ func BenchmarkWriteLinkedInAvroSimple(b *testing.B) {
 }
 
 func BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 	b.ResetTimer()
 	sum := float64(0)
 	for i := 0; i < b.N; i++ {
@@ -187,7 +188,7 @@ func BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
 		price, _ := bf.GetFloat("purchase_price")
 		sum += float64(float32(q) * price)
 		bf.Set("qauntity", int32(123))
-		_ = bf.ToBytes()
+		_, _ = bf.ToBytes()
 	}
 }
 func BenchmarkWriteFlatBuffersArticleReadFewFields(b *testing.B) {
@@ -209,7 +210,7 @@ func BenchmarkWriteFlatBuffersArticleReadFewFields(b *testing.B) {
 }
 
 func BenchmarkWriteJsonArticleReadFewFields(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	jsonStr := bf.ToJSON()
@@ -549,10 +550,10 @@ func BenchmarkWriteJsonArticleReadAllFields(b *testing.B) {
 }
 
 func BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bf := dynobuffers.ReadBuffer(bytes, s)
@@ -680,15 +681,15 @@ func BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
 		bf.Get("block_transfer")
 		bf.Get("id_size_modifier")
 		bf.Set("quantity", int32(123))
-		_ = bf.ToBytes()
+		_, _ = bf.ToBytes()
 	}
 }
 
 func BenchmarkWriteDynoBufferArticleReadAllFieldsTyped(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bf := dynobuffers.ReadBuffer(bytes, s)
@@ -817,6 +818,6 @@ func BenchmarkWriteDynoBufferArticleReadAllFieldsTyped(b *testing.B) {
 		bf.GetInt("block_transfer")
 		bf.GetLong("id_size_modifier")
 		bf.Set("quantity", int32(123))
-		_ = bf.ToBytes()
+		_, _ = bf.ToBytes()
 	}
 }
