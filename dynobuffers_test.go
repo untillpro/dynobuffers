@@ -544,6 +544,15 @@ func TestCanBeAssigned(t *testing.T) {
 	assert.False(t, scheme.CanBeAssigned("byte", float64(math.MaxInt64)))
 }
 
+func TestCanBeAssignedMandatory(t *testing.T) {
+	scheme, err := YamlToScheme(schemeMandatory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.True(t, scheme.CanBeAssigned("name", nil))
+	assert.False(t, scheme.CanBeAssigned("price", nil))
+}
+
 func TestMandatoryFields(t *testing.T) {
 	scheme, err := YamlToScheme(schemeMandatory)
 	if err != nil {
@@ -564,10 +573,69 @@ func TestMandatoryFields(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, bytes)
 
-	b = ReadBuffer(bytes, scheme) 
+	b = ReadBuffer(bytes, scheme)
 	bytes, err = b.ToBytes()
 	assert.Nil(t, err)
 	assert.NotNil(t, bytes)
-
 }
 
+func TestApplyJsonErrors(t *testing.T) {
+	scheme, err := YamlToScheme(schemeMandatory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := NewBuffer(scheme)
+
+	// unset field
+	json := `{"name": null, "price": 0.124, "unknown": 42}`
+	bytes, err := b.ApplyJSONAndToBytes(json)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, scheme)
+	assert.Nil(t, b.Get("name"))
+	assert.Equal(t, float32(0.124), b.Get("price"))
+
+	// wrong type -> error
+	json = `{"name": "str", "price": "wrong type", "unknown": 42}`
+	bytes, err = b.ApplyJSONAndToBytes(json)
+	assert.Nil(t, bytes)
+	assert.NotNil(t, err)
+
+	// unset mandatory field -> error
+	json = `{"name": "str", "price": null, "unknown": 42}`
+	bytes, err = b.ApplyJSONAndToBytes(json)
+	assert.Nil(t, bytes)
+	assert.NotNil(t, err)
+
+	// mandatory field is not set -> error
+	json = `{"name": "str", "unknown": 42}`
+	b = NewBuffer(scheme)
+	bytes, err = b.ApplyJSONAndToBytes(json)
+	assert.Nil(t, bytes)
+	assert.NotNil(t, err)
+
+	// wrong json -> error
+	json = `wrong`
+	bytes, err = b.ApplyJSONAndToBytes(json)
+	assert.Nil(t, bytes)
+	assert.NotNil(t, err)
+}
+
+func TestApplyJsonAllTypes(t *testing.T) {
+	scheme, err := YamlToScheme(allTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	json := `{"string": "str", "long": 42, "int": 43, "float": 0.124, "double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false, "unknown": -1}`
+	b := NewBuffer(scheme)
+	bytes, err := b.ApplyJSONAndToBytes(json)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, scheme)
+	testFieldValues(t, b, int32(43), int64(42), float32(0.124), float64(0.125), "str", 6)
+	assert.True(t, b.Get("boolTrue").(bool))
+	assert.False(t, b.Get("boolFalse").(bool))
+
+}

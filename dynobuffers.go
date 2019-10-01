@@ -225,10 +225,36 @@ func (b *Buffer) Set(name string, value interface{}) {
 	if !ok {
 		return
 	}
+	b.set(f, name, value)
+}
+
+func (b *Buffer) set(f *Field, name string, value interface{}) {
 	if len(b.modifiedFields) == 0 {
 		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
 	}
 	b.modifiedFields[f.order] = &modifiedField{Field{name, f.Ft, f.order, f.IsMandatory}, value, 0}
+}
+
+// ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array
+// returns error if value of incompatible type is provided or mandatory field is not set\unset
+// no error if unexisting field is provided
+func (b *Buffer) ApplyJSONAndToBytes(jsonStr string) ([]byte, error) {
+	dest := map[string]interface{}{}
+	err := json.Unmarshal([]byte(jsonStr), &dest)
+	if err != nil {
+		return nil, err
+	}
+	for fn, fv := range dest {
+		f, ok := b.scheme.fieldsMap[fn]
+		if !ok {
+			continue
+		}
+		if !b.scheme.canBeAssigned(f, fn, fv) {
+			return nil, fmt.Errorf("value %v can not be assigned to field %s", fv, fn)
+		}
+		b.set(f, fn, fv)
+	}
+	return b.ToBytes()
 }
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
@@ -397,22 +423,33 @@ func (s *Scheme) MarshalText() (text []byte, err error) {
 	return []byte(s.ToYaml()), nil
 }
 
-// CanBeAssigned checks if correct value is provided for the field. Returns if scheme contains such field and its type equal to the value type
+// CanBeAssigned checks if correct value is provided for the field.
+// no such field -> false
+// value is nil and field is mandatory -> false
+// value type and field type are incompatible -> false
+// value has appropriate type (e.g. string for numberic field) and fits into field (e.g. 255 fits into float, double, int, long, byte; 256 does not fit into byte etc) -> true
 // Numbers must be float64 only
 func (s *Scheme) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
 	f, ok := s.fieldsMap[fieldName]
 	if !ok {
 		return false
 	}
+	return s.canBeAssigned(f, fieldName, fieldValue)
+}
+
+func (s *Scheme) canBeAssigned(f *Field, fn string, fv interface{}) bool {
+	if fv == nil {
+		return !f.IsMandatory
+	}
 	switch f.Ft {
 	case FieldTypeBool:
-		_, ok := fieldValue.(bool)
+		_, ok := fv.(bool)
 		return ok
 	case FieldTypeString:
-		_, ok := fieldValue.(string)
+		_, ok := fv.(string)
 		return ok
 	default:
-		float64Src, ok := fieldValue.(float64)
+		float64Src, ok := fv.(float64)
 		if !ok {
 			return false
 		}
