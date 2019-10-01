@@ -79,6 +79,10 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	b.Set("price", nil) // set to nil means unset
 	bytes = b.ToBytes()
 	```
+- Load data from JSON key-value 
+  	```go
+	err := b.ApplyJSONAndToBytes(`{"name": "str", "price": 0.123, "fld": null})
+	```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 # Benchmarks
