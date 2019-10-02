@@ -47,6 +47,17 @@ boolFalse: bool
 byte: byte
 `
 
+var arraysAllTypesYaml = `
+ints..: int
+longs..: long
+floats..: float
+doubles..: double
+strings..: string
+boolTrues..: bool
+boolFalses..: bool
+bytes..: byte
+`
+
 func TestBasicUsage(t *testing.T) {
 	s, err := YamlToScheme(schemeStrNew)
 	if err != nil {
@@ -450,7 +461,6 @@ func TestSchemeToFromYaml(t *testing.T) {
 
 	assert.True(t, reflect.DeepEqual(scheme.Fields, schemeNew.Fields))
 	assert.True(t, reflect.DeepEqual(scheme.fieldsMap, schemeNew.fieldsMap))
-	assert.True(t, reflect.DeepEqual(scheme.stringFields, schemeNew.stringFields))
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
@@ -466,6 +476,7 @@ func TestSchemeNestedToFromYAML(t *testing.T) {
 	schemeNested.AddField("quantity", FieldTypeInt, true)
 	schemeRoot.AddField("name", FieldTypeString, false)
 	schemeRoot.AddNested("nes", schemeNested, true)
+	schemeRoot.AddNestedArray("nesarr", schemeNested, true)
 	schemeRoot.AddField("last", FieldTypeInt, false)
 	bytes, err := yaml.Marshal(schemeRoot)
 	schemeNew := NewScheme()
@@ -476,7 +487,6 @@ func TestSchemeNestedToFromYAML(t *testing.T) {
 
 	assert.True(t, reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields))
 	assert.True(t, reflect.DeepEqual(schemeRoot.fieldsMap, schemeNew.fieldsMap))
-	assert.True(t, reflect.DeepEqual(schemeRoot.stringFields, schemeNew.stringFields))
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
@@ -808,7 +818,7 @@ func TestNestedMandatory(t *testing.T) {
 	}
 }
 
-func TestNestedJSON(t *testing.T) {
+func TestApplyNestedJSON(t *testing.T) {
 	schemeRoot := NewScheme()
 	schemeNested := NewScheme()
 	schemeNested.AddField("price", FieldTypeFloat, false)
@@ -873,6 +883,70 @@ func TestNestedJSON(t *testing.T) {
 	}
 }
 
+func TestApplyNestedArrayJSON(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNestedArray("nes", schemeNested, true)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+
+	b := NewBuffer(schemeRoot)
+	bNestedArr := []*Buffer{}
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	bNestedArr = append(bNestedArr, bNested)
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("price", 0.124)
+	bNested.Set("quantity", 43)
+	bNestedArr = append(bNestedArr, bNested)
+
+	b.Set("name", "str")
+	b.Set("nes", bNestedArr)
+	b.Set("last", 42)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, schemeRoot)
+	jsonStr := b.ToJSON()
+	b = NewBuffer(schemeRoot)
+	bytes, err = b.ApplyJSONAndToBytes([]byte(jsonStr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	bNested = b.GetByIndex("nes", 0).(*Buffer)
+	assert.Equal(t, int32(42), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.123), bNested.Get("price"))
+	bNested = b.GetByIndex("nes", 1).(*Buffer)
+	assert.Equal(t, int32(43), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.124), bNested.Get("price"))
+	assert.Equal(t, "str", b.Get("name"))
+	assert.Equal(t, int32(42), b.Get("last"))
+
+	// error if not array is provided for an array field
+	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":{"price":0.123,"quantity":42},"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+
+	// error if not object is provided as an array element
+	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":[0.123],"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+
+	// error if wrong failed to encode an array
+	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":[{"price":0.123,"quantity":"wrong value"}],"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+}
+
 func TestFlatBuffersNested(t *testing.T) {
 	bl := flatbuffers.NewBuilder(0)
 	bl.StartObject(1)
@@ -906,5 +980,177 @@ func TestFlatBuffersNested(t *testing.T) {
 
 	nestedField0Offset := flatbuffers.UOffsetT(tabNested.Offset(flatbuffers.VOffsetT((0+2)*2))) + tabNested.Pos
 	assert.Equal(t, int32(45), tabNested.GetInt32(nestedField0Offset))
+
+}
+
+func TestArraysBasic(t *testing.T) {
+	s := NewScheme()
+	s.AddArray("longs", FieldTypeLong, false)
+
+	// initial
+	b := NewBuffer(s)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Nil(t, b.Get("longs"))
+
+	// set and read
+	longs := []int64{5, 6}
+	b.Set("longs", longs)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, int64(5), b.GetByIndex("longs", 0))
+	assert.Equal(t, int64(6), b.GetByIndex("longs", 1))
+	assert.Nil(t, b.GetByIndex("longs", 3))
+	assert.Nil(t, b.GetByIndex("longs", -1))
+	assert.Nil(t, b.GetByIndex("unexisting", 0))
+
+	//test Array
+	a := b.Get("longs").(*Array)
+	longsActual := a.GetAll()
+	assert.Equal(t, len(longs), len(longsActual))
+	for i, long := range longsActual {
+		assert.Equal(t, longs[i], long)
+	}
+	next, ok := a.GetNext()
+	assert.True(t, ok)
+	assert.Equal(t, int64(5), next)
+	next, ok = a.GetNext()
+	assert.True(t, ok)
+	assert.Equal(t, int64(6), next)
+	next, ok = a.GetNext()
+	assert.False(t, ok)
+	assert.Nil(t, next)
+
+	// modify
+	longs = []int64{7, 8, 9}
+	b.Set("longs", longs)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, int64(7), b.GetByIndex("longs", 0))
+	assert.Equal(t, int64(8), b.GetByIndex("longs", 1))
+
+	// unset
+	b.Set("longs", nil)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Nil(t, b.Get("longs"))
+}
+
+func TestArraysAllTypes(t *testing.T) {
+	s, err := YamlToScheme(arraysAllTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ints := []int32{1, 2}
+	longs := []int64{3, 4}
+	floats := []float32{0.5, 0.6}
+	doubles := []float64{0.7, 0.8}
+	trueBools := []bool{true, false}
+	falseBools := []bool{false, true}
+	bytesArr := []byte{9, 10}
+	strings := []string{"str1", "str2"}
+
+	b := NewBuffer(s)
+	b.Set("ints", ints)
+	b.Set("longs", longs)
+	b.Set("floats", floats)
+	b.Set("doubles", doubles)
+	b.Set("boolTrues", trueBools)
+	b.Set("boolFalses", falseBools)
+	b.Set("bytes", bytesArr)
+	b.Set("strings", strings)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, int32(1), b.GetByIndex("ints", 0))
+	assert.Equal(t, int32(2), b.GetByIndex("ints", 1))
+	assert.Equal(t, int64(3), b.GetByIndex("longs", 0))
+	assert.Equal(t, int64(4), b.GetByIndex("longs", 1))
+	assert.Equal(t, float32(0.5), b.GetByIndex("floats", 0))
+	assert.Equal(t, float32(0.6), b.GetByIndex("floats", 1))
+	assert.Equal(t, float64(0.7), b.GetByIndex("doubles", 0))
+	assert.Equal(t, float64(0.8), b.GetByIndex("doubles", 1))
+	assert.Equal(t, true, b.GetByIndex("boolTrues", 0))
+	assert.Equal(t, false, b.GetByIndex("boolTrues", 1))
+	assert.Equal(t, false, b.GetByIndex("boolFalses", 0))
+	assert.Equal(t, true, b.GetByIndex("boolFalses", 1))
+	assert.Equal(t, byte(9), b.GetByIndex("bytes", 0))
+	assert.Equal(t, byte(10), b.GetByIndex("bytes", 1))
+	assert.Equal(t, "str1", b.GetByIndex("strings", 0))
+	assert.Equal(t, "str2", b.GetByIndex("strings", 1))
+}
+
+func TestArraysNested(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, false)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNestedArray("nes", schemeNested, false)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+	b := NewBuffer(schemeRoot)
+
+	bNestedArr := []*Buffer{}
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	bNestedArr = append(bNestedArr, bNested)
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("price", 0.124)
+	bNested.Set("quantity", 43)
+	bNestedArr = append(bNestedArr, bNested)
+
+	b.Set("name", "str")
+	b.Set("nes", bNestedArr)
+	b.Set("last", 42)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// GetByIndex
+	b = ReadBuffer(bytes, schemeRoot)
+	bNested = b.GetByIndex("nes", 0).(*Buffer)
+	assert.Equal(t, int32(42), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.123), bNested.Get("price"))
+	bNested = b.GetByIndex("nes", 1).(*Buffer)
+	assert.Equal(t, int32(43), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.124), bNested.Get("price"))
+
+	// iterator
+	arr := b.Get("nes").(*Array)
+	buffers := arr.GetAll()
+	assert.Equal(t, int32(42), buffers[0].(*Buffer).Get("quantity"))
+	assert.Equal(t, float32(0.123), buffers[0].(*Buffer).Get("price"))
+	assert.Equal(t, int32(43), buffers[1].(*Buffer).Get("quantity"))
+	assert.Equal(t, float32(0.124), buffers[1].(*Buffer).Get("price"))
+
+	bufferIntf, ok := arr.GetNext()
+	assert.True(t, ok)
+	assert.Equal(t, int32(42), bufferIntf.(*Buffer).Get("quantity"))
+	assert.Equal(t, float32(0.123), bufferIntf.(*Buffer).Get("price"))
+	bufferIntf, ok = arr.GetNext()
+	assert.True(t, ok)
+	assert.Equal(t, int32(43), bufferIntf.(*Buffer).Get("quantity"))
+	assert.Equal(t, float32(0.124), bufferIntf.(*Buffer).Get("price"))
+	bufferIntf, ok = arr.GetNext()
+	assert.False(t, ok)
+	assert.Nil(t, bufferIntf)
 
 }

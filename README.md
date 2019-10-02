@@ -150,6 +150,92 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	// note: bNested is obsolete here. Need to obtain it again from bRoot
 	```
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
+
+## Arrays
+- Declare scheme
+  - by yaml. Append `..` to field name to make it array
+	```go
+	var schemeStr = `
+	name: string
+	Nested..: 
+	  nes1: int
+	  Nes2: int
+	Ids..: long
+	`
+	schemeRoot := YamlToScheme(schemeStr)
+  - manually
+	```go
+	schemeNested := dynobuffers.NewScheme()
+	schemeNested.AddField("nes1", FieldTypeInt, false)
+	schemeNested.AddField("nes2", FieldTypeInt, true)
+	schemeRoot := dynobuffers.NewScheme()
+	schemeRoot.AddField("name", dynobuffers.FieldTypeString, false)
+	schemeRoot.AddNestedArray("nested", schemeNested, true)
+	schemeRoot.AddFieldArray("ids", dynobuffers.FieldTypeLong, true)
+	```
+- Create Buffer, fill and to bytes
+	```go
+	bRoot := NewBuffer(schemeRoot)
+	buffersNested := make([]*Buffer, 2)
+
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("nes1", 1)
+	bNested.Set("nes2", 2)
+	buffersNested = append(buffersNested, bNested)
+
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("nes1", 3)
+	bNested.Set("nes2", 4)
+	buffersNested = append(buffersNested, bNested)
+
+	ids := []int64{5,6}
+	bRoot.Set("name", "str")
+	bRoot.Set("nested", buffersNested)
+	bRoot.Set("ids", ids)
+	bytes, err := bRoot.ToBytes()
+	if err != nil {
+		panic(err)
+	}
+	```
+- Read array
+  - By index
+	```go
+	bRoot = ReadBuffer(bytes, schemeRoot)
+	assert.Equal(t, int64(5), bRoot.GetByIndex("ids", 0))
+	assert.Equal(t, int32(1), bRoot.GetByIndex("nested", 0).(*Buffer).Get("nes1"))
+	```
+  - Using Array struct to iterate through array
+	```go
+	bRoot = ReadBuffer(bytes, schemeRoot)
+	arr := b.Get("nested").(*dynobuffers.Array)
+	for value, ok := arr.GetNext(); ok {
+		fmt.Println(value)
+	}
+	filedArr := ar.GetAll()
+	for i, value := range filledArr {
+		fmt.Println(dmt.Sprintf("%d: %v", i, value)
+	}
+	```
+- Modify array and to bytes
+	```go
+	bRoot = ReadBuffer(bytes, schemeRoot)
+	
+	ids := []int64{5,6}
+	bRoot.Set("ids", ids)
+
+	buffers := bRoot.Get("nested").(*Array).GetAll()
+	buffers[0] = nil
+	buffers[1].Set("nes1", -1)
+	bRoot.Set("nested", buffers) // need to set it because we nilled an element
+	                             // not need to set if we change nested buffers's fields only
+	bytes, err := bRoot.ToBytes()
+	if err != nil {
+		panic(err)
+	}
+	bRoot = ReadBuffer(bytes, scheme)
+	// note: Buffers of `buffers` array are obsolete here. Need to obtain the array again from bRoot
+	```
+ - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
 # Benchmarks
 ## Description
 - [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
