@@ -1,8 +1,6 @@
 package dynobuffers
 
 import (
-	"math"
-
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/untillpro/dynobuffers"
 )
@@ -406,18 +404,4 @@ func getArticleSchemeDynoBuffer() *dynobuffers.Scheme {
 	s.AddField("block_transfer", dynobuffers.FieldTypeBool, false)
 	s.AddField("id_size_modifier", dynobuffers.FieldTypeLong, false)
 	return s
-}
-
-func round(x float64, prec int) float64 {
-	var rounder float64
-	pow := math.Pow(10, float64(prec))
-	intermed := x * pow
-	_, frac := math.Modf(intermed)
-	if frac >= 0.5 {
-		rounder = math.Ceil(intermed)
-	} else {
-		rounder = math.Floor(intermed)
-	}
-
-	return rounder / pow
 }

@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"testing"
 
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -32,7 +33,7 @@ newField: long
 
 var schemeMandatory = `
 name: string
-price: ~float
+Price: float
 `
 
 var allTypesYaml = `
@@ -237,6 +238,14 @@ func TestYamlToSchemeErrors(t *testing.T) {
 	_, err := YamlToScheme("wrong yaml")
 	assert.NotNil(t, err)
 	_, err = YamlToScheme("name: wrongType")
+	assert.NotNil(t, err)
+	_, err = YamlToScheme(`
+nested:
+  nestedField: wrongType`)
+	assert.NotNil(t, err)
+	_, err = YamlToScheme(`
+nested:
+  wrong`)
 	assert.NotNil(t, err)
 }
 
@@ -450,6 +459,32 @@ func TestSchemeToFromYaml(t *testing.T) {
 	}
 }
 
+func TestSchemeNestedToFromYAML(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNested("nes", schemeNested, true)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+	bytes, err := yaml.Marshal(schemeRoot)
+	schemeNew := NewScheme()
+	err = yaml.Unmarshal(bytes, &schemeNew)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.True(t, reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields))
+	assert.True(t, reflect.DeepEqual(schemeRoot.fieldsMap, schemeNew.fieldsMap))
+	assert.True(t, reflect.DeepEqual(schemeRoot.stringFields, schemeNew.stringFields))
+
+	schemeNew = NewScheme()
+	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
+	if err == nil {
+		t.Fatal()
+	}
+}
+
 func TestCanBeAssigned(t *testing.T) {
 	scheme, err := YamlToScheme(allTypesYaml)
 	if err != nil {
@@ -587,7 +622,7 @@ func TestApplyJsonErrors(t *testing.T) {
 	b := NewBuffer(scheme)
 
 	// unset field
-	json := `{"name": null, "price": 0.124, "unknown": 42}`
+	json := []byte(`{"name": null, "price": 0.124, "unknown": 42}`)
 	bytes, err := b.ApplyJSONAndToBytes(json)
 	if err != nil {
 		t.Fatal(err)
@@ -597,26 +632,26 @@ func TestApplyJsonErrors(t *testing.T) {
 	assert.Equal(t, float32(0.124), b.Get("price"))
 
 	// wrong type -> error
-	json = `{"name": "str", "price": "wrong type", "unknown": 42}`
+	json = []byte(`{"name": "str", "price": "wrong type", "unknown": 42}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 
 	// unset mandatory field -> error
-	json = `{"name": "str", "price": null, "unknown": 42}`
+	json = []byte(`{"name": "str", "price": null, "unknown": 42}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 
 	// mandatory field is not set -> error
-	json = `{"name": "str", "unknown": 42}`
+	json = []byte(`{"name": "str", "unknown": 42}`)
 	b = NewBuffer(scheme)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 
 	// wrong json -> error
-	json = `wrong`
+	json = []byte(`wrong`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
@@ -627,7 +662,7 @@ func TestApplyJsonAllTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	json := `{"string": "str", "long": 42, "int": 43, "float": 0.124, "double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false, "unknown": -1}`
+	json := []byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124, "double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false, "unknown": -1}`)
 	b := NewBuffer(scheme)
 	bytes, err := b.ApplyJSONAndToBytes(json)
 	if err != nil {
@@ -637,5 +672,239 @@ func TestApplyJsonAllTypes(t *testing.T) {
 	testFieldValues(t, b, int32(43), int64(42), float32(0.124), float64(0.125), "str", 6)
 	assert.True(t, b.Get("boolTrue").(bool))
 	assert.False(t, b.Get("boolFalse").(bool))
+}
+
+func TestNestedBasic(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNested("nes", schemeNested, true)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+
+	b := NewBuffer(schemeRoot)
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	b.Set("name", "str")
+	b.Set("nes", bNested)
+	b.Set("last", 42)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, schemeRoot)
+	assert.Equal(t, "str", b.Get("name"))
+	assert.Equal(t, int32(42), b.Get("last"))
+
+	bNested = b.Get("nes").(*Buffer)
+	assert.Equal(t, int32(42), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.123), bNested.Get("price"))
+}
+
+func TestNestedAdvanced(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, false)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNested("nes", schemeNested, false)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+	b := NewBuffer(schemeRoot)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test initial
+	b = ReadBuffer(bytes, schemeRoot)
+	assert.Nil(t, b.Get("name"))
+	assert.Nil(t, b.Get("nes"))
+	assert.Nil(t, b.Get("last"))
+
+	// fill
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	b.Set("name", "str")
+	b.Set("nes", bNested)
+	b.Set("last", 42)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// modify nested
+	b = ReadBuffer(bytes, schemeRoot)
+	bNested = b.Get("nes").(*Buffer)
+	bNested.Set("quantity", 43)
+	bNested.Set("price", 0.124)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	assert.Equal(t, "str", b.Get("name"))
+	assert.Equal(t, int32(42), b.Get("last"))
+	bNested = b.Get("nes").(*Buffer)
+	assert.Equal(t, int32(43), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.124), bNested.Get("price"))
+
+	// unset nested
+	b.Set("nes", nil)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	assert.Equal(t, "str", b.Get("name"))
+	assert.Equal(t, int32(42), b.Get("last"))
+	assert.Nil(t, b.Get("nes"))
+}
+
+func TestNestedMandatory(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNested("nes", schemeNested, true)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+	b := NewBuffer(schemeRoot)
+	bytes, err := b.ToBytes()
+	if err == nil {
+		t.Fatal()
+	}
+
+	// fill
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	b.Set("name", "str")
+	b.Set("nes", bNested)
+	b.Set("last", 42)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// unset mandatory in nested
+	b = ReadBuffer(bytes, schemeRoot)
+	bNested = b.Get("nes").(*Buffer)
+	bNested.Set("quantity", nil)
+	bytes, err = b.ToBytes()
+	if err == nil {
+		t.Fatal()
+	}
+
+	// unset nested mandatory
+	bNested.Set("quantity", 1)
+	b.Set("nes", nil)
+	bytes, err = b.ToBytes()
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNestedJSON(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNested("nes", schemeNested, true)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+
+	b := NewBuffer(schemeRoot)
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	b.Set("name", "str")
+	b.Set("nes", bNested)
+	b.Set("last", 42)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	jsonStr := b.ToJSON()
+
+	b = NewBuffer(schemeRoot)
+	bytes, err = b.ApplyJSONAndToBytes([]byte(jsonStr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	bNested = b.Get("nes").(*Buffer)
+	assert.Equal(t, int32(42), bNested.Get("quantity"))
+	assert.Equal(t, float32(0.123), bNested.Get("price"))
+	assert.Equal(t, "str", b.Get("name"))
+	assert.Equal(t, int32(42), b.Get("last"))
+
+	// error if mandatory nested object is null
+	b = NewBuffer(schemeRoot)
+	_, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":null,"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+	b = NewBuffer(schemeRoot)
+	_, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+
+	// error if mandatory field in nested object is null
+	b = NewBuffer(schemeRoot)
+	_, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":{"price": 1,"quantity":null},"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+	b = NewBuffer(schemeRoot)
+	_, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":{"price": 1},"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+	b = NewBuffer(schemeRoot)
+	_, err = b.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":{},"last":42}`))
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestFlatBuffersNested(t *testing.T) {
+	bl := flatbuffers.NewBuilder(0)
+	bl.StartObject(1)
+	bl.PrependInt32(45)
+	bl.Slot(0)
+	nested := bl.EndObject()
+	bl.Finish(nested)
+
+	bl.StartObject(2)
+	bl.PrependInt32(42)
+	bl.Slot(0)
+	bl.PrependUOffsetTSlot(1, nested, 0)
+	root := bl.EndObject()
+	bl.Finish(root)
+
+	bytes := bl.FinishedBytes()
+
+	tabRoot := flatbuffers.Table{}
+	tabRoot.Bytes = bytes
+	tabRoot.Pos = flatbuffers.GetUOffsetT(bytes)
+
+	rootField0Offset := flatbuffers.UOffsetT(tabRoot.Offset(flatbuffers.VOffsetT((0+2)*2))) + tabRoot.Pos
+	assert.Equal(t, int32(42), tabRoot.GetInt32(rootField0Offset))
+
+	rootField1Offset := flatbuffers.UOffsetT(tabRoot.Offset(flatbuffers.VOffsetT((1+2)*2))) + tabRoot.Pos
+
+	nestedOffset := tabRoot.Indirect(rootField1Offset)
+	tabNested := flatbuffers.Table{}
+	tabNested.Bytes = bytes
+	tabNested.Pos = nestedOffset
+
+	nestedField0Offset := flatbuffers.UOffsetT(tabNested.Offset(flatbuffers.VOffsetT((0+2)*2))) + tabNested.Pos
+	assert.Equal(t, int32(45), tabNested.GetInt32(nestedField0Offset))
 
 }
