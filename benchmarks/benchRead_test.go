@@ -12,12 +12,12 @@ import (
 )
 
 func BenchmarkReadDynoBuffersSimpleTyped(b *testing.B) {
-	s := getSimpleSchema()
+	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 
 	b.ResetTimer()
 	sum := float32(0)
@@ -30,12 +30,12 @@ func BenchmarkReadDynoBuffersSimpleTyped(b *testing.B) {
 }
 
 func BenchmarkReadDynoBuffersSimpleTypedReadString(b *testing.B) {
-	s := getSimpleSchema()
+	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 
 	b.ResetTimer()
 	sum := float32(0)
@@ -49,12 +49,12 @@ func BenchmarkReadDynoBuffersSimpleTypedReadString(b *testing.B) {
 }
 
 func BenchmarkReadDynoBuffersSimpleUntyped(b *testing.B) {
-	s := getSimpleSchema()
+	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 
 	b.ResetTimer()
 	sum := float32(0)
@@ -169,10 +169,10 @@ func BenchmarkReadLinkedInAvroSimple(b *testing.B) {
 }
 
 func BenchmarkReadDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 	b.ResetTimer()
 	sum := float64(0)
 	for i := 0; i < b.N; i++ {
@@ -197,7 +197,7 @@ func BenchmarkReadFlatBuffersArticleReadFewFields(b *testing.B) {
 }
 
 func BenchmarkReadJsonArticleReadFewFields(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	jsonStr := bf.ToJSON()
@@ -517,10 +517,10 @@ func BenchmarkReadJsonArticleReadAllFields(b *testing.B) {
 }
 
 func BenchmarkReadDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bf := dynobuffers.ReadBuffer(bytes, s)
@@ -651,10 +651,10 @@ func BenchmarkReadDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
 }
 
 func BenchmarkReadDynoBufferArticleReadAllFieldsTyped(b *testing.B) {
-	s := getArticleSchemaDynoBuffer()
+	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
-	bytes := bf.ToBytes()
+	bytes, _ := bf.ToBytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bf := dynobuffers.ReadBuffer(bytes, s)
@@ -956,8 +956,8 @@ func BenchmarkMap(b *testing.B) {
 	}
 }
 
-func getSimpleSchema() *dynobuffers.Schema {
-	s, _ := dynobuffers.YamlToSchema(`
+func getSimpleScheme() *dynobuffers.Scheme {
+	s, _ := dynobuffers.YamlToScheme(`
 name: string
 price: float
 quantity: int

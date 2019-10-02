@@ -17,7 +17,6 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 - Only 2 cases of scheme modification are allowed: field rename and append fields to the end. This is necessary to have ability to read byte buffers in Scheme of any version
 - Written in New -> read in Old -> write in Old -> New fields are lost (todo)
 - No arrays (todo)
-- No nested objects (todo)
 - No blobs (use strings?)?
 
 # Installation
@@ -38,6 +37,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	name: string
 	price: float
 	quantity: int
+	Id: long # first letter is capital -> field is mandatory. Field is accessed through uncapitalized name then
 	`
 	scheme, err := dynobuffers.YamlToScheme(schemeStr)
 	if err != nil {
@@ -47,11 +47,12 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
   - Manually
 	```go
 	scheme := dynobuffers.NewScheme()
-	scheme.AddField("name", dynobuffers.FieldTypeString)
-	scheme.AddField("price", dynobuffers.FieldTypeFloat)
-	scheme.AddField("quantity", dynobuffers.FieldTypeInt)
+	scheme.AddField("name", dynobuffers.FieldTypeString, false)
+	scheme.AddField("price", dynobuffers.FieldTypeFloat, false)
+	scheme.AddField("quantity", dynobuffers.FieldTypeInt, false)
+	scheme.AddField("id", dynobuffers.FieldTypeLong, true)
 	```
-- Create Dyno Buffer using Scheme
+- Create empty Dyno Buffer using Scheme
 	```go
 	b := dynobuffers.NewBuffer(scheme)
 	```
@@ -79,8 +80,76 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	b.Set("price", nil) // set to nil means unset
 	bytes = b.ToBytes()
 	```
+- Load data from JSON key-value and to bytes array
+  	```go
+	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"name": "str", "price": 0.123, "fld": null}`))
+	if err != nil {
+		panic(err)
+	}
+	```
+	- value is nil and field is mandatory -> error
+	- value type and field type are incompatible -> error
+    - value has appropriate type (e.g. string for numberic field) and fits into field (e.g. 255 fits into float, double, int, long, byte; 256 does not fit into byte etc) -> ok
+    - no such field in the scheme -> ok (need to scheme versioning)
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
+## Nested objects
+- Declare scheme
+  - by yaml
+	```go
+	var schemeStr = `
+	name: string
+	Nested: 
+	  nes1: int
+	  Nes2: int
+	Id: long
+	`
+	schemeRoot := YamlToScheme(schemeStr)
+  - manually
+	```go
+	schemeNested := dynobuffers.NewScheme()
+	schemeNested.AddField("nes1", FieldTypeInt, false)
+	schemeNested.AddField("nes2", FieldTypeInt, true)
+	schemeRoot := dynobuffers.NewScheme()
+	schemeRoot.AddField("name", dynobuffers.FieldTypeString, false)
+	schemeRoot.AddNested("nested", schemeNested, true)
+	schemeRoot.AddField("id", dynobuffers.FieldTypeLong, true)
+	```
+- Create Buffer, fill and to bytes
+	```go
+	bRoot := NewBuffer(schemeRoot)
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("nes1", 1)
+	bNested.Set("nes2", 2)
+	bRoot.Set("name", "str")
+	bRoot.Set("nested", bNested)
+	bytes, err := bRoot.ToBytes()
+	if err != nil {
+		panic(err)
+	}
+	```
+- Read from bytes, modify and to bytes again
+	```go
+	bRoot = ReadBuffer(bytes, schemeRoot)
+	bRoot.Set("name", "str modified")
+	bNestedVal := bRoot.Get("nested")
+	var bNested *dynobuffers.Buffer
+	if bNestedVal == nil {
+		bNested = dynobuffers.NewBuffer(schemeNested)
+		bRoot.Set("nested", bNested)
+	} else {
+		Nested = bNestedVal.(*Buffer)
+		// note: not necessary to bRoot.Set("nested", bNested)
+	}
+	bNested.Set("nes2", 3)
+	bytes, err := bRoot.ToBytes()
+	if err != nil {
+		panic(err)
+	}
+	bRoot = ReadBuffer(bytes, scheme)
+	// note: bNested is obsolete here. Need to obtain it again from bRoot
+	```
+ - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 # Benchmarks
 ## Description
 - [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON

@@ -11,7 +11,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"unicode"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"gopkg.in/yaml.v2"
@@ -23,6 +25,8 @@ type FieldType int
 const (
 	// FieldTypeUnspecified - wrong type
 	FieldTypeUnspecified FieldType = iota
+	// FieldTypeNested field is nested Scheme
+	FieldTypeNested
 	// FieldTypeInt int32
 	FieldTypeInt
 	// FieldTypeLong int64
@@ -47,6 +51,7 @@ var yamlFieldTypesMap = map[string]FieldType{
 	"string": FieldTypeString,
 	"bool":   FieldTypeBool,
 	"byte":   FieldTypeByte,
+	"":       FieldTypeNested,
 }
 
 // Buffer is wrapper for FlatBuffers
@@ -58,9 +63,11 @@ type Buffer struct {
 
 // Field describes a scheme field
 type Field struct {
-	Name  string
-	Ft    FieldType
-	order int
+	Name        string
+	Ft          FieldType
+	order       int
+	IsMandatory bool
+	scheme      *Scheme // != nil for FieldTypeNested only
 }
 
 type modifiedField struct {
@@ -87,7 +94,7 @@ func NewBuffer(scheme *Scheme) *Buffer {
 func (b *Buffer) GetInt(name string) (int32, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return b.tab.GetInt32(o + b.tab.Pos), true
+		return b.tab.GetInt32(o), true
 	}
 	return int32(0), false
 }
@@ -96,7 +103,7 @@ func (b *Buffer) GetInt(name string) (int32, bool) {
 func (b *Buffer) GetFloat(name string) (float32, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return b.tab.GetFloat32(o + b.tab.Pos), true
+		return b.tab.GetFloat32(o), true
 	}
 	return float32(0), false
 }
@@ -105,7 +112,7 @@ func (b *Buffer) GetFloat(name string) (float32, bool) {
 func (b *Buffer) GetString(name string) (string, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return string(b.tab.ByteVector(o + b.tab.Pos)), true
+		return string(b.tab.ByteVector(o)), true
 	}
 	return "", false
 }
@@ -114,7 +121,7 @@ func (b *Buffer) GetString(name string) (string, bool) {
 func (b *Buffer) GetLong(name string) (int64, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return b.tab.GetInt64(o + b.tab.Pos), true
+		return b.tab.GetInt64(o), true
 	}
 	return int64(0), false
 }
@@ -123,7 +130,7 @@ func (b *Buffer) GetLong(name string) (int64, bool) {
 func (b *Buffer) GetDouble(name string) (float64, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return b.tab.GetFloat64(o + b.tab.Pos), true
+		return b.tab.GetFloat64(o), true
 	}
 	return float64(0), false
 }
@@ -132,7 +139,7 @@ func (b *Buffer) GetDouble(name string) (float64, bool) {
 func (b *Buffer) GetByte(name string) (byte, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return b.tab.GetByte(o + b.tab.Pos), true
+		return b.tab.GetByte(o), true
 	}
 	return byte(0), false
 }
@@ -141,7 +148,7 @@ func (b *Buffer) GetByte(name string) (byte, bool) {
 func (b *Buffer) GetBool(name string) (bool, bool) {
 	o := b.getFieldUOffsetT(name)
 	if o != 0 {
-		return b.tab.GetBool(o + b.tab.Pos), true
+		return b.tab.GetBool(o), true
 	}
 	return false, false
 }
@@ -160,7 +167,11 @@ func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
 	if len(b.tab.Bytes) == 0 {
 		return 0
 	}
-	return flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((order + 2) * 2)))
+	preOffset := flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((order + 2) * 2)))
+	if preOffset == 0 {
+		return 0
+	}
+	return preOffset + b.tab.Pos
 }
 
 func (b *Buffer) getByStringField(f *Field) (string, bool) {
@@ -168,15 +179,14 @@ func (b *Buffer) getByStringField(f *Field) (string, bool) {
 	if o == 0 {
 		return "", false
 	}
-	return string(b.tab.ByteVector(o + b.tab.Pos)), true
+	return string(b.tab.ByteVector(o)), true
 }
 
 func (b *Buffer) getByField(f *Field) interface{} {
-	o := b.getFieldUOffsetTByOrder(f.order)
-	if o == 0 {
+	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
+	if uOffsetT == 0 {
 		return nil
 	}
-	uOffsetT := o + b.tab.Pos
 	switch f.Ft {
 	case FieldTypeInt:
 		return b.tab.GetInt32(uOffsetT)
@@ -190,6 +200,16 @@ func (b *Buffer) getByField(f *Field) interface{} {
 		return b.tab.GetByte(uOffsetT)
 	case FieldTypeBool:
 		return b.tab.GetBool(uOffsetT)
+	case FieldTypeNested:
+		res := ReadBuffer(b.tab.Bytes, f.scheme)
+		res.tab.Pos = b.tab.Indirect(uOffsetT)
+		if len(b.modifiedFields) == 0 {
+			b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
+		}
+		if b.modifiedFields[f.order] == nil {
+			b.set(f, res)
+		}
+		return res
 	default:
 		return string(b.tab.ByteVector(uOffsetT))
 	}
@@ -223,20 +243,90 @@ func (b *Buffer) Set(name string, value interface{}) {
 	if !ok {
 		return
 	}
+	b.set(f, value)
+}
+
+func (b *Buffer) set(f *Field, value interface{}) {
 	if len(b.modifiedFields) == 0 {
 		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
 	}
-	b.modifiedFields[f.order] = &modifiedField{Field{name, f.Ft, f.order}, value, 0}
+	b.modifiedFields[f.order] = &modifiedField{Field{f.Name, f.Ft, f.order, f.IsMandatory, nil}, value, 0}
+}
+
+// ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array
+// returns error if value of incompatible type is provided or mandatory field is not set\unset
+// no error if unexisting field is provided
+func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
+	dest := map[string]interface{}{}
+	err := json.Unmarshal(jsonBytes, &dest)
+	if err != nil {
+		return nil, err
+	}
+	err = b.applyMap(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	return b.ToBytes()
+}
+
+func (b *Buffer) applyMap(data map[string]interface{}) error {
+	for fn, fv := range data {
+		f, ok := b.scheme.fieldsMap[fn]
+		if !ok {
+			continue
+		}
+		if f.Ft == FieldTypeNested {
+			bNested := NewBuffer(f.scheme)
+			dataNested, ok := fv.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("value of field %s must be an object, %v provided", fn, fv)
+			}
+			bNested.applyMap(dataNested)
+			b.Set(f.Name, bNested)
+		} else {
+			if !b.scheme.canBeAssigned(f, fv) {
+				return fmt.Errorf("value %v can not be assigned to field %s", fv, fn)
+			}
+			b.set(f, fv)
+		}
+	}
+	return nil
 }
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
-func (b *Buffer) ToBytes() []byte {
+func (b *Buffer) ToBytes() ([]byte, error) {
 	bl := flatbuffers.NewBuilder(0)
+	_, err := b.encodeBuffer(bl)
+	if err != nil {
+		return nil, err
+	}
+	return bl.FinishedBytes(), nil
+}
 
+func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, error) {
 	strUOffsetTs := make([]flatbuffers.UOffsetT, len(b.scheme.Fields))
+	nestedBuffers := make([]flatbuffers.UOffsetT, len(b.scheme.Fields))
 	if len(b.modifiedFields) == 0 {
 		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
+	}
+
+	for _, f := range b.scheme.Fields {
+		if f.Ft != FieldTypeNested {
+			continue
+		}
+		nestedUOffsetT := flatbuffers.UOffsetT(0)
+		modifiedField := b.modifiedFields[f.order]
+		if modifiedField != nil && modifiedField.value != nil {
+			nestedBuffer := modifiedField.value.(*Buffer)
+			nestedUOffsetTNew, err := nestedBuffer.encodeBuffer(bl)
+			if err != nil {
+				return 0, err
+			}
+			nestedUOffsetT = nestedUOffsetTNew
+		}
+		nestedBuffers[f.order] = nestedUOffsetT
 	}
 
 	for _, stringField := range b.scheme.stringFields {
@@ -254,32 +344,43 @@ func (b *Buffer) ToBytes() []byte {
 
 	bl.StartObject(len(b.scheme.fieldsMap))
 	for _, f := range b.scheme.Fields {
-		if f.Ft == FieldTypeString {
+		isSet := false
+		switch f.Ft {
+		case FieldTypeString:
 			if strUOffsetTs[f.order] > 0 {
 				bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
+				isSet = true
 			}
-		} else {
+		case FieldTypeNested:
+			if nestedBuffers[f.order] > 0 {
+				bl.PrependUOffsetTSlot(f.order, nestedBuffers[f.order], 0)
+				isSet = true
+			}
+		default:
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil {
 				if modifiedField.value != nil {
 					encodeValue(bl, f, modifiedField.value)
+					isSet = true
 				}
 			} else {
-				copyNonStringField(bl, b, f)
+				isSet = copyNonStringField(bl, b, f)
 			}
 		}
+		if f.IsMandatory && !isSet {
+			return 0, fmt.Errorf("Field %s is mandatory but not set", f.Name)
+		}
 	}
-	endUOffsetT := bl.EndObject()
-	bl.Finish(endUOffsetT)
-	return bl.FinishedBytes()
+	res := bl.EndObject()
+	bl.Finish(res)
+	return res, nil
 }
 
-func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) {
+func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
 	offset := src.getFieldUOffsetTByOrder(f.order)
 	if offset == 0 {
-		return
+		return false
 	}
-	offset += src.tab.Pos
 	switch f.Ft {
 	case FieldTypeInt:
 		dest.PrependInt32(src.tab.GetInt32(offset))
@@ -295,6 +396,7 @@ func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) {
 		dest.PrependBool(src.tab.GetBool(offset))
 	}
 	dest.Slot(f.order)
+	return true
 }
 
 func numberToFloat64(number interface{}) float64 {
@@ -350,8 +452,12 @@ func (b *Buffer) ToJSON() string {
 			}
 		}
 		if value != nil {
-			buf.WriteString("\"" + f.Name + "\": ")
-			e.Encode(value)
+			buf.WriteString("\"" + f.Name + "\":")
+			if f.Ft == FieldTypeNested {
+				buf.WriteString(value.(*Buffer).ToJSON())
+			} else {
+				e.Encode(value)
+			}
 			buf.WriteString(",")
 		}
 	}
@@ -368,13 +474,20 @@ func NewScheme() *Scheme {
 }
 
 // AddField appends scheme with new field
-func (s *Scheme) AddField(name string, ft FieldType) {
-	newField := &Field{name, ft, len(s.fieldsMap)}
+func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
+	newField := &Field{name, ft, len(s.fieldsMap), isMandatory, nil}
 	s.fieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
 	if ft == FieldTypeString {
 		s.stringFields = append(s.stringFields, newField)
 	}
+}
+
+// AddNested adds field which value is nested Scheme
+func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
+	newField := &Field{name, FieldTypeNested, len(s.fieldsMap), isMandatory, nested}
+	s.fieldsMap[name] = newField
+	s.Fields = append(s.Fields, newField)
 }
 
 // HasField returns if the Scheme contains the specified field
@@ -388,22 +501,33 @@ func (s *Scheme) MarshalText() (text []byte, err error) {
 	return []byte(s.ToYaml()), nil
 }
 
-// CanBeAssigned checks if correct value is provided for the field. Returns if scheme contains such field and its type equal to the value type
+// CanBeAssigned checks if correct value is provided for the field.
+// no such field -> false
+// value is nil and field is mandatory -> false
+// value type and field type are incompatible -> false
+// value has appropriate type (e.g. string for numberic field) and fits into field (e.g. 255 fits into float, double, int, long, byte; 256 does not fit into byte etc) -> true
 // Numbers must be float64 only
 func (s *Scheme) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
 	f, ok := s.fieldsMap[fieldName]
 	if !ok {
 		return false
 	}
+	return s.canBeAssigned(f, fieldValue)
+}
+
+func (s *Scheme) canBeAssigned(f *Field, fv interface{}) bool {
+	if fv == nil {
+		return !f.IsMandatory
+	}
 	switch f.Ft {
 	case FieldTypeBool:
-		_, ok := fieldValue.(bool)
+		_, ok := fv.(bool)
 		return ok
 	case FieldTypeString:
-		_, ok := fieldValue.(string)
+		_, ok := fv.(string)
 		return ok
 	default:
-		float64Src, ok := fieldValue.(float64)
+		float64Src, ok := fv.(float64)
 		if !ok {
 			return false
 		}
@@ -437,11 +561,24 @@ func (s *Scheme) UnmarshalText(text []byte) error {
 
 // ToYaml returns scheme in yaml format
 func (s *Scheme) ToYaml() string {
+	res := s.toYaml(0)
+	return res
+}
+
+func (s *Scheme) toYaml(level int) string {
 	buf := bytes.NewBufferString("")
 	for _, f := range s.Fields {
 		for ftStr, curFt := range yamlFieldTypesMap {
 			if curFt == f.Ft {
-				buf.WriteString(f.Name + ": " + ftStr + "\n")
+				fieldName := f.Name
+				if f.IsMandatory {
+					fieldName = strings.Title(fieldName)
+				}
+				buf.WriteString(strings.Repeat("  ", level) + fieldName + ": " + ftStr + "\n")
+				if f.Ft == FieldTypeNested {
+					yamlNested := f.scheme.toYaml(level + 1)
+					buf.WriteString(yamlNested)
+				}
 				break
 			}
 		}
@@ -460,16 +597,36 @@ func (s *Scheme) ToYaml() string {
 //    - `byte` -> `byte`
 //  See [dynobuffers_test.go](dynobuffers_test.go) for examples
 func YamlToScheme(yamlStr string) (*Scheme, error) {
-	scheme := NewScheme()
-	yamlParsed := yaml.MapSlice{}
-	err := yaml.Unmarshal([]byte(yamlStr), &yamlParsed)
+	mapSlice := yaml.MapSlice{}
+	err := yaml.Unmarshal([]byte(yamlStr), &mapSlice)
 	if err != nil {
 		return nil, err
 	}
-	for _, mapItem := range yamlParsed {
-		if typeStr, ok := mapItem.Value.(string); ok {
+	return mapSliceToScheme(mapSlice)
+}
+
+func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
+	scheme := NewScheme()
+	for _, mapItem := range mapSlice {
+		if nestedMapSlice, ok := mapItem.Value.(yaml.MapSlice); ok {
+			fieldName := mapItem.Key.(string)
+			isMandatory := unicode.IsUpper(rune(fieldName[0]))
+			if isMandatory {
+				fieldName = strings.ToLower(fieldName)
+			}
+			nestedScheme, err := mapSliceToScheme(nestedMapSlice)
+			if err != nil {
+				return nil, err
+			}
+			scheme.AddNested(fieldName, nestedScheme, isMandatory)
+		} else if typeStr, ok := mapItem.Value.(string); ok {
+			fieldName := mapItem.Key.(string)
+			isMandatory := unicode.IsUpper(rune(fieldName[0]))
+			if isMandatory {
+				fieldName = strings.ToLower(fieldName)
+			}
 			if ft, ok := yamlFieldTypesMap[typeStr]; ok {
-				scheme.AddField(mapItem.Key.(string), ft)
+				scheme.AddField(fieldName, ft, isMandatory)
 			} else {
 				return nil, errors.New("unknown field type: " + typeStr)
 			}
