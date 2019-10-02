@@ -82,7 +82,10 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	```
 - Load data from JSON key-value and to bytes array
   	```go
-	err := b.ApplyJSONAndToBytes(`{"name": "str", "price": 0.123, "fld": null})
+	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"name": "str", "price": 0.123, "fld": null}`))
+	if err != nil {
+		panic(err)
+	}
 	```
 	- value is nil and field is mandatory -> error
 	- value type and field type are incompatible -> error
