@@ -9,6 +9,7 @@ package dynobuffers
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -947,6 +948,29 @@ func TestApplyNestedArrayJSON(t *testing.T) {
 	}
 }
 
+func TestApplyArrayJSON(t *testing.T) {
+	s := NewScheme()
+	s.AddField("id", FieldTypeInt, false)
+	s.AddArray("names", FieldTypeString, false)
+
+	b := NewBuffer(s)
+	b.Set("id", 42)
+	names := []string{"str1", "str2"}
+	b.Set("names", names)
+	jsonStr := b.ToJSON()
+	fmt.Println(jsonStr)
+
+	b = NewBuffer(s)
+	bytes, err := b.ApplyJSONAndToBytes([]byte(jsonStr))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, "str1", b.GetByIndex("names", 0))
+	assert.Equal(t, "str1", b.GetByIndex("names", 1))
+}
+
 func TestFlatBuffersNested(t *testing.T) {
 	bl := flatbuffers.NewBuilder(0)
 	bl.StartObject(1)
@@ -1046,6 +1070,22 @@ func TestArraysBasic(t *testing.T) {
 	}
 	b = ReadBuffer(bytes, s)
 	assert.Nil(t, b.Get("longs"))
+
+	// set to empty
+	longs = []int64{}
+	b.Set("longs", longs)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Nil(t, b.GetByIndex("longs", 0))
+	a = b.Get("longs").(*Array)
+	next, ok = a.GetNext()
+	assert.Nil(t, next)
+	assert.False(t, ok)
+	longsActual = a.GetAll()
+	assert.True(t, len(longsActual) == 0)
 }
 
 func TestArraysAllTypes(t *testing.T) {
