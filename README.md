@@ -212,9 +212,9 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	for value, ok := arr.GetNext(); ok {
 		fmt.Println(value)
 	}
-	filedArr := ar.GetAll()
+	filledArr := ar.GetAll()
 	for i, value := range filledArr {
-		fmt.Println(dmt.Sprintf("%d: %v", i, value)
+		fmt.Println(fmt.Sprintf("%d: %v", i, value)
 	}
 	```
 - Modify array and to bytes
@@ -224,7 +224,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	ids := []int64{5,6}
 	bRoot.Set("ids", ids)
 
-	buffers := bRoot.Get("nested").(*Array).GetAll()
+	buffers := bRoot.Get("nested").(*dynobuffers.Array).GetAll()
 	buffers[0] = nil
 	buffers[1].Set("nes1", -1)
 	bRoot.Set("nested", buffers) // need to set it because we nilled an element
