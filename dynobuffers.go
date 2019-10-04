@@ -283,7 +283,8 @@ func (b *Buffer) Get(name string) interface{} {
 
 }
 
-// GetByIndex s.e.
+// GetByIndex returns array field element by its index
+// no such field, index out of bounds, array field is not set or unset -> nil
 func (b *Buffer) GetByIndex(name string, index int) interface{} {
 	f, ok := b.scheme.fieldsMap[name]
 	if !ok || index < 0 {
@@ -632,8 +633,8 @@ func (b *Buffer) ToJSON() string {
 			if f.Ft == FieldTypeNested {
 				if f.isArray {
 					buf.WriteString("[")
-					beffers := value.([]interface{})
-					for _, bufferIntf := range beffers {
+					buffers := value.([]interface{})
+					for _, bufferIntf := range buffers {
 						buf.WriteString(bufferIntf.(*Buffer).ToJSON())
 						buf.WriteString(",")
 					}
@@ -715,6 +716,9 @@ func (s *Scheme) canBeAssigned(f *Field, fv interface{}) bool {
 	if fv == nil {
 		return !f.IsMandatory
 	}
+	if f.isArray {
+	
+	}
 	switch f.Ft {
 	case FieldTypeBool:
 		_, ok := fv.(bool)
@@ -793,8 +797,9 @@ func (s *Scheme) toYaml(level int) string {
 //   - `bool` -> `bool`
 //   - `string` -> `string`
 //   - `byte` -> `byte`
-// First letter of the field name is capital -> field is mandatory
-//  See [dynobuffers_test.go](dynobuffers_test.go) for examples
+// Field name starts with the capital letter -> field is mandatory
+// Field name ends with `..` -> field is an array
+// See [dynobuffers_test.go](dynobuffers_test.go) for examples
 func YamlToScheme(yamlStr string) (*Scheme, error) {
 	mapSlice := yaml.MapSlice{}
 	err := yaml.Unmarshal([]byte(yamlStr), &mapSlice)
@@ -808,15 +813,7 @@ func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 	scheme := NewScheme()
 	for _, mapItem := range mapSlice {
 		if nestedMapSlice, ok := mapItem.Value.(yaml.MapSlice); ok {
-			fieldName := mapItem.Key.(string)
-			isMandatory := unicode.IsUpper(rune(fieldName[0]))
-			if isMandatory {
-				fieldName = strings.ToLower(fieldName)
-			}
-			isArray := strings.HasSuffix(fieldName, "..")
-			if isArray {
-				fieldName = fieldName[:len(fieldName)-2]
-			}
+			fieldName, isMandatory, isArray := fieldPropsFromYaml(mapItem.Key.(string))
 			nestedScheme, err := mapSliceToScheme(nestedMapSlice)
 			if err != nil {
 				return nil, err
@@ -827,15 +824,7 @@ func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 				scheme.AddNested(fieldName, nestedScheme, isMandatory)
 			}
 		} else if typeStr, ok := mapItem.Value.(string); ok {
-			fieldName := mapItem.Key.(string)
-			isMandatory := unicode.IsUpper(rune(fieldName[0]))
-			if isMandatory {
-				fieldName = strings.ToLower(fieldName)
-			}
-			isArray := strings.HasSuffix(fieldName, "..")
-			if isArray {
-				fieldName = fieldName[:len(fieldName)-2]
-			}
+			fieldName, isMandatory, isArray := fieldPropsFromYaml(mapItem.Key.(string))
 			if ft, ok := yamlFieldTypesMap[typeStr]; ok {
 				if isArray {
 					scheme.AddArray(fieldName, ft, isMandatory)
@@ -848,4 +837,17 @@ func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 		}
 	}
 	return scheme, nil
+}
+
+func fieldPropsFromYaml(name string) (fieldName string, isMandatory bool, isArray bool) {
+	isMandatory = unicode.IsUpper(rune(name[0]))
+	if isMandatory {
+		name = strings.ToLower(name)
+	}
+	isArray = strings.HasSuffix(name, "..")
+	if isArray {
+		name = name[:len(name)-2]
+	}
+	fieldName = name
+	return
 }
