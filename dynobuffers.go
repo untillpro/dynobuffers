@@ -660,22 +660,22 @@ func NewScheme() *Scheme {
 	return &Scheme{map[string]*Field{}, []*Field{}}
 }
 
-// AddField appends scheme with new field
+// AddField adds field
 func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
 	s.addField(name, ft, nil, isMandatory, false)
 }
 
-// AddArray s.e.
+// AddArray adds array field
 func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) {
 	s.addField(name, elementType, nil, isMandatory, true)
 }
 
-// AddNested adds field which value is nested Scheme
+// AddNested adds nested object field
 func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
 	s.addField(name, FieldTypeNested, nested, isMandatory, false)
 }
 
-// AddNestedArray adds field which value is array of nested Scheme
+// AddNestedArray adds array of nested objects field
 func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
 	s.addField(name, FieldTypeNested, nested, isMandatory, true)
 }
