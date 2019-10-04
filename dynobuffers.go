@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"unicode"
 
@@ -63,18 +64,18 @@ type Buffer struct {
 
 // Field describes a scheme field
 type Field struct {
-	Name        string
-	Ft          FieldType
-	order       int
-	IsMandatory bool
-	scheme      *Scheme // != nil for FieldTypeNested only
-	isArray     bool
+	QualifiedName string
+	Name          string
+	Ft            FieldType
+	order         int
+	IsMandatory   bool
+	scheme        *Scheme // != nil for FieldTypeNested only
+	isArray       bool
 }
 
 type modifiedField struct {
 	Field
-	value       interface{}
-	strUOffsetT flatbuffers.UOffsetT
+	value interface{}
 }
 
 // Array struct used to iterate over arrays
@@ -106,8 +107,9 @@ func (a *Array) GetAll() []interface{} {
 
 // Scheme s.e.
 type Scheme struct {
-	fieldsMap    map[string]*Field
-	Fields       []*Field
+	Name      string
+	fieldsMap map[string]*Field
+	Fields    []*Field
 }
 
 // NewBuffer creates new empty Buffer
@@ -239,6 +241,10 @@ func (b *Buffer) getByField(f *Field, index int) interface{} {
 	case FieldTypeBool:
 		return b.tab.GetBool(uOffsetT)
 	case FieldTypeNested:
+		modifiedField := b.modifiedFields[f.order]
+		if  modifiedField != nil {
+			return modifiedField.value
+		}
 		res := ReadBuffer(b.tab.Bytes, f.scheme)
 		res.tab.Pos = b.tab.Indirect(uOffsetT)
 		if len(b.modifiedFields) == 0 {
@@ -317,19 +323,26 @@ func (b *Buffer) set(f *Field, value interface{}) {
 	if len(b.modifiedFields) == 0 {
 		b.modifiedFields = make([]*modifiedField, len(b.scheme.Fields))
 	}
-	b.modifiedFields[f.order] = &modifiedField{Field{f.Name, f.Ft, f.order, f.IsMandatory, nil, f.isArray}, value, 0}
+	b.modifiedFields[f.order] = &modifiedField{Field{b.scheme.getQualifiedFieldName(f.Name), f.Name, f.Ft, f.order, f.IsMandatory, nil, f.isArray}, value}
 }
 
 // ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array
-// returns error if value of incompatible type is provided or mandatory field is not set\unset
-// no error if unexisting field is provided
+// resulting buffer has no value (or has nil value) for a mandatory field -> error
+// value type and field type are incompatible (e.g. string for numberic field) -> error
+// value and field types differs but value fits into field -> no error. Examples:
+//   255 fits into float, double, int, long, byte;
+//   256 does not fit into byte
+//   "str" does not fit into int64 (different types)
+// if unexisting field is provided -> no error (e.g. if trying to write data in new scheme into buffer in old scheme)
+// arrays and nested objects are rewritten in the Buffer
+// primitive fields are appended to the Buffer
 func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 	dest := map[string]interface{}{}
 	err := json.Unmarshal(jsonBytes, &dest)
 	if err != nil {
 		return nil, err
 	}
-	err = b.applyMap(dest)
+	err = b.applyJSONMap(dest)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +350,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 	return b.ToBytes()
 }
 
-func (b *Buffer) applyMap(data map[string]interface{}) error {
+func (b *Buffer) applyJSONMap(data map[string]interface{}) error {
 	for fn, fv := range data {
 		f, ok := b.scheme.fieldsMap[fn]
 		if !ok {
@@ -347,7 +360,7 @@ func (b *Buffer) applyMap(data map[string]interface{}) error {
 			if f.isArray {
 				datasNested, ok := fv.([]interface{})
 				if !ok {
-					return fmt.Errorf("value of field %s must be an array of objects, %v provided", fn, fv)
+					return fmt.Errorf("array of objects required but %v provided for field %s", fv, f.QualifiedName)
 				}
 				buffers := make([]*Buffer, len(datasNested))
 				for i, dataNestedIntf := range datasNested {
@@ -356,7 +369,7 @@ func (b *Buffer) applyMap(data map[string]interface{}) error {
 						return fmt.Errorf("element value of array field %s must be an object, %v provided", fn, dataNestedIntf)
 					}
 					buffers[i] = NewBuffer(f.scheme)
-					buffers[i].applyMap(dataNested)
+					buffers[i].applyJSONMap(dataNested)
 				}
 				b.Set(f.Name, buffers)
 			} else {
@@ -365,13 +378,11 @@ func (b *Buffer) applyMap(data map[string]interface{}) error {
 				if !ok {
 					return fmt.Errorf("value of field %s must be an object, %v provided", fn, fv)
 				}
-				bNested.applyMap(dataNested)
+				bNested.applyJSONMap(dataNested)
 				b.Set(f.Name, bNested)
+				b.Get
 			}
 		} else {
-			if !b.scheme.canBeAssigned(f, fv) {
-				return fmt.Errorf("value %v can not be assigned to field %s", fv, fn)
-			}
 			b.set(f, fv)
 		}
 	}
@@ -413,7 +424,10 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil && modifiedField.value != nil {
-				nestedBuffer := modifiedField.value.(*Buffer)
+				nestedBuffer, ok := modifiedField.value.(*Buffer)
+				if !ok {
+					return 0, fmt.Errorf("nested object required but %v provided for field %s", modifiedField.value, f.QualifiedName)
+				}
 				nestedUOffsetTNew, err := nestedBuffer.encodeBuffer(bl)
 				if err != nil {
 					return 0, err
@@ -425,7 +439,11 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			modifiedStringField := b.modifiedFields[f.order]
 			if modifiedStringField != nil {
 				if modifiedStringField.value != nil {
-					strUOffsetTs[f.order] = bl.CreateString(modifiedStringField.value.(string))
+					strToWrite, ok := modifiedStringField.value.(string)
+					if !ok {
+						return 0, fmt.Errorf("string required but %v provided for field %s", modifiedStringField.value, f.QualifiedName)
+					}
+					strUOffsetTs[f.order] = bl.CreateString(strToWrite)
 				}
 			} else {
 				if strToWrite, ok := b.getByStringField(f); ok {
@@ -439,36 +457,34 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	for _, f := range b.scheme.Fields {
 		isSet := false
 		if f.isArray {
-			if arrays[f.order] > 0 {
+			if isSet = arrays[f.order] > 0; isSet {
 				bl.PrependUOffsetTSlot(f.order, arrays[f.order], 0)
-				isSet = true
 			}
 		} else {
 			switch f.Ft {
 			case FieldTypeString:
-				if strUOffsetTs[f.order] > 0 {
+				if isSet = strUOffsetTs[f.order] > 0; isSet {
 					bl.PrependUOffsetTSlot(f.order, strUOffsetTs[f.order], 0)
-					isSet = true
 				}
 			case FieldTypeNested:
-				if nestedBuffers[f.order] > 0 {
+				if isSet = nestedBuffers[f.order] > 0; isSet {
 					bl.PrependUOffsetTSlot(f.order, nestedBuffers[f.order], 0)
-					isSet = true
 				}
 			default:
 				modifiedField := b.modifiedFields[f.order]
 				if modifiedField != nil {
-					if modifiedField.value != nil {
-						encodeValue(bl, f, modifiedField.value)
-						isSet = true
+					if isSet = modifiedField.value != nil; isSet {
+						if !encodeNonStringValue(bl, f, modifiedField.value) {
+							return 0, fmt.Errorf("wrong value %v provided for field %s", modifiedField.value, f.QualifiedName)
+						}
 					}
 				} else {
-					isSet = copyNonStringField(bl, b, f)
+					isSet = copyNonStringValue(bl, b, f)
 				}
 			}
 		}
 		if f.IsMandatory && !isSet {
-			return 0, fmt.Errorf("Field %s is mandatory but not set", f.Name)
+			return 0, fmt.Errorf("Mandatory field %s is not set", f.Name)
 		}
 	}
 	res := bl.EndObject()
@@ -480,49 +496,175 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	size := getFBFieldSize(f.Ft)
 	switch f.Ft {
 	case FieldTypeInt:
-		arr := value.([]int32)
+		arr, ok := value.([]int32)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]int32, len(intfs))
+			for i, intf := range intfs {
+				switch intf.(type) {
+				case float64:
+					float64Src := intf.(float64)
+					if !isFloat64ValueFitsIntoField(f, float64Src) {
+						return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
+					}
+					arr[i] = int32(float64Src)
+				case int32:
+					arr[i] = intf.(int32)
+				default:
+					return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
+				}
+			}
+		}
 		bl.StartVector(size, len(arr), size)
 		for i := len(arr) - 1; i >= 0; i-- {
 			bl.PrependInt32(arr[i])
 		}
 		return bl.EndVector(len(arr)), nil
 	case FieldTypeBool:
-		arr := value.([]bool)
+		arr, ok := value.([]bool)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]bool, len(intfs))
+			for i, intf := range intfs {
+				boolVal, ok := intf.(bool)
+				if !ok {
+					return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName)
+				}
+				arr[i] = boolVal
+			}
+		}
 		bl.StartVector(size, len(arr), size)
 		for i := len(arr) - 1; i >= 0; i-- {
 			bl.PrependBool(arr[i])
 		}
 		return bl.EndVector(len(arr)), nil
 	case FieldTypeLong:
-		arr := value.([]int64)
+		arr, ok := value.([]int64)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]int64, len(intfs))
+			for i, intf := range intfs {
+				switch intf.(type) {
+				case float64:
+					float64Src := intf.(float64)
+					if !isFloat64ValueFitsIntoField(f, float64Src) {
+						return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
+					}
+					arr[i] = int64(float64Src)
+				case int64:
+					arr[i] = intf.(int64)
+				default:
+					return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
+				}
+			}
+		}
 		bl.StartVector(size, len(arr), size)
 		for i := len(arr) - 1; i >= 0; i-- {
 			bl.PrependInt64(arr[i])
 		}
 		return bl.EndVector(len(arr)), nil
 	case FieldTypeFloat:
-		arr := value.([]float32)
+		arr, ok := value.([]float32)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]float32, len(intfs))
+			for i, intf := range intfs {
+				switch intf.(type) {
+				case float64:
+					float64Src := intf.(float64)
+					if !isFloat64ValueFitsIntoField(f, float64Src) {
+						return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
+					}
+					arr[i] = float32(float64Src)
+				case float32:
+					arr[i] = intf.(float32)
+				default:
+					return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
+				}
+			}
+		}
 		bl.StartVector(size, len(arr), size)
 		for i := len(arr) - 1; i >= 0; i-- {
 			bl.PrependFloat32(arr[i])
 		}
 		return bl.EndVector(len(arr)), nil
 	case FieldTypeDouble:
-		arr := value.([]float64)
+		arr, ok := value.([]float64)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]float64, len(intfs))
+			for i, intf := range intfs {
+				float64Src, ok := intf.(float64)
+				if !ok {
+					return 0, fmt.Errorf("[]float64 required but %v provided for field %s", value, f.QualifiedName)
+				}
+				arr[i] = float64Src
+			}
+		}
 		bl.StartVector(size, len(arr), size)
 		for i := len(arr) - 1; i >= 0; i-- {
 			bl.PrependFloat64(arr[i])
 		}
 		return bl.EndVector(len(arr)), nil
 	case FieldTypeByte:
-		arr := value.([]byte)
+		arr, ok := value.([]byte)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]byte, len(intfs))
+			for i, intf := range intfs {
+				switch intf.(type) {
+				case float64:
+					float64Src := intf.(float64)
+					if !isFloat64ValueFitsIntoField(f, float64Src) {
+						return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName)
+					}
+					arr[i] = byte(float64Src)
+				case byte:
+					arr[i] = intf.(byte)
+				default:
+					return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName)
+				}
+			}
+		}
 		bl.StartVector(size, len(arr), size)
 		for i := len(arr) - 1; i >= 0; i-- {
 			bl.PrependByte(arr[i])
 		}
 		return bl.EndVector(len(arr)), nil
 	case FieldTypeString:
-		arr := value.([]string)
+		arr, ok := value.([]string)
+		if !ok {
+			intfs, ok := value.([]interface{})
+			if !ok {
+				return 0, fmt.Errorf("[]string required but %v provided for field %s", value, f.QualifiedName)
+			}
+			arr = make([]string, len(intfs))
+			for i, intf := range intfs {
+				stringVal, ok := intf.(string)
+				if !ok {
+					return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName)
+				}
+				arr[i] = stringVal
+			}
+		}
 		stringUOffsetTs := make([]flatbuffers.UOffsetT, len(arr))
 		for i := 0; i < len(arr); i++ {
 			stringUOffsetTs[i] = bl.CreateString(arr[i])
@@ -533,7 +675,10 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		}
 		return bl.EndVector(len(arr)), nil
 	default:
-		arr := value.([]*Buffer)
+		arr, ok := value.([]*Buffer)
+		if !ok {
+			return 0, fmt.Errorf("array of nested objects required but %v provided for field %s", value, f.QualifiedName)
+		}
 		nestedUOffsetTs := make([]flatbuffers.UOffsetT, len(arr))
 		for i := 0; i < len(arr); i++ {
 			nestedUOffsetT, err := arr[i].encodeBuffer(bl)
@@ -550,7 +695,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	}
 }
 
-func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
+func copyNonStringValue(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
 	offset := src.getFieldUOffsetTByOrder(f.order)
 	if offset == 0 {
 		return false
@@ -573,39 +718,111 @@ func copyNonStringField(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
 	return true
 }
 
-func numberToFloat64(number interface{}) float64 {
+func numberToFloat64(number interface{}) (res float64, ok bool) {
+	ok = true
 	switch number.(type) {
 	case float64:
-		return number.(float64)
+		res = number.(float64)
 	case float32:
-		return float64(number.(float32))
+		res = float64(number.(float32))
 	case int64:
-		return float64(number.(int64))
+		res = float64(number.(int64))
 	case int32:
-		return float64(number.(int32))
+		res = float64(number.(int32))
 	case int:
-		return float64(number.(int))
+		res = float64(number.(int))
+	case byte:
+		res = float64(number.(byte))
 	default:
-		return float64(number.(byte))
+		ok = false
+	}
+	return res, ok
+}
+
+func isFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
+	if float64Src == 0 {
+		return true
+	}
+	if float64Src == float64(int32(float64Src)) {
+		if float64Src >= 0 && float64Src <= 255 {
+			return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat || f.Ft == FieldTypeByte
+		}
+		return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
+	} else if float64Src == float64(int64(float64Src)) {
+		return f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble
+	} else {
+		return f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
 	}
 }
 
-func encodeValue(bl *flatbuffers.Builder, f *Field, value interface{}) {
-	switch f.Ft {
-	case FieldTypeInt:
-		bl.PrependInt32(int32(numberToFloat64(value)))
-	case FieldTypeLong:
-		bl.PrependInt64(int64(numberToFloat64(value)))
-	case FieldTypeFloat:
-		bl.PrependFloat32(float32(numberToFloat64(value)))
-	case FieldTypeDouble:
-		bl.PrependFloat64(float64(numberToFloat64(value)))
-	case FieldTypeByte:
-		bl.PrependByte(byte(numberToFloat64(value)))
-	case FieldTypeBool:
+func encodeNonStringValue(bl *flatbuffers.Builder, f *Field, value interface{}) bool {
+	switch value.(type) {
+	case bool:
+		if f.Ft != FieldTypeBool {
+			return false
+		}
 		bl.PrependBool(value.(bool))
+	case float64:
+		float64Src := value.(float64)
+		if !isFloat64ValueFitsIntoField(f, float64Src) {
+			return false
+		}
+		switch f.Ft {
+		case FieldTypeInt:
+			bl.PrependInt32(int32(float64Src))
+		case FieldTypeLong:
+			bl.PrependInt64(int64(float64Src))
+		case FieldTypeFloat:
+			bl.PrependFloat32(float32(float64Src))
+		case FieldTypeDouble:
+			bl.PrependFloat64(float64Src)
+		default:
+			bl.PrependByte(byte(float64Src))
+		}
+	case float32:
+		if f.Ft != FieldTypeFloat {
+			return false
+		}
+		bl.PrependFloat32(value.(float32))
+	case int64:
+		if f.Ft != FieldTypeLong {
+			return false
+		}
+		bl.PrependInt64(value.(int64))
+	case int32:
+		if f.Ft != FieldTypeInt {
+			return false
+		}
+		bl.PrependInt32(value.(int32))
+	case byte:
+		if f.Ft != FieldTypeByte {
+			return false
+		}
+		bl.PrependByte(value.(byte))
+	case int:
+		intVal := value.(int)
+		switch f.Ft {
+		case FieldTypeInt:
+			if math.Abs(float64(intVal)) > math.MaxInt32 {
+				return false
+			}
+			bl.PrependInt32(int32(intVal))
+		case FieldTypeLong:
+			if math.Abs(float64(intVal)) > math.MaxInt64 {
+				return false
+			}
+			bl.PrependInt64(int64(intVal))
+		default:
+			if math.Abs(float64(intVal)) > 255 {
+				return false
+			}
+			bl.PrependByte(byte(intVal))
+		}
+	default:
+		return false
 	}
 	bl.Slot(f.order)
+	return true
 }
 
 // ToJSON returns JSON flat key->value string
@@ -658,7 +875,7 @@ func (b *Buffer) ToJSON() string {
 
 // NewScheme creates new empty scheme
 func NewScheme() *Scheme {
-	return &Scheme{map[string]*Field{}, []*Field{}}
+	return &Scheme{"", map[string]*Field{}, []*Field{}}
 }
 
 // AddField adds field
@@ -682,7 +899,7 @@ func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
 }
 
 func (s *Scheme) addField(name string, ft FieldType, nested *Scheme, isMandatory bool, isArray bool) {
-	newField := &Field{name, ft, len(s.fieldsMap), isMandatory, nested, isArray}
+	newField := &Field{s.getQualifiedFieldName(name), name, ft, len(s.fieldsMap), isMandatory, nested, isArray}
 	s.fieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
 }
@@ -698,54 +915,44 @@ func (s *Scheme) MarshalText() (text []byte, err error) {
 	return []byte(s.ToYaml()), nil
 }
 
-// CanBeAssigned checks if correct value is provided for the field.
-// no such field -> false
-// value is nil and field is mandatory -> false
-// value type and field type are incompatible -> false
-// value has appropriate type (e.g. string for numberic field) and fits into field (e.g. 255 fits into float, double, int, long, byte; 256 does not fit into byte etc) -> true
-// Numbers must be float64 only
-func (s *Scheme) CanBeAssigned(fieldName string, fieldValue interface{}) bool {
-	f, ok := s.fieldsMap[fieldName]
-	if !ok {
-		return false
-	}
-	return s.canBeAssigned(f, fieldValue)
-}
-
-func (s *Scheme) canBeAssigned(f *Field, fv interface{}) bool {
-	if fv == nil {
-		return !f.IsMandatory
-	}
-	if f.isArray {
-	
-	}
-	switch f.Ft {
-	case FieldTypeBool:
-		_, ok := fv.(bool)
-		return ok
-	case FieldTypeString:
-		_, ok := fv.(string)
-		return ok
-	default:
-		float64Src, ok := fv.(float64)
-		if !ok {
-			return false
-		}
-		if float64Src == 0 {
-			return true
-		}
-		if float64Src == float64(int32(float64Src)) {
-			if float64Src >= 0 && float64Src <= 255 {
-				return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat || f.Ft == FieldTypeByte
-			}
-			return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
-		} else if float64Src == float64(int64(float64Src)) {
-			return f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble
-		} else {
-			return f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
-		}
-	}
-}
+// func (s *Scheme) getAssignationFromJSONError(f *Field, fv interface{}) error {
+// 	switch f.Ft {
+// 	case FieldTypeBool:
+// 		_, ok := fv.(bool)
+// 		return fmt.Errorf("bool required but %v provided for field %s", fv, f.QualifiedName)
+// 	case FieldTypeString:
+// 		_, ok := fv.(string)
+// 		return fmt.Errorf("string required but %v provided for field %s", fv, f.QualifiedName)
+// 	default:
+// 		float64Src, ok := fv.(float64)
+// 		if !ok {
+// 			return fmt.Errorf("number must be float64 only field %s", f.QualifiedName)
+// 		}
+// 		if float64Src == 0 {
+// 			return nil
+// 		}
+// 		if float64Src == float64(int32(float64Src)) {
+// 			if float64Src >= 0 && float64Src <= 255 {
+// 				if f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat || f.Ft == FieldTypeByte {
+// 					return nil
+// 				}
+// 			} else {
+// 				if f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat {
+// 					return nil
+// 				}
+// 			}
+// 		} else if float64Src == float64(int64(float64Src)) {
+// 			if f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble {
+// 				return nil
+// 			}
+// 		} else {
+// 			if f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat {
+// 				return nil
+// 			}
+// 		}
+// 		return fmt.Errorf("%d does not fit into field %s", float64Src, f.QualifiedName)
+// 	}
+// }
 
 // UnmarshalText is used to conform to yaml.TextMarshaler inteface
 func (s *Scheme) UnmarshalText(text []byte) error {
@@ -786,6 +993,13 @@ func (s *Scheme) toYaml(level int) string {
 		}
 	}
 	return buf.String()
+}
+
+func (s *Scheme) getQualifiedFieldName(fieldName string) string {
+	if len(s.Name) > 0 {
+		return s.Name + "." + fieldName
+	}
+	return fieldName
 }
 
 // YamlToScheme creates Scheme by provided yaml `fieldName: yamlFieldType`
