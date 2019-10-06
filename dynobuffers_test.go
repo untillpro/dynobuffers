@@ -739,8 +739,8 @@ func TestApplyJSONAdvanced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bRoot = ReadBuffer(bytes, schemeRoot) 
-	assert.True(t, reflect.DeepEqual([]interface{}{int32(45), int32(46)},  bRoot.Get("ids").(*Array).GetAll()))
+	bRoot = ReadBuffer(bytes, schemeRoot)
+	assert.True(t, reflect.DeepEqual([]interface{}{int32(45), int32(46)}, bRoot.Get("ids").(*Array).GetAll()))
 
 }
 
@@ -811,6 +811,14 @@ func TestNestedAdvanced(t *testing.T) {
 	assert.Nil(t, b.Get("nes"))
 	assert.Nil(t, b.Get("last"))
 
+	// nested still nil after Get() and not modify
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	assert.Nil(t, b.Get("nes"))
+
 	// fill
 	bNested := NewBuffer(schemeNested)
 	bNested.Set("price", 0.123)
@@ -872,6 +880,13 @@ func TestNestedMandatory(t *testing.T) {
 	b.Set("name", "str")
 	b.Set("nes", bNested)
 	b.Set("last", 42)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// read and to bytes. Nested should be copied
+	b = ReadBuffer(bytes, schemeRoot)
 	bytes, err = b.ToBytes()
 	if err != nil {
 		t.Fatal(err)
@@ -1109,7 +1124,16 @@ func TestArraysBasic(t *testing.T) {
 	assert.Nil(t, b.GetByIndex("longs", -1))
 	assert.Nil(t, b.GetByIndex("unexisting", 0))
 
-	//test Array
+	// Non-modified array should be copied on ToBytes()
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, int64(5), b.GetByIndex("longs", 0))
+	assert.Equal(t, int64(6), b.GetByIndex("longs", 1))
+
+	//test Array struct
 	a := b.Get("longs").(*Array)
 	longsActual := a.GetAll()
 	assert.Equal(t, len(longs), len(longsActual))
@@ -1267,5 +1291,49 @@ func TestArraysNested(t *testing.T) {
 	bufferIntf, ok = arr.GetNext()
 	assert.False(t, ok)
 	assert.Nil(t, bufferIntf)
+
+	// set one of elements to nil
+	buffers[0] = nil
+	b.Set("nes", buffers)
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, schemeRoot)
+	assert.Nil(t, b.GetByIndex("nes", 0))
+	assert.NotNil(t, b.GetByIndex("nes", 1))
+
+}
+
+func TestCopyBytes(t *testing.T) {
+	s := NewScheme()
+	s.AddField("name", FieldTypeString, false)
+	s.AddField("id", FieldTypeInt, false)
+	s.AddArray("longs", FieldTypeLong, false)
+	s.AddField("float", FieldTypeFloat, false)
+
+	// initial
+	b := NewBuffer(s)
+	b.Set("name", "str")
+	b.Set("id", 42)
+	b.Set("longs", []int64{45, 46})
+	b.Set("float", 0.123)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// make buffer unmodified
+	b = ReadBuffer(bytes, s)
+
+	// force copy existing unmodified array
+	bytes, err = b.ToBytes()
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, "str", b.Get("name"))
+	assert.Equal(t, int32(42), b.Get("id"))
+	arr := b.Get("longs").(*Array).GetAllIntf().([]int64)
+	assert.Equal(t, 45, arr[0])
+	assert.Equal(t, 46, arr[1])
+	assert.Equal(t, 0.123, b.Get("float"))
 
 }
