@@ -507,7 +507,7 @@ func TestSchemeToFromYAML(t *testing.T) {
 	}
 
 	assert.True(t, reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields))
-	assert.True(t, reflect.DeepEqual(schemeRoot.fieldsMap, schemeNew.fieldsMap))
+	assert.True(t, reflect.DeepEqual(schemeRoot.FieldsMap, schemeNew.FieldsMap))
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
