@@ -104,7 +104,8 @@ func (a *Array) Value() interface{} {
 	return a.b.getByUOffsetT(a.field, a.uOffsetT+flatbuffers.UOffsetT(a.curElem*a.elemSize))
 }
 
-// GetInts s.e.
+// GetInts returns []int32
+// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetInts() []int32 {
 	target := a.b.tab.Bytes[a.uOffsetT:]
 	res := *(*[]int32)(unsafe.Pointer(&target))
@@ -112,7 +113,8 @@ func (a *Array) GetInts() []int32 {
 	return res
 }
 
-// GetFloats s.e.
+// GetFloats returns []float32
+// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetFloats() []float32 {
 	target := a.b.tab.Bytes[a.uOffsetT:]
 	res := *(*[]float32)(unsafe.Pointer(&target))
@@ -120,7 +122,8 @@ func (a *Array) GetFloats() []float32 {
 	return res
 }
 
-// GetDoubles s.e.
+// GetDoubles returns []float64
+// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetDoubles() []float64 {
 	target := a.b.tab.Bytes[a.uOffsetT:]
 	res := *(*[]float64)(unsafe.Pointer(&target))
@@ -128,12 +131,14 @@ func (a *Array) GetDoubles() []float64 {
 	return res
 }
 
-// GetBytes s.e.
+// GetBytes returns []byte
+// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetBytes() []byte {
 	return a.b.tab.Bytes[a.uOffsetT : a.Len+int(a.uOffsetT)]
 }
 
-// GetBools s.e.
+// GetBools returns []bool
+// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetBools() []bool {
 	target := a.b.tab.Bytes[a.uOffsetT:]
 	res := *(*[]bool)(unsafe.Pointer(&target))
@@ -141,7 +146,8 @@ func (a *Array) GetBools() []bool {
 	return res
 }
 
-// GetLongs returns []int64. Warning: the returned array is a slice of underlying byte array. Modify this array == modify byte array directly
+// GetLongs returns []int64
+// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetLongs() []int64 {
 	target := a.b.tab.Bytes[a.uOffsetT:]
 	res := *(*[]int64)(unsafe.Pointer(&target))
@@ -149,7 +155,7 @@ func (a *Array) GetLongs() []int64 {
 	return res
 }
 
-// GetStrings s.e.
+// GetStrings returns []string
 func (a *Array) GetStrings() []string {
 	res := make([]string, a.Len)
 	for i := 0; i < a.Len; i++ {
@@ -158,7 +164,7 @@ func (a *Array) GetStrings() []string {
 	return res
 }
 
-// GetObjects s.e.
+// GetObjects returns array of nested objects
 func (a *Array) GetObjects() []*Buffer {
 	res := make([]*Buffer, a.Len)
 	for i := 0; i < a.Len; i++ {
@@ -167,7 +173,7 @@ func (a *Array) GetObjects() []*Buffer {
 	return res
 }
 
-// GetAll s.e.
+// GetAll returns untyped array
 func (a *Array) GetAll() interface{} {
 	switch a.field.Ft {
 	case FieldTypeInt:
@@ -189,10 +195,10 @@ func (a *Array) GetAll() interface{} {
 	}
 }
 
-// Scheme s.e.
+// Scheme describes fields and theirs order in byte array
 type Scheme struct {
 	Name      string
-	fieldsMap map[string]*Field
+	FieldsMap map[string]*Field
 	Fields    []*Field
 }
 
@@ -270,7 +276,7 @@ func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
 	if len(b.tab.Bytes) == 0 {
 		return 0
 	}
-	if f, ok := b.Scheme.fieldsMap[name]; ok {
+	if f, ok := b.Scheme.FieldsMap[name]; ok {
 		return b.getFieldUOffsetTByOrder(f.order)
 	}
 	return 0
@@ -368,9 +374,9 @@ func getFBFieldSize(ft FieldType) int {
 }
 
 // Get returns stored field value by name.
-// nil -> field is unset or no such field in the Scheme
+// field is unset or no such field in the Scheme -> nil
 func (b *Buffer) Get(name string) interface{} {
-	f, ok := b.Scheme.fieldsMap[name]
+	f, ok := b.Scheme.FieldsMap[name]
 	if !ok {
 		return nil
 	}
@@ -381,7 +387,7 @@ func (b *Buffer) Get(name string) interface{} {
 // GetByIndex returns array field element by its index
 // no such field, index out of bounds, array field is not set or unset -> nil
 func (b *Buffer) GetByIndex(name string, index int) interface{} {
-	f, ok := b.Scheme.fieldsMap[name]
+	f, ok := b.Scheme.FieldsMap[name]
 	if !ok || index < 0 {
 		return nil
 	}
@@ -398,10 +404,10 @@ func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
 }
 
 // Set sets field value by name.
-// Byte array is not modified.
+// Underlying byte array is not modified.
 // Call ToBytes() to get modified byte array
 func (b *Buffer) Set(name string, value interface{}) {
-	f, ok := b.Scheme.fieldsMap[name]
+	f, ok := b.Scheme.FieldsMap[name]
 	if !ok {
 		return
 	}
@@ -414,15 +420,16 @@ func (b *Buffer) set(f *Field, value interface{}) {
 }
 
 // ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array
-// resulting buffer has no value (or has nil value) for a mandatory field -> error
-// value type and field type are incompatible (e.g. string for numberic field) -> error
-// value and field types differs but value fits into field -> no error. Examples:
+// Resulting buffer has no value (or has nil value) for a mandatory field -> error
+// Value type and field type are incompatible (e.g. string for numberic field) -> error
+// Vvalue and field types differs but value fits into field -> no error. Examples:
 //   255 fits into float, double, int, long, byte;
 //   256 does not fit into byte
 //   "str" does not fit into int64 (different types)
-// if unexisting field is provided -> no error (e.g. if trying to write data in new Scheme into buffer in old Scheme)
-// arrays and nested objects are rewritten in the Buffer
-// primitive fields are appended to the Buffer
+// If unexisting field is provided -> no error (e.g. if trying to write data in new Scheme into buffer in old Scheme)
+// Json data overrides data stored or mdified previously
+// Byte arrays are expected to be base64 strings
+// Array element is null -> error (not supported)
 func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 	dest := map[string]interface{}{}
 	err := json.Unmarshal(jsonBytes, &dest)
@@ -439,7 +446,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 
 func (b *Buffer) applyJSONMap(data map[string]interface{}) error {
 	for fn, fv := range data {
-		f, ok := b.Scheme.fieldsMap[fn]
+		f, ok := b.Scheme.FieldsMap[fn]
 		if !ok {
 			continue
 		}
@@ -467,7 +474,6 @@ func (b *Buffer) applyJSONMap(data map[string]interface{}) error {
 				}
 				bNested.applyJSONMap(dataNested)
 				b.Set(f.Name, bNested)
-				// b.Get
 			}
 		} else {
 			if f.IsArray && f.Ft == FieldTypeByte {
@@ -522,7 +528,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			} else {
-				// copy if initially existed
+				// copy from source bytes if not modified and initially existed
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
 					if isFixedSizeField(f) {
 						// copy fixed-size array as byte array
@@ -574,7 +580,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		}
 	}
 
-	bl.StartObject(len(b.Scheme.fieldsMap))
+	bl.StartObject(len(b.Scheme.FieldsMap))
 	for _, f := range b.Scheme.Fields {
 		isSet := false
 		if f.IsArray {
@@ -595,12 +601,12 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				modifiedField := b.modifiedFields[f.order]
 				if modifiedField != nil {
 					if isSet = modifiedField.value != nil; isSet {
-						if !encodeNonStringValue(bl, f, modifiedField.value) {
+						if !encodeFixedSizeValue(bl, f, modifiedField.value) {
 							return 0, fmt.Errorf("wrong value %v provided for field %s", modifiedField.value, f.QualifiedName)
 						}
 					}
 				} else {
-					isSet = copyNonStringValue(bl, b, f)
+					isSet = copyFixedSizeValue(bl, b, f)
 				}
 			}
 		}
@@ -613,24 +619,108 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	return res, nil
 }
 
+func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
+	arr, ok := value.([]int32)
+	if !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return nil, false
+		}
+		arr = make([]int32, len(intfs))
+		for i, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
+				return nil, false
+			}
+			arr[i] = int32(float64Src)
+		}
+	}
+	return arr, true
+}
+
+func intfToBoolArr(f *Field, value interface{}) ([]bool, bool) {
+	arr, ok := value.([]bool)
+	if !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return nil, false
+		}
+		arr = make([]bool, len(intfs))
+		for i, intf := range intfs {
+			boolVal, ok := intf.(bool)
+			if !ok {
+				return nil, false
+			}
+			arr[i] = boolVal
+		}
+	}
+	return arr, true
+}
+
+func intfToInt64Arr(f *Field, value interface{}) ([]int64, bool) {
+	arr, ok := value.([]int64)
+	if !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return nil, false
+		}
+		arr = make([]int64, len(intfs))
+		for i, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
+				return nil, false
+			}
+			arr[i] = int64(float64Src)
+		}
+	}
+	return arr, true
+}
+
+func intfToFloat32Arr(f *Field, value interface{}) ([]float32, bool) {
+	arr, ok := value.([]float32)
+	if !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return nil, false
+		}
+		arr = make([]float32, len(intfs))
+		for i, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
+				return nil, false
+			}
+			arr[i] = float32(float64Src)
+		}
+	}
+	return arr, true
+}
+
+func intfToFloat64Arr(f *Field, value interface{}) ([]float64, bool) {
+	arr, ok := value.([]float64)
+	if !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return nil, false
+		}
+		arr = make([]float64, len(intfs))
+		for i, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok {
+				return nil, false
+			}
+			arr[i] = float64Src
+		}
+	}
+	return arr, true
+}
+
 func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{}) (flatbuffers.UOffsetT, error) {
 	elemSize := getFBFieldSize(f.Ft)
 	switch f.Ft {
 	case FieldTypeInt:
-		arr, ok := value.([]int32)
+		arr, ok := intfToInt32Arr(f, value)
 		if !ok {
-			intfs, ok := value.([]interface{})
-			if !ok {
-				return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
-			}
-			arr = make([]int32, len(intfs))
-			for i, intf := range intfs {
-				float64Src, ok := intf.(float64)
-				if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
-					return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
-				}
-				arr[i] = int32(float64Src)
-			}
+			return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
 		}
 		if len(arr) == 0 {
 			return bl.CreateByteVector([]byte{}), nil
@@ -640,20 +730,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		target := *(*[]byte)(unsafe.Pointer(&hdr))
 		return bl.CreateByteVector(target), nil
 	case FieldTypeBool:
-		arr, ok := value.([]bool)
+		arr, ok := intfToBoolArr(f, value)
 		if !ok {
-			intfs, ok := value.([]interface{})
-			if !ok {
-				return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName)
-			}
-			arr = make([]bool, len(intfs))
-			for i, intf := range intfs {
-				boolVal, ok := intf.(bool)
-				if !ok {
-					return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName)
-				}
-				arr[i] = boolVal
-			}
+			return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName)
 		}
 		if len(arr) == 0 {
 			return bl.CreateByteVector([]byte{}), nil
@@ -663,20 +742,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		target := *(*[]byte)(unsafe.Pointer(&hdr))
 		return bl.CreateByteVector(target), nil
 	case FieldTypeLong:
-		arr, ok := value.([]int64)
+		arr, ok := intfToInt64Arr(f, value)
 		if !ok {
-			intfs, ok := value.([]interface{})
-			if !ok {
-				return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
-			}
-			arr = make([]int64, len(intfs))
-			for i, intf := range intfs {
-				float64Src, ok := intf.(float64)
-				if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
-					return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
-				}
-				arr[i] = int64(float64Src)
-			}
+			return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
 		}
 		if len(arr) == 0 {
 			return bl.CreateByteVector([]byte{}), nil
@@ -686,20 +754,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		target := *(*[]byte)(unsafe.Pointer(&hdr))
 		return bl.CreateByteVector(target), nil
 	case FieldTypeFloat:
-		arr, ok := value.([]float32)
+		arr, ok := intfToFloat32Arr(f, value)
 		if !ok {
-			intfs, ok := value.([]interface{})
-			if !ok {
-				return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
-			}
-			arr = make([]float32, len(intfs))
-			for i, intf := range intfs {
-				float64Src, ok := intf.(float64)
-				if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
-					return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
-				}
-				arr[i] = float32(float64Src)
-			}
+			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
 		}
 		if len(arr) == 0 {
 			return bl.CreateByteVector([]byte{}), nil
@@ -709,21 +766,11 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		target := *(*[]byte)(unsafe.Pointer(&hdr))
 		return bl.CreateByteVector(target), nil
 	case FieldTypeDouble:
-		arr, ok := value.([]float64)
+		arr, ok := intfToFloat64Arr(f, value)
 		if !ok {
-			intfs, ok := value.([]interface{})
-			if !ok {
-				return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
-			}
-			arr = make([]float64, len(intfs))
-			for i, intf := range intfs {
-				float64Src, ok := intf.(float64)
-				if !ok {
-					return 0, fmt.Errorf("[]float64 required but %v provided for field %s", value, f.QualifiedName)
-				}
-				arr[i] = float64Src
-			}
+			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
 		}
+
 		if len(arr) == 0 {
 			return bl.CreateByteVector([]byte{}), nil
 		}
@@ -774,7 +821,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		nestedUOffsetTs := []flatbuffers.UOffsetT{}
 		switch value.(type) {
 		case []*Buffer:
-			// explicit Set("", []*Buffer)
+			// explicit Set("", []*Buffer) was called
 			arr := value.([]*Buffer)
 			for i := 0; i < len(arr); i++ {
 				if arr[i] == nil {
@@ -808,7 +855,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	}
 }
 
-func copyNonStringValue(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
+func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
 	offset := src.getFieldUOffsetTByOrder(f.order)
 	if offset == 0 {
 		return false
@@ -847,7 +894,7 @@ func isFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 	}
 }
 
-func encodeNonStringValue(bl *flatbuffers.Builder, f *Field, value interface{}) bool {
+func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}) bool {
 	switch value.(type) {
 	case bool:
 		if f.Ft != FieldTypeBool {
@@ -917,7 +964,7 @@ func encodeNonStringValue(bl *flatbuffers.Builder, f *Field, value interface{}) 
 	return true
 }
 
-// ToJSON returns JSON flat key->value string
+// ToJSON returns JSON key->value string
 func (b *Buffer) ToJSON() string {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
@@ -999,12 +1046,12 @@ func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
 }
 
 func (s *Scheme) addField(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
-	newField := &Field{s.getQualifiedFieldName(name), name, ft, len(s.fieldsMap), isMandatory, nested, IsArray}
-	s.fieldsMap[name] = newField
+	newField := &Field{s.getQualifiedFieldName(name), name, ft, len(s.FieldsMap), isMandatory, nested, IsArray}
+	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
 }
 
-// MarshalYAML used to conform to yaml.Marshaler interface
+// MarshalYAML marshals Scheme to yaml. Needs to conform to yaml.Marshaler interface
 func (s *Scheme) MarshalYAML() (interface{}, error) {
 	res := yaml.MapSlice{}
 	for _, f := range s.Fields {
@@ -1037,7 +1084,7 @@ func (s *Scheme) MarshalYAML() (interface{}, error) {
 	return res, nil
 }
 
-// UnmarshalYAML unmarshals Scheme from yaml. Need to conform to yaml.Unmarshaler interface
+// UnmarshalYAML unmarshals Scheme from yaml. Needs to conform to yaml.Unmarshaler interface
 func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	mapSlice := yaml.MapSlice{}
 	if err := unmarshal(&mapSlice); err != nil {
@@ -1048,7 +1095,7 @@ func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	s.Fields = newS.Fields
-	s.fieldsMap = newS.fieldsMap
+	s.FieldsMap = newS.FieldsMap
 	return nil
 }
 
@@ -1059,9 +1106,9 @@ func (s *Scheme) getQualifiedFieldName(fieldName string) string {
 	return fieldName
 }
 
-// GetNestedScheme s.e.
+// GetNestedScheme returns Scheme of nested object if the field has FieldTypeObject type, nil otherwise
 func (s *Scheme) GetNestedScheme(nestedObjectField string) *Scheme {
-	if f, ok := s.fieldsMap[nestedObjectField]; ok {
+	if f, ok := s.FieldsMap[nestedObjectField]; ok {
 		return f.Scheme
 	}
 	return nil
