@@ -122,7 +122,7 @@ func TestBasicUsage(t *testing.T) {
 	actual = b.Get("newField")
 	assert.Nil(t, actual)
 
-	// set string field to non-string ->error 
+	// set string field to non-string ->error
 	b.Set("name", 123)
 	bytes, err = b.ToBytes()
 	if err == nil {
@@ -282,21 +282,6 @@ func TestWriteOldReadNew(t *testing.T) {
 	assert.Nil(t, actual)
 }
 
-func TestYamlToSchemeErrors(t *testing.T) {
-	_, err := YamlToScheme("wrong yaml")
-	assert.NotNil(t, err)
-	_, err = YamlToScheme("name: wrongType")
-	assert.NotNil(t, err)
-	_, err = YamlToScheme(`
-		nested:
-		  nestedField: wrongType`)
-	assert.NotNil(t, err)
-	_, err = YamlToScheme(`
-		nested:
-		  wrong`)
-	assert.NotNil(t, err)
-}
-
 func TestToBytesFilledUnmodified(t *testing.T) {
 	b := getBufferAllFields(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 	bytes, err := b.ToBytes()
@@ -413,7 +398,7 @@ func TestToJSONBasic(t *testing.T) {
 	assert.Equal(t, float64(0.123), dest["price"])
 	assert.Equal(t, float64(42), dest["quantity"])
 
-	// unmodified 
+	// unmodified
 	bytes, err := b.ToBytes()
 	if err != nil {
 		t.Fatal(err)
@@ -471,7 +456,7 @@ func TestToJSONBasic(t *testing.T) {
 	assert.True(t, len(dest) == 1)
 	assert.Equal(t, "cola", dest["name"])
 
-	// buffer is unmodified -> 
+	// buffer is unmodified ->
 }
 
 func TestDifferentOrder(t *testing.T) {
@@ -505,7 +490,7 @@ func TestDifferentOrder(t *testing.T) {
 	assert.Equal(t, int32(42), actual.(int32))
 }
 
-func TestSchemeNestedToFromYAML(t *testing.T) {
+func TestSchemeToFromYAML(t *testing.T) {
 	schemeRoot := NewScheme()
 	schemeNested := NewScheme()
 	schemeNested.AddField("price", FieldTypeFloat, false)
@@ -522,13 +507,24 @@ func TestSchemeNestedToFromYAML(t *testing.T) {
 	}
 
 	assert.True(t, reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields))
-	assert.True(t, reflect.DeepEqual(schemeRoot.fieldsMap, schemeNew.fieldsMap))
+	assert.True(t, reflect.DeepEqual(schemeRoot.FieldsMap, schemeNew.FieldsMap))
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
-	if err == nil {
-		t.Fatal()
-	}
+	assert.NotNil(t, err)
+
+	_, err = YamlToScheme("wrong yaml")
+	assert.NotNil(t, err)
+	_, err = YamlToScheme("name: wrongType")
+	assert.NotNil(t, err)
+	_, err = YamlToScheme(`
+		nested:
+		  nestedField: wrongType`)
+	assert.NotNil(t, err)
+	_, err = YamlToScheme(`
+		nested:
+		  wrong`)
+	assert.NotNil(t, err)
 }
 
 func TestMandatoryFields(t *testing.T) {
@@ -695,7 +691,6 @@ func TestApplyJSONNestedAndNestedArray(t *testing.T) {
 	if err == nil {
 		t.Fatal()
 	}
-
 }
 
 func TestApplyJSONArraysAllTypes(t *testing.T) {
@@ -705,7 +700,7 @@ func TestApplyJSONArraysAllTypes(t *testing.T) {
 	}
 
 	// ints
-	// element of wrong type -> error 
+	// element of wrong type -> error
 	json := []byte(`{"ints": [1, 0.123]}`)
 	b := NewBuffer(s)
 	_, err = b.ApplyJSONAndToBytes(json)
@@ -722,7 +717,7 @@ func TestApplyJSONArraysAllTypes(t *testing.T) {
 	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
 
 	// longs
-	// element of wrong type -> error 
+	// element of wrong type -> error
 	json = []byte(`{"longs": [1, "str"]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
 	if err == nil {
@@ -787,7 +782,7 @@ func TestApplyJSONArraysAllTypes(t *testing.T) {
 	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
 
 	// bools
-	// element of wrong type -> error 
+	// element of wrong type -> error
 	json = []byte(`{"boolTrues": ["str"]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
 	if err == nil {
@@ -808,7 +803,7 @@ func TestApplyJSONArraysAllTypes(t *testing.T) {
 	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
 
 	// strings
-	// element of wrong type -> error 
+	// element of wrong type -> error
 	json = []byte(`{"strings": ["str1", 1]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
 	if err == nil {
@@ -889,8 +884,6 @@ func TestApplyJSONArraysAllTypes(t *testing.T) {
 	assert.Equal(t, []bool{}, b.Get("boolFalses").(*Array).GetBools())
 	assert.Equal(t, []string{}, b.Get("strings").(*Array).GetStrings())
 	assert.Equal(t, []*Buffer{}, b.Get("intsObj").(*Array).GetObjects())
-
-
 
 }
 
@@ -1244,7 +1237,6 @@ func TestArraysAllTypes(t *testing.T) {
 	}
 	b.Set("strings", strings)
 
-
 }
 
 func TestArraysNested(t *testing.T) {
@@ -1322,8 +1314,6 @@ func TestArraysNested(t *testing.T) {
 	if err == nil {
 		t.Fatal()
 	}
-
-
 }
 
 func TestCopyBytes(t *testing.T) {
