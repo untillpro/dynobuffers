@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2019-present unTill Pro, Ltd. and Contributors
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 package dynobuffers
 
 import (
@@ -66,6 +72,98 @@ func BenchmarkReadDynoBuffersSimpleUntyped(b *testing.B) {
 	}
 }
 
+func BenchmarkReadDynoBuffersApplyJSONArraysAllTypesAppendNoNested(t *testing.B) {
+	arraysAllTypesYaml := `
+ints..: int
+longs..: long
+floats..: float
+doubles..: double
+strings..: string
+boolTrues..: bool
+boolFalses..: bool
+bytes..: byte
+intsObj..:
+  int: int
+`
+	s, err := dynobuffers.YamlToScheme(arraysAllTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := dynobuffers.NewBuffer(s)
+	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = dynobuffers.ReadBuffer(bytes, s)
+
+
+	dest := map[string]interface{}{}
+	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY="}`)
+	err = json.Unmarshal(jsonBytes, &dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		err = b.ApplyMap(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// _, err = b.ToBytes()
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
+		// b = dynobuffers.ReadBuffer(bytes, s)
+	}
+}
+
+
+func BenchmarkReadDynoBuffersApplyJSONArraysAllTypesAppend(t *testing.B) {
+	arraysAllTypesYaml := `
+ints..: int
+longs..: long
+floats..: float
+doubles..: double
+strings..: string
+boolTrues..: bool
+boolFalses..: bool
+bytes..: byte
+intsObj..:
+  int: int
+`
+	s, err := dynobuffers.YamlToScheme(arraysAllTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := dynobuffers.NewBuffer(s)
+	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = dynobuffers.ReadBuffer(bytes, s)
+
+
+	dest := map[string]interface{}{}
+	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`)
+	err = json.Unmarshal(jsonBytes, &dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		err = b.ApplyMap(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = b.ToBytes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b = dynobuffers.ReadBuffer(bytes, s)
+	}
+}
 func BenchmarkReadFlatBuffersSimple(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
 	colaName := bl.CreateString("cola")

@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2019-present unTill Pro, Ltd. and Contributors
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 package dynobuffers
 
 import (
@@ -18,7 +24,10 @@ func BenchmarkWriteDynoBuffersSimpleTyped(b *testing.B) {
 	bf.Set("name", "cola")
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
-	bytes, _ := bf.ToBytes()
+	bytes, err := bf.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	sum := float32(0)

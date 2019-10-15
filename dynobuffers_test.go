@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"testing"
 
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -693,7 +694,53 @@ func TestApplyJSONNestedAndNestedArray(t *testing.T) {
 	}
 }
 
-func TestApplyJSONArraysAllTypes(t *testing.T) {
+func TestApplyJSONArraysAllTypesAppend(t *testing.T) {
+	s, err := YamlToScheme(arraysAllTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := NewBuffer(s)
+	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
+	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
+	assert.Equal(t, []bool{true, false}, b.Get("boolTrues").(*Array).GetBools())
+	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
+	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings").(*Array).GetStrings())
+	buffs := b.Get("intsObj").(*Array).GetObjects()
+	assert.Equal(t, int32(7), buffs[0].Get("int"))
+	assert.Equal(t, int32(8), buffs[1].Get("int"))
+
+	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints").(*Array).GetInts())
+	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs").(*Array).GetLongs())
+	assert.Equal(t, []float32{0.123, 0.124, -0.123, -0.124}, b.Get("floats").(*Array).GetFloats())
+	assert.Equal(t, []float64{0.125, 0.126, -0.125, -0.126}, b.Get("doubles").(*Array).GetDoubles())
+	assert.Equal(t, []byte{5, 6, 5, 6}, b.Get("bytes").(*Array).GetBytes())
+	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues").(*Array).GetBools())
+	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses").(*Array).GetBools())
+	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings").(*Array).GetStrings())
+	buffs = b.Get("intsObj").(*Array).GetObjects()
+	assert.Equal(t, int32(7), buffs[0].Get("int"))
+	assert.Equal(t, int32(8), buffs[1].Get("int"))
+	assert.Equal(t, int32(-7), buffs[2].Get("int"))
+	assert.Equal(t, int32(-8), buffs[3].Get("int"))
+
+}
+
+func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
 	if err != nil {
 		t.Fatal(err)
@@ -1112,7 +1159,7 @@ func TestArraysBasic(t *testing.T) {
 	assert.True(t, len(longsActual) == 0)
 }
 
-func TestArraysAllTypes(t *testing.T) {
+func TestArraysAllTypesSet(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
 	if err != nil {
 		t.Fatal(err)
@@ -1236,6 +1283,89 @@ func TestArraysAllTypes(t *testing.T) {
 		t.Fatal()
 	}
 	b.Set("strings", strings)
+}
+
+func TestArraysAllTypesAppend(t *testing.T) {
+	s, err := YamlToScheme(arraysAllTypesYaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ints := []int32{1, 2}
+	longs := []int64{3, 4}
+	floats := []float32{0.5, 0.6}
+	doubles := []float64{0.7, 0.8}
+	trueBools := []bool{true, false}
+	falseBools := []bool{false, true}
+	bytesArr := []byte{9, 10}
+	strings := []string{"str1", "str2"}
+
+	// initial, arrays are nil -> equivalent to Set()
+	b := NewBuffer(s)
+	b.Append("ints", ints)
+	b.Append("longs", longs)
+	b.Append("floats", floats)
+	b.Append("doubles", doubles)
+	b.Append("boolTrues", trueBools)
+	b.Append("boolFalses", falseBools)
+	b.Append("bytes", bytesArr)
+	b.Append("strings", strings)
+	schemeNested := s.GetNestedScheme("intsObj")
+
+	bNestedArr := []*Buffer{}
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("int", 55)
+	bNestedArr = append(bNestedArr, bNested)
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("int", 56)
+	bNestedArr = append(bNestedArr, bNested)
+	b.Append("intsObj", bNestedArr)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+
+	assert.Equal(t, ints, b.Get("ints").(*Array).GetInts())
+	assert.Equal(t, longs, b.Get("longs").(*Array).GetLongs())
+	assert.Equal(t, floats, b.Get("floats").(*Array).GetFloats())
+	assert.Equal(t, doubles, b.Get("doubles").(*Array).GetDoubles())
+	assert.Equal(t, trueBools, b.Get("boolTrues").(*Array).GetBools())
+	assert.Equal(t, falseBools, b.Get("boolFalses").(*Array).GetBools())
+	assert.Equal(t, bytesArr, b.Get("bytes").(*Array).GetBytes())
+	assert.Equal(t, strings, b.Get("strings").(*Array).GetAll().([]string))
+	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
+	assert.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
+
+	// append to existing
+	b.Append("ints", []int32{-1, -2})
+	b.Append("longs", []int64{-3, -4})
+	b.Append("floats", []float32{-0.5, -0.6})
+	b.Append("doubles", []float64{-0.7, -0.8})
+	b.Append("boolTrues", []bool{true, true})
+	b.Append("boolFalses", []bool{false, false})
+	b.Append("bytes", []byte{11, 12})
+	b.Append("strings", []string{"", "str4"})
+	bNestedArr = []*Buffer{}
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("int", 60)
+	bNestedArr = append(bNestedArr, bNested)
+	b.Append("intsObj", bNestedArr)
+
+	bytes, err = b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+
+	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints").(*Array).GetInts())
+	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs").(*Array).GetLongs())
+	assert.Equal(t, []float32{0.5, 0.6, -0.5, -0.6}, b.Get("floats").(*Array).GetFloats())
+	assert.Equal(t, []float64{0.7, 0.8, -0.7, -0.8}, b.Get("doubles").(*Array).GetDoubles())
+	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues").(*Array).GetBools())
+	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses").(*Array).GetBools())
+	assert.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes").(*Array).GetBytes())
+	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings").(*Array).GetAll().([]string))
 
 }
 
@@ -1347,8 +1477,45 @@ func TestCopyBytes(t *testing.T) {
 	assert.Equal(t, int64(46), arr[1])
 	assert.Equal(t, int64(45), b.GetByIndex("longs", 0))
 	assert.Equal(t, float32(0.123), b.Get("float"))
+}
 
-	// the returned array is a slice of underlying byte buffer. Modification of this array means direct modification of the byte buffer
-	arr[0] = 47
-	assert.Equal(t, int64(47), b.GetByIndex("longs", 0))
+func TestObjectAsBytesInv(t *testing.T) {
+	bl := flatbuffers.NewBuilder(0)
+	strOffset := bl.CreateString("nes1")
+	bl.StartObject(2)
+	bl.PrependUOffsetTSlot(0, strOffset, 0)
+	bl.PrependInt32(42)
+	no := bl.EndObject()
+	// bl.PrependInt32(int32(len(bl.Bytes)))
+	bl.Finish(no)
+	bytesNested := bl.FinishedBytes()
+
+	bl = flatbuffers.NewBuilder(0)
+	strOffsetOut := bl.CreateString("out")
+	strOffsetOut2 := bl.CreateString("out2")
+	nestedObj := bl.CreateByteVector(bytesNested) // bytesNested will be corrupted here if bl.Reset() is used instead of bl = flatbuffers.NewBuilder(0)
+	bl.StartObject(5)
+	bl.PrependInt32(43)
+	bl.PrependUOffsetTSlot(1, strOffsetOut, 0)
+	bl.PrependUOffsetTSlot(2, nestedObj, 0)
+	bl.PrependInt32(44)
+	bl.PrependUOffsetTSlot(4, strOffsetOut2, 0)
+	bl.Finish(bl.EndObject())
+
+	bytesOut := bl.FinishedBytes()
+
+	outTab := &flatbuffers.Table{}
+	outTab.Bytes = bytesOut
+	outTab.Pos = flatbuffers.GetUOffsetT(bytesOut)
+
+	nestedOffset := flatbuffers.UOffsetT(outTab.Offset(flatbuffers.VOffsetT((2+2)*2))) + outTab.Pos
+	nestedTab := &flatbuffers.Table{}
+	nestedTab.Bytes = outTab.ByteVector(nestedOffset)
+	assert.True(t, reflect.DeepEqual(bytesNested, nestedTab.Bytes))
+	nestedTab.Pos = flatbuffers.GetUOffsetT(nestedTab.Bytes) //outTab.Indirect(nestedOffset) //nestedOffset + GetUOffset(bytes[nestedOffset:])
+
+	nestedStrOffset := flatbuffers.UOffsetT(nestedTab.Offset(flatbuffers.VOffsetT((0+2)*2))) + nestedTab.Pos
+
+	assert.Equal(t, "nes1", byteSliceToString(nestedTab.ByteVector(nestedStrOffset)))
+
 }
