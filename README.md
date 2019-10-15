@@ -89,8 +89,8 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	}
 	```
 	- value is nil and field is mandatory -> error
-	- value type and field type are incompatible -> error
-    - value has appropriate type (e.g. string for numberic field) and fits into field (e.g. 255 fits into float, double, int, long, byte; 256 does not fit into byte etc) -> ok
+	- value type and field type are incompatible (e.g. string provided for numeric field) -> error
+    - value type and field type differs but value fits into field (e.g. float64(255) fits into float, double, int, long, byte; float64(256) does not fit into byte etc) -> ok
     - no such field in the scheme -> ok (need to scheme versioning)
     - array element value is nil -> error (not supported)
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
@@ -198,35 +198,58 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	assert.Equal(t, int64(5), bRoot.GetByIndex("ids", 0))
 	assert.Equal(t, int32(1), bRoot.GetByIndex("nested", 0).(*Buffer).Get("nes1"))
 	```
-  - Using `dynobuffers.Array` struct to iterate through array
-	```go
+  - Using `dynobuffers.Array` struct
+    ```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-	arr := b.Get("nested").(*dynobuffers.Array)
-	for arr.Next() {
-		value := arr.Value()
-		fmt.Println(value)
-	}
-	filledArr := ar.GetAll()
-	for i, value := range filledArr {
-		fmt.Println(fmt.Sprintf("%d: %v", i, value)
-	}
-	```
+	arr := b.Get("ids").(*dynobuffers.Array)
+	```	
+    - iterate
+		```go
+		for arr.Next() {
+			value := arr.Value()
+			fmt.Println(value)
+		}
+		```
+	- get filled array as `interface{}` containing typed array
+		```go
+		filledArr := ar.GetAll()
+		for i, value := range filledArr {
+			fmt.Println(fmt.Sprintf("%d: %v", i, value)
+		}
+		```
+	- get filled typed array 
+		```go
+		filledArr := ar.GetInts()
+		for i, value := range filledArr {
+			fmt.Println(fmt.Sprintf("%d: %d", i, value)
+		}
+		```
 - Modify array and to bytes
-	```go
-	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-	
-	ids := []int64{5,6}
-	bRoot.Set("ids", ids)
+	- Set
+		```go
+		bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
+		
+		ids := []int64{5,6}
+		bRoot.Set("ids", ids)
 
-	buffers := bRoot.Get("nested").(*dynobuffers.Array).GetObjects()
-	buffers[1].Set("nes1", -1)
-	bytes, err := bRoot.ToBytes()
-	if err != nil {
-		panic(err)
-	}
-	bRoot = dynobuffers.ReadBuffer(bytes, scheme)
-	// note: elements of `buffers` array are obsolete here. Need to obtain the array again from bRoot
-	```
+		buffers := bRoot.Get("nested").(*dynobuffers.Array).GetObjects()
+		buffers[1].Set("nes1", -1)
+		bytes, err := bRoot.ToBytes()
+		if err != nil {
+			panic(err)
+		}
+		bRoot = dynobuffers.ReadBuffer(bytes, scheme)
+		// note: elements of `buffers` array are obsolete here. Need to obtain the array again from bRoot
+		```
+	- Append
+		```go
+		bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
+		bRoot.Append("ids", []int32{7,8}) // if wasn't set then equivalent to Set()
+		bytes, err := bRoot.ToBytes()
+		if err != nil {
+			panic(err)
+		}
+		```	
  - Nils as array elements are not supported
  - Byte arrays are decoded\encoded from\to JSON as base64 strings
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
