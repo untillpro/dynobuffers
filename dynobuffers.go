@@ -48,7 +48,7 @@ const (
 )
 
 // StoreObjectsAsBytes defines if nested objects will be stored as byte vectors. Should increase performance of objects copying on appending arrays of objects
-var StoreObjectsAsBytes = true
+const StoreObjectsAsBytes = true
 
 var yamlFieldTypesMap = map[string]FieldType{
 	"int":    FieldTypeInt,
@@ -63,23 +63,22 @@ var yamlFieldTypesMap = map[string]FieldType{
 
 // Buffer is wrapper for FlatBuffers
 type Buffer struct {
-	Scheme              *Scheme
-	modifiedFields      []*modifiedField
-	tab                 flatbuffers.Table
-	StoreObjectsAsBytes bool
-	isModified          bool
-	owner               *Buffer
+	Scheme         *Scheme
+	modifiedFields []*modifiedField
+	tab            flatbuffers.Table
+	isModified     bool
+	owner          *Buffer
 }
 
 // Field describe+s a Scheme field
 type Field struct {
-	QualifiedName string
-	Name          string
-	Ft            FieldType
-	order         int
-	IsMandatory   bool
-	Scheme        *Scheme // != nil for FieldTypeObject only
-	IsArray       bool
+	Name        string
+	Ft          FieldType
+	order       int
+	IsMandatory bool
+	FieldScheme *Scheme // != nil for FieldTypeObject only
+	ownerScheme *Scheme
+	IsArray     bool
 }
 
 type modifiedField struct {
@@ -223,7 +222,6 @@ type Scheme struct {
 func NewBuffer(Scheme *Scheme) *Buffer {
 	b := &Buffer{}
 	b.Scheme = Scheme
-	b.StoreObjectsAsBytes = StoreObjectsAsBytes
 	return b
 }
 
@@ -363,11 +361,11 @@ func (b *Buffer) getValueByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) int
 		return b.tab.GetBool(uOffsetT)
 	case FieldTypeObject:
 		var res *Buffer
-		if b.StoreObjectsAsBytes {
+		if StoreObjectsAsBytes {
 			bytesNested := b.tab.ByteVector(uOffsetT)
-			res = ReadBuffer(bytesNested, f.Scheme)
+			res = ReadBuffer(bytesNested, f.FieldScheme)
 		} else {
-			res = ReadBuffer(b.tab.Bytes, f.Scheme)
+			res = ReadBuffer(b.tab.Bytes, f.FieldScheme)
 			res.tab.Pos = b.tab.Indirect(uOffsetT)
 		}
 		if !f.IsArray {
@@ -510,7 +508,7 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 			if f.IsArray {
 				datasNested, ok := fv.([]interface{})
 				if !ok {
-					return fmt.Errorf("array of objects required but %v provided for field %s", fv, f.QualifiedName)
+					return fmt.Errorf("array of objects required but %v provided for field %s", fv, f.QualifiedName())
 				}
 				buffers := make([]*Buffer, len(datasNested))
 				for i, dataNestedIntf := range datasNested {
@@ -518,13 +516,13 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 					if !ok {
 						return fmt.Errorf("element value of array field %s must be an object, %v provided", fn, dataNestedIntf)
 					}
-					buffers[i] = NewBuffer(f.Scheme)
+					buffers[i] = NewBuffer(f.FieldScheme)
 					buffers[i].owner = b
 					buffers[i].ApplyMap(dataNested)
 				}
 				b.append(f, buffers)
 			} else {
-				bNested := NewBuffer(f.Scheme)
+				bNested := NewBuffer(f.FieldScheme)
 				bNested.owner = b
 				dataNested, ok := fv.(map[string]interface{})
 				if !ok {
@@ -534,18 +532,18 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 				b.set(f, bNested)
 			}
 		} else {
-			if f.IsArray && f.Ft == FieldTypeByte {
-				base64Str, ok := fv.(string)
-				if !ok {
-					return fmt.Errorf("base64 encoded byte array is expected for %s, %v provided", f.QualifiedName, fv)
-				}
-				var err error
-				fv, err = base64.StdEncoding.DecodeString(base64Str)
-				if err != nil {
-					return err
-				}
-			}
 			if f.IsArray {
+				if f.Ft == FieldTypeByte {
+					base64Str, ok := fv.(string)
+					if !ok {
+						return fmt.Errorf("base64 encoded byte array is expected for %s, %v provided", f.QualifiedName(), fv)
+					}
+					var err error
+					fv, err = base64.StdEncoding.DecodeString(base64Str)
+					if err != nil {
+						return err
+					}
+				}
 				b.append(f, fv)
 			} else {
 				b.set(f, fv)
@@ -626,11 +624,11 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			if modifiedField != nil {
 				if modifiedField.value != nil {
 					if nestedBuffer, ok := modifiedField.value.(*Buffer); !ok {
-						return 0, fmt.Errorf("nested object required but %v provided for field %s", modifiedField.value, f.QualifiedName)
-					} else if b.StoreObjectsAsBytes {
+						return 0, fmt.Errorf("nested object required but %v provided for field %s", modifiedField.value, f.QualifiedName())
+					} else if StoreObjectsAsBytes {
 						nestedBytes, err := nestedBuffer.ToBytes()
 						if err != nil {
-							return 0, fmt.Errorf("failed to encode nested object %s", f.QualifiedName)
+							return 0, fmt.Errorf("failed to encode nested object %s: %s", f.QualifiedName(), err)
 						}
 						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
 					} else if nestedUOffsetT, err = nestedBuffer.encodeBuffer(bl); err != nil {
@@ -640,7 +638,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
 					bufToWrite := b.getByUOffsetT(f, -1, uOffsetT) // can not be nil
-					if b.StoreObjectsAsBytes {
+					if StoreObjectsAsBytes {
 						nestedBytes, _ := bufToWrite.(*Buffer).ToBytes() // no errors should be here
 						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
 					} else {
@@ -656,7 +654,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					if strToWrite, ok := modifiedStringField.value.(string); ok {
 						offsets[f.order].str = bl.CreateString(strToWrite)
 					} else {
-						return 0, fmt.Errorf("string required but %v provided for field %s", modifiedStringField.value, f.QualifiedName)
+						return 0, fmt.Errorf("string required but %v provided for field %s", modifiedStringField.value, f.QualifiedName())
 					}
 				}
 			} else {
@@ -689,7 +687,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField != nil {
 					if isSet = modifiedField.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, modifiedField.value) {
-							return 0, fmt.Errorf("wrong value %v provided for field %s", modifiedField.value, f.QualifiedName)
+							return 0, fmt.Errorf("wrong value %v provided for field %s", modifiedField.value, f.QualifiedName())
 						}
 					}
 				} else {
@@ -698,7 +696,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			}
 		}
 		if f.IsMandatory && !isSet {
-			return 0, fmt.Errorf("Mandatory field %s is not set", f.Name)
+			return 0, fmt.Errorf("Mandatory field %s is not set", f.QualifiedName())
 		}
 	}
 	res := bl.EndObject()
@@ -807,7 +805,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeInt:
 		arr, ok := intfToInt32Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName)
+			return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]int32)
@@ -825,7 +823,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeBool:
 		arr, ok := intfToBoolArr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName)
+			return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]bool)
@@ -842,7 +840,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeLong:
 		arr, ok := intfToInt64Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName)
+			return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]int64)
@@ -859,7 +857,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeFloat:
 		arr, ok := intfToFloat32Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
+			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]float32)
@@ -876,7 +874,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeDouble:
 		arr, ok := intfToFloat64Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName)
+			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]float64)
@@ -898,7 +896,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr = toAppendTo
 		}
 		if !ok {
-			return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName)
+			return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName())
 		}
 		return bl.CreateByteVector(arr), nil
 	case FieldTypeString:
@@ -914,7 +912,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			for i, intf := range intfs {
 				stringVal, ok := intf.(string)
 				if !ok {
-					return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName)
+					return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName())
 				}
 				arr[i] = stringVal
 			}
@@ -923,7 +921,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arrays := value.(*Array)
 			arr = arrays.GetStrings()
 		default:
-			return 0, fmt.Errorf("%v provided for field %s which can not be converted to []string", value, f.QualifiedName)
+			return 0, fmt.Errorf("%v provided for field %s which can not be converted to []string", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]string)
@@ -947,9 +945,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr := value.([]*Buffer)
 			for i := 0; i < len(arr); i++ {
 				if arr[i] == nil {
-					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName)
+					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
 				}
-				if b.StoreObjectsAsBytes {
+				if StoreObjectsAsBytes {
 					nestedBytes, err := arr[i].ToBytes()
 					if err != nil {
 						return 0, err
@@ -969,7 +967,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr := value.(*Array)
 			for arr.Next() {
 				buf := arr.Value().(*Buffer)
-				if b.StoreObjectsAsBytes {
+				if StoreObjectsAsBytes {
 					nestedBytes, _ := buf.ToBytes()
 					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
@@ -979,14 +977,14 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 
 			}
 		default:
-			return 0, fmt.Errorf("%v provided for field %s is not an array of nested objects", value, f.QualifiedName)
+			return 0, fmt.Errorf("%v provided for field %s is not an array of nested objects", value, f.QualifiedName())
 		}
 
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]*Buffer)
 			toAppendToUOffsetTs := make([]flatbuffers.UOffsetT, len(toAppendTo))
 			for i, buf := range toAppendTo {
-				if b.StoreObjectsAsBytes {
+				if StoreObjectsAsBytes {
 					bufBytes, _ := buf.ToBytes()
 					toAppendToUOffsetTs[i] = bl.CreateByteVector(bufBytes)
 				} else {
@@ -1173,31 +1171,27 @@ func NewScheme() *Scheme {
 }
 
 // AddField adds field
-// First letter is capital -> field is mandatory. First letter will be uncapitalized.
 func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
 	s.addField(name, ft, nil, isMandatory, false)
 }
 
 // AddArray adds array field
-// First letter is capital -> field is mandatory. First letter will be uncapitalized.
 func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) {
 	s.addField(name, elementType, nil, isMandatory, true)
 }
 
 // AddNested adds nested object field
-// First letter is capital -> field is mandatory. First letter will be uncapitalized.
 func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
 	s.addField(name, FieldTypeObject, nested, isMandatory, false)
 }
 
 // AddNestedArray adds array of nested objects field
-// First letter is capital -> field is mandatory. First letter will be uncapitalized.
 func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
 	s.addField(name, FieldTypeObject, nested, isMandatory, true)
 }
 
 func (s *Scheme) addField(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
-	newField := &Field{s.getQualifiedFieldName(name), name, ft, len(s.FieldsMap), isMandatory, nested, IsArray}
+	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, IsArray}
 	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
 }
@@ -1219,7 +1213,7 @@ func (s *Scheme) MarshalYAML() (interface{}, error) {
 				}
 				var val interface{}
 				if f.Ft == FieldTypeObject {
-					valTemp, err := f.Scheme.MarshalYAML()
+					valTemp, err := f.FieldScheme.MarshalYAML()
 					if err != nil {
 						return nil, err
 					}
@@ -1250,19 +1244,21 @@ func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (s *Scheme) getQualifiedFieldName(fieldName string) string {
-	if len(s.Name) > 0 {
-		return s.Name + "." + fieldName
-	}
-	return fieldName
-}
 
 // GetNestedScheme returns Scheme of nested object if the field has FieldTypeObject type, nil otherwise
 func (s *Scheme) GetNestedScheme(nestedObjectField string) *Scheme {
 	if f, ok := s.FieldsMap[nestedObjectField]; ok {
-		return f.Scheme
+		return f.FieldScheme
 	}
 	return nil
+}
+
+// QualifiedName returns ownerScheme.fieldName
+func (f *Field) QualifiedName() string {
+	if len(f.ownerScheme.Name) > 0 {
+		return f.ownerScheme.Name + "." + f.Name
+	}
+	return f.Name
 }
 
 // YamlToScheme creates Scheme by provided yaml `fieldName: yamlFieldType`
@@ -1292,6 +1288,7 @@ func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 		if nestedMapSlice, ok := mapItem.Value.(yaml.MapSlice); ok {
 			fieldName, isMandatory, IsArray := fieldPropsFromYaml(mapItem.Key.(string))
 			nestedScheme, err := mapSliceToScheme(nestedMapSlice)
+			nestedScheme.Name = fieldName
 			if err != nil {
 				return nil, err
 			}
@@ -1313,6 +1310,7 @@ func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 			}
 		}
 	}
+
 	return res, nil
 }
 

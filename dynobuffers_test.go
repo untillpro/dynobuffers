@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -496,9 +497,14 @@ func TestSchemeToFromYAML(t *testing.T) {
 	schemeNested := NewScheme()
 	schemeNested.AddField("price", FieldTypeFloat, false)
 	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeNested.Name = "nes"
+	schemeNestedArr := NewScheme()
+	schemeNestedArr.AddField("price", FieldTypeFloat, false)
+	schemeNestedArr.AddField("quantity", FieldTypeInt, true)
+	schemeNestedArr.Name = "nesarr"
 	schemeRoot.AddField("name", FieldTypeString, false)
 	schemeRoot.AddNested("nes", schemeNested, true)
-	schemeRoot.AddNestedArray("nesarr", schemeNested, true)
+	schemeRoot.AddNestedArray("nesarr", schemeNestedArr, true)
 	schemeRoot.AddField("last", FieldTypeInt, false)
 	bytes, err := yaml.Marshal(schemeRoot)
 	schemeNew := NewScheme()
@@ -507,8 +513,14 @@ func TestSchemeToFromYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.True(t, reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields))
-	assert.True(t, reflect.DeepEqual(schemeRoot.FieldsMap, schemeNew.FieldsMap))
+	pretty.CompareConfig.TrackCycles = true
+
+	if !reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields) {
+		t.Fatal(pretty.Compare(schemeRoot.Fields, schemeNew.Fields))
+	}
+	if !reflect.DeepEqual(schemeRoot.FieldsMap, schemeNew.FieldsMap) {
+		t.Fatal(pretty.Compare(schemeRoot.FieldsMap, schemeNew.FieldsMap))
+	}
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
@@ -1512,7 +1524,7 @@ func TestObjectAsBytesInv(t *testing.T) {
 	nestedTab := &flatbuffers.Table{}
 	nestedTab.Bytes = outTab.ByteVector(nestedOffset)
 	assert.True(t, reflect.DeepEqual(bytesNested, nestedTab.Bytes))
-	nestedTab.Pos = flatbuffers.GetUOffsetT(nestedTab.Bytes) //outTab.Indirect(nestedOffset) //nestedOffset + GetUOffset(bytes[nestedOffset:])
+	nestedTab.Pos = flatbuffers.GetUOffsetT(nestedTab.Bytes)
 
 	nestedStrOffset := flatbuffers.UOffsetT(nestedTab.Offset(flatbuffers.VOffsetT((0+2)*2))) + nestedTab.Pos
 

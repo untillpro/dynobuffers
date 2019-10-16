@@ -110,16 +110,16 @@ intsObj..:
 		if err != nil {
 			t.Fatal(err)
 		}
-		// _, err = b.ToBytes()
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-		// b = dynobuffers.ReadBuffer(bytes, s)
+		_, err = b.ToBytes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b = dynobuffers.ReadBuffer(bytes, s)
 	}
 }
 
 
-func BenchmarkReadDynoBuffersApplyJSONArraysAllTypesAppend(t *testing.B) {
+func BenchmarkReadDynoBuffersApplyJSONArraysAllTypesAppendNested(t *testing.B) {
 	arraysAllTypesYaml := `
 ints..: int
 longs..: long
