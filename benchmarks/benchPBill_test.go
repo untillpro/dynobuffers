@@ -442,13 +442,13 @@ func BenchmarkPBillSet(b *testing.B) {
 		b.Fatal(err)
 	}
 
-  b.ResetTimer()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err = pb.ApplyMap(dest)
 		if err != nil {
 			b.Fatal(err)
-    }
-    _, _ = pb.ToBytes()
+		}
+		_, _ = pb.ToBytes()
 	}
 }
 
@@ -468,24 +468,23 @@ func BenchmarkPBillAppend(b *testing.B) {
 	err = json.Unmarshal(jsonBytes, &dest)
 	if err != nil {
 		b.Fatal(err)
-  }
-  bytes, err := pb.ApplyJSONAndToBytes(jsonBytes)
-  pb = dynobuffers.ReadBuffer(bytes, s)
-  
+	}
+	bytes, err := pb.ApplyJSONAndToBytes(jsonBytes)
+	pb = dynobuffers.ReadBuffer(bytes, s)
 
-  b.ResetTimer()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err = pb.ApplyMap(dest)
 		if err != nil {
 			b.Fatal(err)
-    }
-    _, _ = pb.ToBytes()
-    pb = dynobuffers.ReadBuffer(bytes, s)
+		}
+		_, _ = pb.ToBytes()
+		pb = dynobuffers.ReadBuffer(bytes, s)
 	}
 }
 
 func BenchmarkPbillJson(b *testing.B) {
-  s, err := dynobuffers.YamlToScheme(pbillYaml)
+	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -494,20 +493,19 @@ func BenchmarkPbillJson(b *testing.B) {
 
 	fillBuffer(pb)
 
-  jsonBytes := []byte(pb.ToJSON())
-  dest := map[string]interface{}{}
-  
-  b.ResetTimer()
-  for i :=0; i< b.N; i++ {
-    err = json.Unmarshal(jsonBytes, &dest)
-    if err != nil {
-      b.Fatal(err)
-    }
-    _, _ = json.Marshal(dest)
-    dest = map[string]interface{}{}
-  }
-}
+	jsonBytes := []byte(pb.ToJSON())
+	dest := map[string]interface{}{}
 
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err = json.Unmarshal(jsonBytes, &dest)
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, _ = json.Marshal(dest)
+		dest = map[string]interface{}{}
+	}
+}
 
 func fillBuffer(b *dynobuffers.Buffer) {
 	for i, f := range b.Scheme.Fields {

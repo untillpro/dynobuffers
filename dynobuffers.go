@@ -47,8 +47,8 @@ const (
 	FieldTypeByte
 )
 
-// StoreObjectsAsBytes defines if nested objects will be stored as byte vectors. Should increase performance of objects copying on appending arrays of objects
-const StoreObjectsAsBytes = true
+// StoreObjectsAsBytes defines if nested objects will be stored as byte vectors. False decreases performance a bit but takes less memory
+const StoreObjectsAsBytes = false
 
 var yamlFieldTypesMap = map[string]FieldType{
 	"int":    FieldTypeInt,
@@ -92,7 +92,7 @@ type Array struct {
 	Len      int
 	field    *Field
 	b        *Buffer
-	uOffsetT flatbuffers.UOffsetT
+	start    flatbuffers.UOffsetT
 	elemSize int
 }
 
@@ -107,13 +107,13 @@ func (a *Array) Value() interface{} {
 	if a.curElem < 0 || a.curElem >= a.Len {
 		return nil
 	}
-	return a.b.getValueByUOffsetT(a.field, a.uOffsetT+flatbuffers.UOffsetT(a.curElem*a.elemSize))
+	return a.b.getValueByUOffsetT(a.field, a.start+flatbuffers.UOffsetT(a.curElem*a.elemSize))
 }
 
 // GetInts returns []int32
 // Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetInts() []int32 {
-	bytesSlice := a.b.tab.Bytes[a.uOffsetT:]
+	bytesSlice := a.b.tab.Bytes[a.start:]
 	src := *(*[]int32)(unsafe.Pointer(&bytesSlice))
 	src = src[:a.Len]
 	res := make([]int32, len(src))
@@ -124,7 +124,7 @@ func (a *Array) GetInts() []int32 {
 // GetFloats returns []float32
 // Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetFloats() []float32 {
-	bytesSlice := a.b.tab.Bytes[a.uOffsetT:]
+	bytesSlice := a.b.tab.Bytes[a.start:]
 	src := *(*[]float32)(unsafe.Pointer(&bytesSlice))
 	src = src[:a.Len]
 	res := make([]float32, len(src))
@@ -135,7 +135,7 @@ func (a *Array) GetFloats() []float32 {
 // GetDoubles returns []float64
 // Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetDoubles() []float64 {
-	bytesSlice := a.b.tab.Bytes[a.uOffsetT:]
+	bytesSlice := a.b.tab.Bytes[a.start:]
 	src := *(*[]float64)(unsafe.Pointer(&bytesSlice))
 	src = src[:a.Len]
 	res := make([]float64, len(src))
@@ -146,13 +146,13 @@ func (a *Array) GetDoubles() []float64 {
 // GetBytes returns []byte
 // Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetBytes() []byte {
-	return a.b.tab.Bytes[a.uOffsetT : a.Len+int(a.uOffsetT)]
+	return a.b.tab.Bytes[a.start : a.Len+int(a.start)]
 }
 
 // GetBools returns []bool
 // Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetBools() []bool {
-	bytesSlice := a.b.tab.Bytes[a.uOffsetT:]
+	bytesSlice := a.b.tab.Bytes[a.start:]
 	src := *(*[]bool)(unsafe.Pointer(&bytesSlice))
 	src = src[:a.Len]
 	res := make([]bool, len(src))
@@ -163,7 +163,7 @@ func (a *Array) GetBools() []bool {
 // GetLongs returns []int64
 // Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
 func (a *Array) GetLongs() []int64 {
-	bytesSlice := a.b.tab.Bytes[a.uOffsetT:]
+	bytesSlice := a.b.tab.Bytes[a.start:]
 	src := *(*[]int64)(unsafe.Pointer(&bytesSlice))
 	src = src[:a.Len]
 	res := make([]int64, len(src))
@@ -184,7 +184,7 @@ func (a *Array) GetStrings() []string {
 func (a *Array) GetObjects() []*Buffer {
 	res := make([]*Buffer, a.Len)
 	for i := 0; i < a.Len; i++ {
-		res[i] = a.b.getByField(a.field, i).(*Buffer)
+		res[i] = a.b.getValueByUOffsetT(a.field, a.start+flatbuffers.UOffsetT(i*a.elemSize)).(*Buffer)
 	}
 	return res
 }
@@ -1243,7 +1243,6 @@ func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	s.FieldsMap = newS.FieldsMap
 	return nil
 }
-
 
 // GetNestedScheme returns Scheme of nested object if the field has FieldTypeObject type, nil otherwise
 func (s *Scheme) GetNestedScheme(nestedObjectField string) *Scheme {
