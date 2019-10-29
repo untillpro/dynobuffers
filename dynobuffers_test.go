@@ -1695,7 +1695,45 @@ func TestObjectsCopy(t *testing.T) {
 	tab := &flatbuffers.Table{}
 	tab.Bytes = bytes
 	tab.Pos = flatbuffers.GetUOffsetT(bytes)
+}
 
+func TestArrayNoAlloc(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, false)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNestedArray("nes", schemeNested, false)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+	b := NewBuffer(schemeRoot)
+
+	bNestedArr := []*Buffer{}
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	bNestedArr = append(bNestedArr, bNested)
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("price", 0.124)
+	bNested.Set("quantity", 43)
+	bNestedArr = append(bNestedArr, bNested)
+
+	b.Set("name", "str")
+	b.Set("nes", bNestedArr)
+	b.Set("last", 42)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
 	
+	b = ReadBuffer(bytes, schemeRoot)
 
+	arr := NewObjectArray()
+	b.GetObjectArray("nes", arr)
+	assert.True(t, arr.Next())
+	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))
+	assert.Equal(t, int32(42), arr.Buffer.Get("quantity"))
+	assert.True(t, arr.Next())
+	assert.Equal(t, float32(0.124), arr.Buffer.Get("price"))
+	assert.Equal(t, int32(43), arr.Buffer.Get("quantity"))
+	assert.False(t, arr.Next())
 }
