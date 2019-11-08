@@ -1599,7 +1599,7 @@ func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bf := flatbuffers.NewBuilder(0)
 		// read existing
-		existingArrayOffset := flatbuffers.UOffsetT(tab.Offset(flatbuffers.VOffsetT((0 + 2) * 2)))+tab.Pos
+		existingArrayOffset := flatbuffers.UOffsetT(tab.Offset(flatbuffers.VOffsetT((0+2)*2))) + tab.Pos
 		_ = tab.Vector(existingArrayOffset - tab.Pos)
 		// elemSize := 4
 		existingArrayVectorOffset := tab.Vector(existingArrayOffset - tab.Pos)
@@ -1609,7 +1609,7 @@ func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
 		elem := &flatbuffers.Table{}
 		elem.Bytes = bytes
 		elem.Pos = tab.Indirect(elemOffset)
-		elemNestedValueOffset :=  flatbuffers.UOffsetT(elem.Offset(flatbuffers.VOffsetT((0 + 2) * 2)))+elem.Pos
+		elemNestedValueOffset := flatbuffers.UOffsetT(elem.Offset(flatbuffers.VOffsetT((0+2)*2))) + elem.Pos
 
 		// encodeArray
 		// write previous
@@ -1724,10 +1724,12 @@ func TestArrayNoAlloc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	b = ReadBuffer(bytes, schemeRoot)
 
 	arr := NewObjectArray()
+	assert.False(t, arr.Next())
+	assert.NotNil(t, arr.Buffer) // not nil but empty
 	b.GetObjectArray("nes", arr)
 	assert.True(t, arr.Next())
 	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))

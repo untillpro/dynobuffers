@@ -1280,7 +1280,7 @@ func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&mapSlice); err != nil {
 		return err
 	}
-	newS, err := mapSliceToScheme(mapSlice)
+	newS, err := MapSliceToScheme(mapSlice)
 	if err != nil {
 		return err
 	}
@@ -1323,15 +1323,16 @@ func YamlToScheme(yamlStr string) (*Scheme, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mapSliceToScheme(mapSlice)
+	return MapSliceToScheme(mapSlice)
 }
 
-func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
+// MapSliceToScheme s.e.
+func MapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 	res := NewScheme()
 	for _, mapItem := range mapSlice {
 		if nestedMapSlice, ok := mapItem.Value.(yaml.MapSlice); ok {
 			fieldName, isMandatory, IsArray := fieldPropsFromYaml(mapItem.Key.(string))
-			nestedScheme, err := mapSliceToScheme(nestedMapSlice)
+			nestedScheme, err := MapSliceToScheme(nestedMapSlice)
 			nestedScheme.Name = fieldName
 			if err != nil {
 				return nil, err
