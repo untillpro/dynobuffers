@@ -267,8 +267,8 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 
 # Benchmarks
 ## Description
-- [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
-- [benchmarks\benchReadWrite_test.go](benchmarks\benchReadWrite_test.go) read and write benchmarks comparing to Avro, FlatBuffers, JSON
+- [benchmarks\benchRead_test.go](benchmarks/benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
+- [benchmarks\benchReadWrite_test.go](benchmarks/benchReadWrite_test.go) read and write benchmarks comparing to Avro, FlatBuffers, JSON
 - Benchmarks naming
   - BenchmarkWrite... - benchmark read, change 1 field and write
   - BenchmarkRead... - benchmark read only
