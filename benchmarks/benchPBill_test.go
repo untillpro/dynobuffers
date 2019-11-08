@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/untillpro/dynobuffers"
 )
 
@@ -481,6 +482,141 @@ func BenchmarkPBillAppend(b *testing.B) {
 		_, _ = pb.ToBytes()
 		pb = dynobuffers.ReadBuffer(bytes, s)
 	}
+}
+
+func BenchmarkPBillItemReadByIndex(b *testing.B) {
+	s, err := dynobuffers.YamlToScheme(pbillYaml)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb := dynobuffers.NewBuffer(s)
+
+	fillBuffer(pb)
+	bytes, err := pb.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb = dynobuffers.ReadBuffer(bytes, s)
+	pbillItem := pb.GetByIndex("pbill_item", 0).(*dynobuffers.Buffer)
+	pbillItems := []*dynobuffers.Buffer{}
+	for i := 0; i < 9; i++ {
+		pbillItems = append(pbillItems, pbillItem)
+	}
+	pb.Append("pbill_item", pbillItems)
+
+	bytes, err = pb.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb = dynobuffers.ReadBuffer(bytes, s)
+	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.Array).Len)
+
+	sum := float32(0)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pb = dynobuffers.ReadBuffer(bytes, s)
+		for i := 0; i < 10; i++ {
+			pbillItem := pb.GetByIndex("pbill_item", i).(*dynobuffers.Buffer)
+			s, _ := pbillItem.GetFloat("price")
+			sum += s
+		}
+	}
+	_ = sum
+}
+
+func BenchmarkPBillItemReadIter(b *testing.B) {
+	s, err := dynobuffers.YamlToScheme(pbillYaml)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb := dynobuffers.NewBuffer(s)
+
+	fillBuffer(pb)
+	bytes, err := pb.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb = dynobuffers.ReadBuffer(bytes, s)
+	pbillItem := pb.GetByIndex("pbill_item", 0).(*dynobuffers.Buffer)
+	pbillItems := []*dynobuffers.Buffer{}
+	for i := 0; i < 9; i++ {
+		pbillItems = append(pbillItems, pbillItem)
+	}
+	pb.Append("pbill_item", pbillItems)
+
+	bytes, err = pb.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb = dynobuffers.ReadBuffer(bytes, s)
+	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.Array).Len)
+
+	sum := float32(0)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pb = dynobuffers.ReadBuffer(bytes, s)
+		pbillItems := pb.Get("pbill_item").(*dynobuffers.Array)
+		pbillItems.GetDoubles()
+		for pbillItems.Next() {
+			pbillItem := pbillItems.Value().(*dynobuffers.Buffer)
+			s, _ := pbillItem.GetFloat("price")
+			sum += s
+		}
+	}
+	_ = sum
+}
+
+func BenchmarkPBillItemReadNoAlloc(b *testing.B) {
+	s, err := dynobuffers.YamlToScheme(pbillYaml)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb := dynobuffers.NewBuffer(s)
+
+	fillBuffer(pb)
+	bytes, err := pb.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb = dynobuffers.ReadBuffer(bytes, s)
+	pbillItem := pb.GetByIndex("pbill_item", 0).(*dynobuffers.Buffer)
+	pbillItems := []*dynobuffers.Buffer{}
+	for i := 0; i < 9; i++ {
+		pbillItems = append(pbillItems, pbillItem)
+	}
+	pb.Append("pbill_item", pbillItems)
+
+	bytes, err = pb.ToBytes()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	pb = dynobuffers.ReadBuffer(bytes, s)
+	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.Array).Len)
+
+	sum := float32(0)
+	arr := dynobuffers.NewObjectArray()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pb = dynobuffers.ReadBuffer(bytes, s)
+		pb.GetObjectArray("pbill_item", arr)
+		for arr.Next() {
+			s, _ := arr.Buffer.GetFloat("price")
+			sum += s
+		}
+	}
+	_ = sum
 }
 
 func BenchmarkPbillJson(b *testing.B) {
