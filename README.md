@@ -224,6 +224,17 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 			fmt.Println(fmt.Sprintf("%d: %d", i, value)
 		}
 		```
+  - Fast read array of objects using `dynobuffers.ObjectArray` struct
+    ```go
+	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
+	arr := dynobuffers.NewObjectArray()
+	bRoot.GetArray("nested", arr)
+	for arr.Next() {
+		assert.Equal(t, int32(1), arr.Buffer.Get("nes1"))
+	}
+	```
+
+
 - Modify array and to bytes
 	- Set
 		```go

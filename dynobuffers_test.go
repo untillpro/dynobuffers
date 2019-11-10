@@ -1599,7 +1599,7 @@ func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bf := flatbuffers.NewBuilder(0)
 		// read existing
-		existingArrayOffset := flatbuffers.UOffsetT(tab.Offset(flatbuffers.VOffsetT((0 + 2) * 2)))+tab.Pos
+		existingArrayOffset := flatbuffers.UOffsetT(tab.Offset(flatbuffers.VOffsetT((0+2)*2))) + tab.Pos
 		_ = tab.Vector(existingArrayOffset - tab.Pos)
 		// elemSize := 4
 		existingArrayVectorOffset := tab.Vector(existingArrayOffset - tab.Pos)
@@ -1609,7 +1609,7 @@ func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
 		elem := &flatbuffers.Table{}
 		elem.Bytes = bytes
 		elem.Pos = tab.Indirect(elemOffset)
-		elemNestedValueOffset :=  flatbuffers.UOffsetT(elem.Offset(flatbuffers.VOffsetT((0 + 2) * 2)))+elem.Pos
+		elemNestedValueOffset := flatbuffers.UOffsetT(elem.Offset(flatbuffers.VOffsetT((0+2)*2))) + elem.Pos
 
 		// encodeArray
 		// write previous
@@ -1695,7 +1695,47 @@ func TestObjectsCopy(t *testing.T) {
 	tab := &flatbuffers.Table{}
 	tab.Bytes = bytes
 	tab.Pos = flatbuffers.GetUOffsetT(bytes)
+}
 
-	
+func TestArrayNoAlloc(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, false)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNestedArray("nes", schemeNested, false)
+	schemeRoot.AddField("last", FieldTypeInt, false)
+	b := NewBuffer(schemeRoot)
 
+	bNestedArr := []*Buffer{}
+	bNested := NewBuffer(schemeNested)
+	bNested.Set("price", 0.123)
+	bNested.Set("quantity", 42)
+	bNestedArr = append(bNestedArr, bNested)
+	bNested = NewBuffer(schemeNested)
+	bNested.Set("price", 0.124)
+	bNested.Set("quantity", 43)
+	bNestedArr = append(bNestedArr, bNested)
+
+	b.Set("name", "str")
+	b.Set("nes", bNestedArr)
+	b.Set("last", 42)
+	bytes, err := b.ToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b = ReadBuffer(bytes, schemeRoot)
+
+	arr := NewObjectArray()
+	assert.False(t, arr.Next())
+	assert.NotNil(t, arr.Buffer) // not nil but empty
+	b.GetObjectArray("nes", arr)
+	assert.True(t, arr.Next())
+	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))
+	assert.Equal(t, int32(42), arr.Buffer.Get("quantity"))
+	assert.True(t, arr.Next())
+	assert.Equal(t, float32(0.124), arr.Buffer.Get("price"))
+	assert.Equal(t, int32(43), arr.Buffer.Get("quantity"))
+	assert.False(t, arr.Next())
 }

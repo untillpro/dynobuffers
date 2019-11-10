@@ -96,6 +96,29 @@ type Array struct {
 	elemSize int
 }
 
+// ObjectArray s.e.
+type ObjectArray struct {
+	Buffer  *Buffer
+	Len     int
+	curElem int
+	start   flatbuffers.UOffsetT
+}
+
+// NewObjectArray s.e.
+func NewObjectArray() *ObjectArray {
+	return &ObjectArray{Buffer: &Buffer{}}
+}
+
+// Next s.e.
+func (oa *ObjectArray) Next() bool {
+	oa.curElem++
+	if oa.curElem >= oa.Len {
+		return false
+	}
+	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start+flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
+	return true
+}
+
 // Next iterates to the next element shich should be obtained via `Value()``
 func (a *Array) Next() bool {
 	a.curElem++
@@ -704,6 +727,28 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	return res, nil
 }
 
+// GetObjectArray s.e.
+func (b *Buffer) GetObjectArray(name string, arr *ObjectArray) {
+	arr.Len = 0
+	arr.curElem = 0
+	if len(b.tab.Bytes) == 0 {
+		return
+	}
+	f, ok := b.Scheme.FieldsMap[name]
+	if !ok {
+		return
+	}
+	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
+	if uOffsetT == 0 {
+		return
+	}
+	arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
+	arr.Buffer.tab.Bytes = b.tab.Bytes
+	arr.start = b.tab.Vector(uOffsetT-b.tab.Pos)
+	arr.curElem = -1
+	arr.Buffer.Scheme = f.FieldScheme
+}
+
 func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
 	arr, ok := value.([]int32)
 	if !ok {
@@ -1235,7 +1280,7 @@ func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&mapSlice); err != nil {
 		return err
 	}
-	newS, err := mapSliceToScheme(mapSlice)
+	newS, err := MapSliceToScheme(mapSlice)
 	if err != nil {
 		return err
 	}
@@ -1278,15 +1323,16 @@ func YamlToScheme(yamlStr string) (*Scheme, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mapSliceToScheme(mapSlice)
+	return MapSliceToScheme(mapSlice)
 }
 
-func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
+// MapSliceToScheme s.e.
+func MapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 	res := NewScheme()
 	for _, mapItem := range mapSlice {
 		if nestedMapSlice, ok := mapItem.Value.(yaml.MapSlice); ok {
 			fieldName, isMandatory, IsArray := fieldPropsFromYaml(mapItem.Key.(string))
-			nestedScheme, err := mapSliceToScheme(nestedMapSlice)
+			nestedScheme, err := MapSliceToScheme(nestedMapSlice)
 			nestedScheme.Name = fieldName
 			if err != nil {
 				return nil, err
