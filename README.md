@@ -267,8 +267,8 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 
 # Benchmarks
 ## Description
-- [benchmarks\benchRead_test.go](benchmarks\benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
-- [benchmarks\benchReadWrite_test.go](benchmarks\benchReadWrite_test.go) read and write benchmarks comparing to Avro, FlatBuffers, JSON
+- [benchmarks\benchRead_test.go](benchmarks/benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
+- [benchmarks\benchReadWrite_test.go](benchmarks/benchReadWrite_test.go) read and write benchmarks comparing to Avro, FlatBuffers, JSON
 - Benchmarks naming
   - BenchmarkWrite... - benchmark read, change 1 field and write
   - BenchmarkRead... - benchmark read only
@@ -284,7 +284,7 @@ FlatBuffers         	    300000	      5702 ns/op	    3672 B/op	      19 allocs/o
 Json                	     10000	    201575 ns/op	   29096 B/op	     857 allocs/op
 LinkedInAvro                100000	     25173 ns/op	   11929 B/op	     176 allocs/op
 ```
-- Scheme of 3 fields, read and multiply 2 fields
+- Scheme of 3 fields, read and multiply 2 fields (`int` and `float` types)
 ```
 DynoBuffers               20000000	      65.0 ns/op	       0 B/op	       0 allocs/op
 FlatBuffers               50000000	      33.2 ns/op	       0 B/op	       0 allocs/op
@@ -306,6 +306,4 @@ Json                 	     10000	    116814 ns/op	   14130 B/op	     603 allocs/
 LinkedInAvro         	    100000	     19187 ns/op	   11257 B/op	     149 allocs/op
 ```
 
-# To do
-- Lists?
-- Written in New -> read in Old -> write in Old -> New fields are kept.
+NOTE: DynoBuffers allocs caused by string types
