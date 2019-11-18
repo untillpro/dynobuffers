@@ -1217,25 +1217,26 @@ func NewScheme() *Scheme {
 
 // AddField adds field
 func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
-	s.addField(name, ft, nil, isMandatory, false)
+	s.AddFieldC(name, ft, nil, isMandatory, false)
 }
 
 // AddArray adds array field
 func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) {
-	s.addField(name, elementType, nil, isMandatory, true)
+	s.AddFieldC(name, elementType, nil, isMandatory, true)
 }
 
 // AddNested adds nested object field
 func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
-	s.addField(name, FieldTypeObject, nested, isMandatory, false)
+	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, false)
 }
 
 // AddNestedArray adds array of nested objects field
 func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
-	s.addField(name, FieldTypeObject, nested, isMandatory, true)
+	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, true)
 }
 
-func (s *Scheme) addField(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
+// AddFieldC adds new finely-tuned field
+func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
 	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, IsArray}
 	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
