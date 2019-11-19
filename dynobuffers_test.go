@@ -607,6 +607,15 @@ func TestApplyJsonErrors(t *testing.T) {
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
+
+	// non-object is provided -> error 
+	s := NewScheme()
+	sNested := NewScheme()
+	s.AddNested("nes", sNested, false)
+	b = NewBuffer(s)
+	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"nes": 42}`))
+	assert.Nil(t, bytes)
+	assert.NotNil(t, err)
 }
 
 func TestApplyJSONNestedAndNestedArray(t *testing.T) {
@@ -944,6 +953,37 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 	assert.Equal(t, []string{}, b.Get("strings").(*Array).GetStrings())
 	assert.Equal(t, []*Buffer{}, b.Get("intsObj").(*Array).GetObjects())
 
+	// empty arrays from json
+	b = NewBuffer(s)
+	if bytes, err = b.ApplyJSONAndToBytes([]byte(`{"ints":[],"longs":[],"floats":[],"doubles":[],"strings":[],"boolTrues":[],"boolFalses":[],"bytes":"","intsObj":[]}`)); err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Equal(t, []int32{}, b.Get("ints").(*Array).GetInts())
+	assert.Equal(t, []int64{}, b.Get("longs").(*Array).GetLongs())
+	assert.Equal(t, []float32{}, b.Get("floats").(*Array).GetFloats())
+	assert.Equal(t, []float64{}, b.Get("doubles").(*Array).GetDoubles())
+	assert.Equal(t, []byte{}, b.Get("bytes").(*Array).GetBytes())
+	assert.Equal(t, []bool{}, b.Get("boolTrues").(*Array).GetBools())
+	assert.Equal(t, []bool{}, b.Get("boolFalses").(*Array).GetBools())
+	assert.Equal(t, []string{}, b.Get("strings").(*Array).GetStrings())
+	assert.Equal(t, []*Buffer{}, b.Get("intsObj").(*Array).GetObjects())
+
+	// null arrays from json
+	b = NewBuffer(s)
+	if bytes, err = b.ApplyJSONAndToBytes([]byte(`{"ints":null,"longs":null,"floats":null,"doubles":null,"strings":null,"boolTrues":null,"boolFalses":null,"bytes":null,"intsObj":null}`)); err != nil {
+		t.Fatal(err)
+	}
+	b = ReadBuffer(bytes, s)
+	assert.Nil(t, b.Get("ints"))
+	assert.Nil(t, b.Get("longs"))
+	assert.Nil(t, b.Get("floats"))
+	assert.Nil(t, b.Get("doubles"))
+	assert.Nil(t, b.Get("bytes"))
+	assert.Nil(t, b.Get("boolTrues"))
+	assert.Nil(t, b.Get("boolFalses"))
+	assert.Nil(t, b.Get("strings"))
+	assert.Nil(t, b.Get("intsObj"))
 }
 
 func TestApplyJsonPrimitiveAllTypes(t *testing.T) {

@@ -527,6 +527,10 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 		if !ok {
 			continue
 		}
+		if fv == nil {
+			b.set(f, nil)
+			continue
+		}
 		if f.Ft == FieldTypeObject {
 			if f.IsArray {
 				datasNested, ok := fv.([]interface{})
