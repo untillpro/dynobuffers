@@ -527,6 +527,10 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 		if !ok {
 			continue
 		}
+		if fv == nil {
+			b.set(f, nil)
+			continue
+		}
 		if f.Ft == FieldTypeObject {
 			if f.IsArray {
 				datasNested, ok := fv.([]interface{})
@@ -1159,7 +1163,7 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}) 
 }
 
 // ToJSON returns JSON key->value string
-func (b *Buffer) ToJSON() string {
+func (b *Buffer) ToJSON() []byte {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
@@ -1189,13 +1193,13 @@ func (b *Buffer) ToJSON() string {
 						buffers = arr.GetObjects()
 					}
 					for _, buffer := range buffers {
-						buf.WriteString(buffer.ToJSON())
+						buf.Write(buffer.ToJSON())
 						buf.WriteString(",")
 					}
 					buf.Truncate(buf.Len() - 1)
 					buf.WriteString("]")
 				} else {
-					buf.WriteString(value.(*Buffer).ToJSON())
+					buf.Write(value.(*Buffer).ToJSON())
 				}
 			} else {
 				e.Encode(value)
@@ -1207,7 +1211,7 @@ func (b *Buffer) ToJSON() string {
 		buf.Truncate(buf.Len() - 1)
 	}
 	buf.WriteString("}")
-	return strings.Replace(buf.String(), "\n", "", -1)
+	return []byte(strings.Replace(buf.String(), "\n", "", -1))
 }
 
 // NewScheme creates new empty Scheme
@@ -1217,25 +1221,26 @@ func NewScheme() *Scheme {
 
 // AddField adds field
 func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
-	s.addField(name, ft, nil, isMandatory, false)
+	s.AddFieldC(name, ft, nil, isMandatory, false)
 }
 
 // AddArray adds array field
 func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) {
-	s.addField(name, elementType, nil, isMandatory, true)
+	s.AddFieldC(name, elementType, nil, isMandatory, true)
 }
 
 // AddNested adds nested object field
 func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
-	s.addField(name, FieldTypeObject, nested, isMandatory, false)
+	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, false)
 }
 
 // AddNestedArray adds array of nested objects field
 func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
-	s.addField(name, FieldTypeObject, nested, isMandatory, true)
+	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, true)
 }
 
-func (s *Scheme) addField(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
+// AddFieldC adds new finely-tuned field
+func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
 	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, IsArray}
 	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
@@ -1280,7 +1285,7 @@ func (s *Scheme) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&mapSlice); err != nil {
 		return err
 	}
-	newS, err := mapSliceToScheme(mapSlice)
+	newS, err := MapSliceToScheme(mapSlice)
 	if err != nil {
 		return err
 	}
@@ -1323,15 +1328,16 @@ func YamlToScheme(yamlStr string) (*Scheme, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mapSliceToScheme(mapSlice)
+	return MapSliceToScheme(mapSlice)
 }
 
-func mapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
+// MapSliceToScheme s.e.
+func MapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 	res := NewScheme()
 	for _, mapItem := range mapSlice {
 		if nestedMapSlice, ok := mapItem.Value.(yaml.MapSlice); ok {
 			fieldName, isMandatory, IsArray := fieldPropsFromYaml(mapItem.Key.(string))
-			nestedScheme, err := mapSliceToScheme(nestedMapSlice)
+			nestedScheme, err := MapSliceToScheme(nestedMapSlice)
 			nestedScheme.Name = fieldName
 			if err != nil {
 				return nil, err
