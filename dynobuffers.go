@@ -1163,7 +1163,7 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}) 
 }
 
 // ToJSON returns JSON key->value string
-func (b *Buffer) ToJSON() string {
+func (b *Buffer) ToJSON() []byte {
 	buf := bytes.NewBufferString("")
 	e := json.NewEncoder(buf)
 	buf.WriteString("{")
@@ -1193,13 +1193,13 @@ func (b *Buffer) ToJSON() string {
 						buffers = arr.GetObjects()
 					}
 					for _, buffer := range buffers {
-						buf.WriteString(buffer.ToJSON())
+						buf.Write(buffer.ToJSON())
 						buf.WriteString(",")
 					}
 					buf.Truncate(buf.Len() - 1)
 					buf.WriteString("]")
 				} else {
-					buf.WriteString(value.(*Buffer).ToJSON())
+					buf.Write(value.(*Buffer).ToJSON())
 				}
 			} else {
 				e.Encode(value)
@@ -1211,7 +1211,7 @@ func (b *Buffer) ToJSON() string {
 		buf.Truncate(buf.Len() - 1)
 	}
 	buf.WriteString("}")
-	return strings.Replace(buf.String(), "\n", "", -1)
+	return []byte(strings.Replace(buf.String(), "\n", "", -1))
 }
 
 // NewScheme creates new empty Scheme

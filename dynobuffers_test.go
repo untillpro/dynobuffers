@@ -385,16 +385,16 @@ func TestToJSONBasic(t *testing.T) {
 
 	b := NewBuffer(scheme)
 	dest := map[string]interface{}{}
-	jsonStr := b.ToJSON()
-	json.Unmarshal([]byte(jsonStr), &dest)
+	jsonBytes := b.ToJSON()
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 0)
 
 	// basic test
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
-	jsonStr = b.ToJSON()
-	json.Unmarshal([]byte(jsonStr), &dest)
+	jsonBytes = b.ToJSON()
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 3)
 	assert.Equal(t, "cola", dest["name"])
 	assert.Equal(t, float64(0.123), dest["price"])
@@ -406,8 +406,8 @@ func TestToJSONBasic(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, scheme)
-	jsonStr = b.ToJSON()
-	json.Unmarshal([]byte(jsonStr), &dest)
+	jsonBytes = b.ToJSON()
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 3)
 	assert.Equal(t, "cola", dest["name"])
 	assert.Equal(t, float64(0.123), dest["price"])
@@ -417,9 +417,9 @@ func TestToJSONBasic(t *testing.T) {
 	b = NewBuffer(scheme)
 	b.Set("name", "cola")
 	b.Set("quantity", int32(42))
-	jsonStr = b.ToJSON()
+	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
-	json.Unmarshal([]byte(jsonStr), &dest)
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 2)
 	assert.Equal(t, "cola", dest["name"])
 	assert.Equal(t, float64(42), dest["quantity"])
@@ -431,18 +431,18 @@ func TestToJSONBasic(t *testing.T) {
 	}
 	b = ReadBuffer(bytes, scheme)
 
-	jsonStr = b.ToJSON()
+	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
-	json.Unmarshal([]byte(jsonStr), &dest)
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 2)
 	assert.Equal(t, "cola", dest["name"])
 	assert.Equal(t, float64(42), dest["quantity"])
 
 	// test unset field
 	b.Set("quantity", nil)
-	jsonStr = b.ToJSON()
+	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
-	json.Unmarshal([]byte(jsonStr), &dest)
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 1)
 	assert.Equal(t, "cola", dest["name"])
 
@@ -452,9 +452,9 @@ func TestToJSONBasic(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, scheme)
-	jsonStr = b.ToJSON()
+	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
-	json.Unmarshal([]byte(jsonStr), &dest)
+	json.Unmarshal(jsonBytes, &dest)
 	assert.True(t, len(dest) == 1)
 	assert.Equal(t, "cola", dest["name"])
 
@@ -912,7 +912,7 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 	assert.Equal(t, int32(8), buffs[1].Get("int"))
 
 	// buffer -> json -> buffer
-	json = []byte(b.ToJSON())
+	json = b.ToJSON()
 	b = NewBuffer(s)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	if err != nil {
