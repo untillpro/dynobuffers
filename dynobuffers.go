@@ -70,7 +70,7 @@ type Buffer struct {
 	owner          *Buffer
 }
 
-// Field describe+s a Scheme field
+// Field describes a Scheme field
 type Field struct {
 	Name        string
 	Ft          FieldType
@@ -1364,14 +1364,14 @@ func MapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 	return res, nil
 }
 
-func fieldPropsFromYaml(name string) (fieldName string, isMandatory bool, IsArray bool) {
-	isMandatory = unicode.IsUpper(rune(name[0]))
+func fieldPropsFromYaml(yamlStr string) (fieldName string, isMandatory bool, isArray bool) {
+	isMandatory = unicode.IsUpper(rune(yamlStr[0]))
 
-	IsArray = strings.HasSuffix(name, "..")
-	if IsArray {
-		name = name[:len(name)-2]
+	isArray = strings.HasSuffix(yamlStr, "..")
+	if isArray {
+		yamlStr = yamlStr[:len(yamlStr)-2]
 	}
-	fieldName = name
+	fieldName = yamlStr
 	if isMandatory {
 		fnBytes := []byte(fieldName)
 		fnBytes[0] = []byte(strings.ToLower(string(fnBytes[0])))[0]
