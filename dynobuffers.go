@@ -535,13 +535,13 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 			if f.IsArray {
 				datasNested, ok := fv.([]interface{})
 				if !ok {
-					return fmt.Errorf("array of objects required but %v provided for field %s", fv, f.QualifiedName())
+					return fmt.Errorf("array of objects required but %#v provided for field %s", fv, f.QualifiedName())
 				}
 				buffers := make([]*Buffer, len(datasNested))
 				for i, dataNestedIntf := range datasNested {
 					dataNested, ok := dataNestedIntf.(map[string]interface{})
 					if !ok {
-						return fmt.Errorf("element value of array field %s must be an object, %v provided", fn, dataNestedIntf)
+						return fmt.Errorf("element value of array field %s must be an object, %#v provided", fn, dataNestedIntf)
 					}
 					buffers[i] = NewBuffer(f.FieldScheme)
 					buffers[i].owner = b
@@ -553,7 +553,7 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 				bNested.owner = b
 				dataNested, ok := fv.(map[string]interface{})
 				if !ok {
-					return fmt.Errorf("value of field %s must be an object, %v provided", fn, fv)
+					return fmt.Errorf("value of field %s must be an object, %#v provided", fn, fv)
 				}
 				bNested.ApplyMap(dataNested)
 				b.set(f, bNested)
@@ -563,7 +563,7 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 				if f.Ft == FieldTypeByte {
 					base64Str, ok := fv.(string)
 					if !ok {
-						return fmt.Errorf("base64 encoded byte array is expected for %s, %v provided", f.QualifiedName(), fv)
+						return fmt.Errorf("base64 encoded byte array is expected for %s, %#v provided", f.QualifiedName(), fv)
 					}
 					var err error
 					fv, err = base64.StdEncoding.DecodeString(base64Str)
@@ -651,7 +651,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			if modifiedField != nil {
 				if modifiedField.value != nil {
 					if nestedBuffer, ok := modifiedField.value.(*Buffer); !ok {
-						return 0, fmt.Errorf("nested object required but %v provided for field %s", modifiedField.value, f.QualifiedName())
+						return 0, fmt.Errorf("nested object required but %#v provided for field %s", modifiedField.value, f.QualifiedName())
 					} else if StoreObjectsAsBytes {
 						nestedBytes, err := nestedBuffer.ToBytes()
 						if err != nil {
@@ -681,7 +681,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					if strToWrite, ok := modifiedStringField.value.(string); ok {
 						offsets[f.order].str = bl.CreateString(strToWrite)
 					} else {
-						return 0, fmt.Errorf("string required but %v provided for field %s", modifiedStringField.value, f.QualifiedName())
+						return 0, fmt.Errorf("string required but %#v provided for field %s", modifiedStringField.value, f.QualifiedName())
 					}
 				}
 			} else {
@@ -714,7 +714,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField != nil {
 					if isSet = modifiedField.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, modifiedField.value) {
-							return 0, fmt.Errorf("wrong value %v provided for field %s", modifiedField.value, f.QualifiedName())
+							return 0, fmt.Errorf("wrong value %#v provided for field %s", modifiedField.value, f.QualifiedName())
 						}
 					}
 				} else {
@@ -854,7 +854,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeInt:
 		arr, ok := intfToInt32Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]int32 required but %v provided for field %s", value, f.QualifiedName())
+			return 0, fmt.Errorf("[]int32 required but %#v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]int32)
@@ -872,7 +872,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeBool:
 		arr, ok := intfToBoolArr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]bool required but %v provided for field %s", value, f.QualifiedName())
+			return 0, fmt.Errorf("[]bool required but %#v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]bool)
@@ -889,7 +889,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeLong:
 		arr, ok := intfToInt64Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]int64 required but %v provided for field %s", value, f.QualifiedName())
+			return 0, fmt.Errorf("[]int64 required but %#v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]int64)
@@ -906,7 +906,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeFloat:
 		arr, ok := intfToFloat32Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName())
+			return 0, fmt.Errorf("[]float32 required but %#v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]float32)
@@ -923,7 +923,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeDouble:
 		arr, ok := intfToFloat64Arr(f, value)
 		if !ok {
-			return 0, fmt.Errorf("[]float32 required but %v provided for field %s", value, f.QualifiedName())
+			return 0, fmt.Errorf("[]float32 required but %#v provided for field %s", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]float64)
@@ -945,7 +945,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr = toAppendTo
 		}
 		if !ok {
-			return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName())
+			return 0, fmt.Errorf("[]byte required but %#v provided for field %s", value, f.QualifiedName())
 		}
 		return bl.CreateByteVector(arr), nil
 	case FieldTypeString:
@@ -961,7 +961,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			for i, intf := range intfs {
 				stringVal, ok := intf.(string)
 				if !ok {
-					return 0, fmt.Errorf("[]byte required but %v provided for field %s", value, f.QualifiedName())
+					return 0, fmt.Errorf("[]byte required but %#v provided for field %s", value, f.QualifiedName())
 				}
 				arr[i] = stringVal
 			}
@@ -970,7 +970,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arrays := value.(*Array)
 			arr = arrays.GetStrings()
 		default:
-			return 0, fmt.Errorf("%v provided for field %s which can not be converted to []string", value, f.QualifiedName())
+			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]string)
@@ -1026,7 +1026,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 
 			}
 		default:
-			return 0, fmt.Errorf("%v provided for field %s is not an array of nested objects", value, f.QualifiedName())
+			return 0, fmt.Errorf("%#v provided for field %s is not an array of nested objects", value, f.QualifiedName())
 		}
 
 		if toAppendToIntf != nil {
