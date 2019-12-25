@@ -56,6 +56,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	```go
 	b := dynobuffers.NewBuffer(scheme)
 	```
+	- panics if nil provided
 - Set\modify fields according to the Scheme
 	```go
 	b.Set("price", float32(0.123))
@@ -74,6 +75,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	```go
 	b = dynobuffers.ReadBuffer(bytes, scheme)
 	```
+	- panics if nil Scheme provided
 - Work with Buffer 
 	```go
 	value, ok := b.GetFloat32("price") // read typed. !ok -> field is unset or no such field in the scheme. Works faster and takes less memory allocations than Get()
