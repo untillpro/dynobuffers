@@ -124,12 +124,16 @@ func TestBasicUsage(t *testing.T) {
 	actual = b.Get("newField")
 	assert.Nil(t, actual)
 
-	// set string field to non-string ->error
+	// set string field to non-string -> error
 	b.Set("name", 123)
 	bytes, err = b.ToBytes()
 	if err == nil {
 		t.Fatal()
 	}
+
+	// nil Scheme provided -> panic
+	assert.Panics(t, func() { NewBuffer(nil) })
+	assert.Panics(t, func() { ReadBuffer([]byte{}, nil) })
 }
 
 func TestNilFields(t *testing.T) {
@@ -608,7 +612,7 @@ func TestApplyJsonErrors(t *testing.T) {
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 
-	// non-object is provided -> error 
+	// non-object is provided -> error
 	s := NewScheme()
 	sNested := NewScheme()
 	s.AddNested("nes", sNested, false)

@@ -243,6 +243,9 @@ type Scheme struct {
 
 // NewBuffer creates new empty Buffer
 func NewBuffer(Scheme *Scheme) *Buffer {
+	if Scheme == nil {
+		panic("nil Scheme provided")
+	}
 	b := &Buffer{}
 	b.Scheme = Scheme
 	return b
