@@ -279,6 +279,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
   - ...ReadFewFields... - read and multiply 2 fields
   - ...ReadAllFields... - read all fields
 ## Results
+
 - Scheme of 123 fields, read and multiply 2 fields, change 1 field and write
 ```
 DynoBuffers    	  	    200000	      8763 ns/op	    5240 B/op	      41 allocs/op
