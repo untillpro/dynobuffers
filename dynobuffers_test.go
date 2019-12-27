@@ -1772,7 +1772,7 @@ func TestArrayNoAlloc(t *testing.T) {
 	b = ReadBuffer(bytes, schemeRoot)
 
 	arr := NewObjectArray()
-	assert.True(t, arr.Next())
+	assert.False(t, arr.Next())
 	assert.NotNil(t, arr.Buffer) // not nil but empty
 	b.GetObjectArray("nes", arr)
 	assert.True(t, arr.Next())
