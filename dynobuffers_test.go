@@ -17,8 +17,90 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
+
+func TestBasicUsage(t *testing.T) {
+	// Yaml representation of scheme
+	var schemeYaml = `
+name: string
+price: float
+quantity: int
+weight: long
+`
+	// Create Scheme from yaml representation
+	s, err := YamlToScheme(schemeYaml)
+	require.Nil(t, err)
+
+	var b *Buffer
+	var bytes []byte
+
+	// Create new buffer from scheme
+	{
+		b = NewBuffer(s)
+		b.Set("name", "cola")
+		// We may NOT get it back yet
+		assert.Panics(t, func() { assert.Equal(t, "cola", b.Get("name").(string)) })
+		b.Set("price", float32(0.123))
+		b.Set("quantity", int32(42))
+		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
+		bytes, err = b.ToBytes()
+		require.Nil(t, err)
+	}
+
+	// Create from bytes
+	{
+		b = ReadBuffer(bytes, s)
+		// Now we can Get fields
+		assert.Equal(t, "cola", b.Get("name").(string))
+		assert.Equal(t, float32(0.123), b.Get("price"))
+		assert.Equal(t, int32(42), b.Get("quantity"))
+		// `unknownField` is set but does not exist in scheme, so it is not written
+		assert.Nil(t, b.Get("unknownField"))
+		// `weight` field exists but not set
+		assert.Nil(t, b.Get("weight"))
+	}
+
+	// Modify values
+	{
+		b.Set("price", float32(0.124))
+		b.Set("name", nil) // set to nil means `unset`
+		bytes, err = b.ToBytes()
+		require.Nil(t, err)
+		b = ReadBuffer(bytes, s)
+		assert.Nil(t, b.Get("name"))
+		assert.Equal(t, float32(0.124), b.Get("price").(float32))
+		assert.Equal(t, int32(42), b.Get("quantity").(int32))
+	}
+
+	// set untyped int value
+	{
+		b.Set("quantity", 45)
+		bytes, err = b.ToBytes()
+		require.Nil(t, err)
+		b = ReadBuffer(bytes, s)
+		actual := b.Get("quantity")
+		assert.Equal(t, int32(45), actual.(int32))
+	}
+
+	// Use typed getter
+	{
+		_, ok := b.GetInt("unknownField")
+		assert.False(t, ok)
+	}
+
+	// set string field to non-string -> error
+	b.Set("name", 123)
+	bytes, err = b.ToBytes()
+	if err == nil {
+		t.Fatal()
+	}
+
+	// nil Scheme provided -> panic
+	assert.Panics(t, func() { NewBuffer(nil) })
+	assert.Panics(t, func() { ReadBuffer([]byte{}, nil) })
+}
 
 var schemeStr = `
 name: string
@@ -61,80 +143,6 @@ bytes..: byte
 intsObj..:
   int: int
 `
-
-func TestBasicUsage(t *testing.T) {
-	s, err := YamlToScheme(schemeStrNew)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// create new from sratch
-	b := NewBuffer(s)
-	b.Set("name", "cola")
-	b.Set("price", float32(0.123))
-	b.Set("quantity", int32(42))
-	b.Set("unknownField", "") // no errors, nothing will be made on ToBytes()
-	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// create from bytes
-	b = ReadBuffer(bytes, s)
-	actual := b.Get("name")
-	assert.Equal(t, "cola", actual.(string))
-	actual = b.Get("price")
-	assert.Equal(t, float32(0.123), actual.(float32))
-	actual = b.Get("quantity")
-	assert.Equal(t, int32(42), actual.(int32))
-	actual = b.Get("newField")
-
-	// modify existing
-	b.Set("price", float32(0.124))
-	b.Set("name", nil) // set to nil means unset
-	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = ReadBuffer(bytes, s)
-	actual = b.Get("name")
-	assert.Nil(t, actual)
-	actual = b.Get("price")
-	assert.Equal(t, float32(0.124), actual.(float32))
-	actual = b.Get("quantity")
-	assert.Equal(t, int32(42), actual.(int32))
-
-	// set untyped int value
-	b.Set("quantity", 45)
-	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = ReadBuffer(bytes, s)
-	actual = b.Get("quantity")
-	assert.Equal(t, int32(45), actual.(int32))
-
-	// unset or unknown field -> nil
-	actual = b.Get("unknownField")
-	assert.Nil(t, actual)
-	_, ok := b.GetInt("unknownField")
-	assert.False(t, ok)
-
-	// field was not set -> nil
-	actual = b.Get("newField")
-	assert.Nil(t, actual)
-
-	// set string field to non-string -> error
-	b.Set("name", 123)
-	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
-
-	// nil Scheme provided -> panic
-	assert.Panics(t, func() { NewBuffer(nil) })
-	assert.Panics(t, func() { ReadBuffer([]byte{}, nil) })
-}
 
 func TestNilFields(t *testing.T) {
 	s, err := YamlToScheme(allTypesYaml)
