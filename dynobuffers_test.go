@@ -36,7 +36,7 @@ weight: long
 	var b *Buffer
 	var bytes []byte
 
-	// Create new from scheme
+	// Create new buffer from scheme
 	{
 		b = NewBuffer(s)
 		b.Set("name", "cola")
@@ -44,7 +44,7 @@ weight: long
 		assert.Panics(t, func() { assert.Equal(t, "cola", b.Get("name").(string)) })
 		b.Set("price", float32(0.123))
 		b.Set("quantity", int32(42))
-		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written
+		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
 		bytes, err = b.ToBytes()
 		require.Nil(t, err)
 	}
