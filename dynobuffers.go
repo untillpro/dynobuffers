@@ -520,7 +520,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 //   255 fits into float, double, int, long, byte;
 //   256 does not fit into byte
 //   math.MaxInt64 does not fit into int32
-// Unexisting field is provided -> no error (e.g. if trying to write data in new Scheme into buffer in old Scheme)
+// Unexisting field is provided -> error
 // Previousy stored or modified data is rewritten with the provided data
 // Byte arrays are expected to be base64 strings
 // Array element is nil -> error (not supported)
@@ -528,7 +528,7 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	for fn, fv := range data {
 		f, ok := b.Scheme.FieldsMap[fn]
 		if !ok {
-			continue
+			return fmt.Errorf("field %s does not exist in the scheme", fn)
 		}
 		if fv == nil {
 			b.set(f, nil)

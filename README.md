@@ -93,7 +93,7 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	- value is nil and field is mandatory -> error
 	- value type and field type are incompatible (e.g. string provided for numeric field) -> error
     - value type and field type differs but value fits into field (e.g. float64(255) fits into float, double, int, long, byte; float64(256) does not fit into byte etc) -> ok
-    - no such field in the scheme -> ok (need to scheme versioning)
+    - no such field in the scheme -> error
     - array element value is nil -> error (not supported)
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
