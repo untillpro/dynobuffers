@@ -269,6 +269,8 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 		```	
  - Nils as array elements are not supported
  - Byte arrays are decoded\encoded from\to JSON as base64 strings
+ - Byte arrays (blobs) could be quickly retrieved using `b.GetBytes()`
+   - no such field or it is not an array of bytes or has no value -> false
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
 
 # Benchmarks

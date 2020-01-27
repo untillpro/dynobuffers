@@ -115,7 +115,7 @@ func (oa *ObjectArray) Next() bool {
 	if oa.curElem >= oa.Len {
 		return false
 	}
-	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start+flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
+	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start + flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
 	return true
 }
 
@@ -312,6 +312,23 @@ func (b *Buffer) GetBool(name string) (bool, bool) {
 		return b.tab.GetBool(o), true
 	}
 	return false, false
+}
+
+// GetBytes returns []byte by name and if the Scheme contains the field and its type is an array of bytes and its value was set to non-nil
+func (b *Buffer) GetBytes(name string) ([]byte, bool) {
+	f, ok := b.Scheme.FieldsMap[name]
+	if !ok || !f.IsArray || f.Ft != FieldTypeByte {
+		return nil, false
+	}
+	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
+	if uOffsetT == 0 {
+		return nil, false
+	}
+	arrayLen := b.tab.VectorLen(uOffsetT - b.tab.Pos)
+	elemSize := getFBFieldSize(f.Ft)
+	arrayLen = arrayLen / elemSize
+	start := b.tab.Vector(uOffsetT - b.tab.Pos)
+	return b.tab.Bytes[start : arrayLen+int(start)], true
 }
 
 func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
@@ -751,7 +768,7 @@ func (b *Buffer) GetObjectArray(name string, arr *ObjectArray) {
 	}
 	arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
 	arr.Buffer.tab.Bytes = b.tab.Bytes
-	arr.start = b.tab.Vector(uOffsetT-b.tab.Pos)
+	arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
 	arr.curElem = -1
 	arr.Buffer.Scheme = f.FieldScheme
 }

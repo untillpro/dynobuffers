@@ -1297,6 +1297,11 @@ func TestArraysAllTypesSet(t *testing.T) {
 	assert.Equal(t, true, b.GetByIndex("boolFalses", 1))
 	assert.Equal(t, byte(9), b.GetByIndex("bytes", 0))
 	assert.Equal(t, byte(10), b.GetByIndex("bytes", 1))
+	bytes, ok := b.GetBytes("bytes")
+	assert.True(t, ok)
+	assert.Equal(t, 2, len(bytes))
+	assert.Equal(t, byte(9), bytes[0])
+	assert.Equal(t, byte(10), bytes[1])
 	assert.Equal(t, "str1", b.GetByIndex("strings", 0))
 	assert.Equal(t, "str2", b.GetByIndex("strings", 1))
 	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
@@ -1449,6 +1454,8 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues").(*Array).GetBools())
 	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses").(*Array).GetBools())
 	assert.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes").(*Array).GetBytes())
+	bytes, _ = b.GetBytes("bytes")
+	assert.Equal(t, []byte{9, 10, 11, 12}, bytes)
 	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings").(*Array).GetAll().([]string))
 
 }
