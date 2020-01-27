@@ -89,6 +89,20 @@ weight: long
 		_, ok := b.GetInt("unknownField")
 		assert.False(t, ok)
 	}
+	
+	// check HasValue
+	{
+		b = NewBuffer(s)
+		b.Set("price", float32(0.123))
+		b.Set("quantity", nil)
+		bytes, err = b.ToBytes()
+		require.Nil(t, err, err)
+		b = ReadBuffer(bytes, s)
+		assert.True(t, b.HasValue("price"))
+		assert.False(t, b.HasValue("quantity")) // set to nil
+		assert.False(t, b.HasValue("name")) // not set
+		assert.False(t, b.HasValue("unknownField")) 
+	}
 
 	// set string field to non-string -> error
 	b.Set("name", 123)

@@ -95,6 +95,10 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
     - value type and field type differs but value fits into field (e.g. float64(255) fits into float, double, int, long, byte; float64(256) does not fit into byte etc) -> ok
     - no such field in the scheme -> error
     - array element value is nil -> error (not supported)
+- Check if a field exists in the scheme and is set to non-nil
+  ```go
+  b.HasValue("name")
+  ```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Nested objects

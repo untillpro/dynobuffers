@@ -756,6 +756,11 @@ func (b *Buffer) GetObjectArray(name string, arr *ObjectArray) {
 	arr.Buffer.Scheme = f.FieldScheme
 }
 
+// HasValue returns if specified field exists in the scheme and its value is set to non-nil
+func (b *Buffer) HasValue(name string) bool {
+	return b.getFieldUOffsetT(name) != 0
+}
+
 func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
 	arr, ok := value.([]int32)
 	if !ok {
