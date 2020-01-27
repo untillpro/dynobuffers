@@ -734,7 +734,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField != nil {
 					if isSet = modifiedField.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, modifiedField.value) {
-							return 0, fmt.Errorf("wrong value %#v provided for field %s", modifiedField.value, f.QualifiedName())
+							return 0, fmt.Errorf("wrong value %T(%#v) provided for field %s", modifiedField.value, modifiedField.value, f.QualifiedName())
 						}
 					}
 				} else {
