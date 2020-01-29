@@ -204,43 +204,20 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 	assert.Equal(t, int64(5), bRoot.GetByIndex("ids", 0))
 	assert.Equal(t, int32(1), bRoot.GetByIndex("nested", 0).(*Buffer).Get("nes1"))
 	```
-  - Using `dynobuffers.Array` struct
+  - Read filled array of non-objects
     ```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-	arr := b.Get("ids").(*dynobuffers.Array)
+	arr := b.Get("ids").([]int64)
 	```	
-    - iterate
-		```go
-		for arr.Next() {
-			value := arr.Value()
-			fmt.Println(value)
-		}
-		```
-	- get filled array as `interface{}` containing typed array
-		```go
-		filledArr := ar.GetAll()
-		for i, value := range filledArr {
-			fmt.Println(fmt.Sprintf("%d: %v", i, value)
-		}
-		```
-	- get filled typed array 
-		```go
-		filledArr := ar.GetInts()
-		for i, value := range filledArr {
-			fmt.Println(fmt.Sprintf("%d: %d", i, value)
-		}
-		```
-  - Fast read array of objects using `dynobuffers.ObjectArray` struct
+  - Read array of objects using iterator
     ```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-	arr := dynobuffers.NewObjectArray()
-	bRoot.GetArray("nested", arr)
+	arr := bRoot.Get("nested").(*dynobuffers.ObjectArray)
 	for arr.Next() {
+		// arr.Buffer is switched on each arr.Next()
 		assert.Equal(t, int32(1), arr.Buffer.Get("nes1"))
 	}
 	```
-
-
 - Modify array and to bytes
 	- Set
 		```go
@@ -249,8 +226,9 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 		ids := []int64{5,6}
 		bRoot.Set("ids", ids)
 
-		buffers := bRoot.Get("nested").(*dynobuffers.Array).GetObjects()
-		buffers[1].Set("nes1", -1)
+		arr := bRoot.Get("nested").(*dynobuffers.ObjectArray)
+		arr.Next()
+		arr.Buffer.Set("nes1", -1)
 		bytes, err := bRoot.ToBytes()
 		if err != nil {
 			panic(err)
@@ -269,8 +247,6 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 		```	
  - Nils as array elements are not supported
  - Byte arrays are decoded\encoded from\to JSON as base64 strings
- - Byte arrays (blobs) could be quickly retrieved using `b.GetBytes()`
-   - no such field or it is not an array of bytes or has no value -> false
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
 
 # Benchmarks

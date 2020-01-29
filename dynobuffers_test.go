@@ -89,7 +89,7 @@ weight: long
 		_, ok := b.GetInt("unknownField")
 		assert.False(t, ok)
 	}
-	
+
 	// check HasValue
 	{
 		b = NewBuffer(s)
@@ -100,8 +100,8 @@ weight: long
 		b = ReadBuffer(bytes, s)
 		assert.True(t, b.HasValue("price"))
 		assert.False(t, b.HasValue("quantity")) // set to nil
-		assert.False(t, b.HasValue("name")) // not set
-		assert.False(t, b.HasValue("unknownField")) 
+		assert.False(t, b.HasValue("name"))     // not set
+		assert.False(t, b.HasValue("unknownField"))
 	}
 
 	// set string field to non-string -> error
@@ -668,7 +668,7 @@ func TestApplyJSONNestedAndNestedArray(t *testing.T) {
 	}
 	bRoot = ReadBuffer(bytes, schemeRoot)
 	assert.Equal(t, "str1", bRoot.Get("name"))
-	ints := bRoot.Get("ids").(*Array).GetInts()
+	ints := bRoot.Get("ids")
 	assert.Equal(t, []int32{45, 46}, ints)
 	bRoot.Set("ids", ints)
 	bytes, err = bRoot.ToBytes()
@@ -676,16 +676,19 @@ func TestApplyJSONNestedAndNestedArray(t *testing.T) {
 		t.Fatal(err)
 	}
 	bRoot = ReadBuffer(bytes, schemeRoot)
-	ints = bRoot.Get("ids").(*Array).GetInts()
+	ints = bRoot.Get("ids")
 	assert.Equal(t, []int32{45, 46}, ints)
 	bNested := bRoot.Get("nested").(*Buffer)
 	assert.Equal(t, float32(0.123), bNested.Get("price"))
 	assert.Equal(t, int32(42), bNested.Get("quantity"))
-	bNesteds := bRoot.Get("nestedarr").(*Array).GetObjects()
-	assert.Equal(t, float32(0.124), bNesteds[0].Get("price"))
-	assert.Equal(t, int32(43), bNesteds[0].Get("quantity"))
-	assert.Equal(t, float32(0.125), bNesteds[1].Get("price"))
-	assert.Equal(t, int32(44), bNesteds[1].Get("quantity"))
+	bNesteds := bRoot.Get("nestedarr").(*ObjectArray)
+	bNesteds.Next()
+	assert.Equal(t, float32(0.124), bNesteds.Buffer.Get("price"))
+	assert.Equal(t, int32(43), bNesteds.Buffer.Get("quantity"))
+	bNesteds.Next()
+	assert.Equal(t, float32(0.125), bNesteds.Buffer.Get("price"))
+	assert.Equal(t, int32(44), bNesteds.Buffer.Get("quantity"))
+	assert.False(t, bNesteds.Next())
 
 	// error if not array is provided for an array field
 	bytes, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nestedarr":{"price":0.123,"quantity":42},"last":42}`))
@@ -759,17 +762,20 @@ func TestApplyJSONArraysAllTypesAppend(t *testing.T) {
 	}
 
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings").(*Array).GetStrings())
-	buffs := b.Get("intsObj").(*Array).GetObjects()
-	assert.Equal(t, int32(7), buffs[0].Get("int"))
-	assert.Equal(t, int32(8), buffs[1].Get("int"))
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	buffs := b.Get("intsObj").(*ObjectArray)
+	buffs.Next()
+	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	buffs.Next()
+	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	assert.False(t, buffs.Next())
 
 	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`))
 	if err != nil {
@@ -777,20 +783,24 @@ func TestApplyJSONArraysAllTypesAppend(t *testing.T) {
 	}
 
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124, -0.123, -0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126, -0.125, -0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6, 5, 6}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings").(*Array).GetStrings())
-	buffs = b.Get("intsObj").(*Array).GetObjects()
-	assert.Equal(t, int32(7), buffs[0].Get("int"))
-	assert.Equal(t, int32(8), buffs[1].Get("int"))
-	assert.Equal(t, int32(-7), buffs[2].Get("int"))
-	assert.Equal(t, int32(-8), buffs[3].Get("int"))
-
+	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124, -0.123, -0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126, -0.125, -0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6, 5, 6}, b.Get("bytes"))
+	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
+	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
+	buffs = b.Get("intsObj").(*ObjectArray)
+	buffs.Next()
+	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	buffs.Next()
+	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	buffs.Next()
+	assert.Equal(t, int32(-7), buffs.Buffer.Get("int"))
+	buffs.Next()
+	assert.Equal(t, int32(-8), buffs.Buffer.Get("int"))
+	assert.False(t, buffs.Next())
 }
 
 func TestApplyJSONArraysAllTypesSet(t *testing.T) {
@@ -814,7 +824,7 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
 
 	// longs
 	// element of wrong type -> error
@@ -829,8 +839,8 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
 
 	// floats
 	// element of wrong type -> error
@@ -845,9 +855,9 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
 
 	// doubles
 	// element of wrong type -> error
@@ -862,10 +872,10 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
 
 	// bytes
 	bytesBase64 := base64.StdEncoding.EncodeToString([]byte{5, 6})
@@ -875,11 +885,11 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
 
 	// bools
 	// element of wrong type -> error
@@ -894,13 +904,13 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
 
 	// strings
 	// element of wrong type -> error
@@ -915,14 +925,14 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings").(*Array).GetStrings())
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
 
 	// nested
 	json = []byte(`{"intsObj": [{"int": 7}, {"int": 8}]}`)
@@ -931,17 +941,20 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings").(*Array).GetStrings())
-	buffs := b.Get("intsObj").(*Array).GetObjects()
-	assert.Equal(t, int32(7), buffs[0].Get("int"))
-	assert.Equal(t, int32(8), buffs[1].Get("int"))
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	buffs := b.Get("intsObj").(*ObjectArray)
+	buffs.Next()
+	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	buffs.Next()
+	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	assert.False(t, buffs.Next())
 
 	// buffer -> json -> buffer
 	json = b.ToJSON()
@@ -951,17 +964,20 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings").(*Array).GetStrings())
-	buffs = b.Get("intsObj").(*Array).GetObjects()
-	assert.Equal(t, int32(7), buffs[0].Get("int"))
-	assert.Equal(t, int32(8), buffs[1].Get("int"))
+	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	buffs = b.Get("intsObj").(*ObjectArray)
+	buffs.Next()
+	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	buffs.Next()
+	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	assert.False(t, buffs.Next())
 
 	// empty arrays
 	b.Set("ints", []int32{})
@@ -975,15 +991,15 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 	b.Set("intsObj", []*Buffer{})
 	bytes, err = b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{}, b.Get("strings").(*Array).GetStrings())
-	assert.Equal(t, []*Buffer{}, b.Get("intsObj").(*Array).GetObjects())
+	assert.Equal(t, []int32{}, b.Get("ints"))
+	assert.Equal(t, []int64{}, b.Get("longs"))
+	assert.Equal(t, []float32{}, b.Get("floats"))
+	assert.Equal(t, []float64{}, b.Get("doubles"))
+	assert.Equal(t, []byte{}, b.Get("bytes"))
+	assert.Equal(t, []bool{}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{}, b.Get("boolFalses"))
+	assert.Equal(t, []string{}, b.Get("strings"))
+	assert.Equal(t, 0, b.Get("intsObj").(*ObjectArray).Len)
 
 	// empty arrays from json
 	b = NewBuffer(s)
@@ -991,15 +1007,15 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []byte{}, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, []bool{}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []string{}, b.Get("strings").(*Array).GetStrings())
-	assert.Equal(t, []*Buffer{}, b.Get("intsObj").(*Array).GetObjects())
+	assert.Equal(t, []int32{}, b.Get("ints"))
+	assert.Equal(t, []int64{}, b.Get("longs"))
+	assert.Equal(t, []float32{}, b.Get("floats"))
+	assert.Equal(t, []float64{}, b.Get("doubles"))
+	assert.Equal(t, []byte{}, b.Get("bytes"))
+	assert.Equal(t, []bool{}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{}, b.Get("boolFalses"))
+	assert.Equal(t, []string{}, b.Get("strings"))
+	assert.Equal(t, 0, b.Get("intsObj").(*ObjectArray).Len)
 
 	// null arrays from json
 	b = NewBuffer(s)
@@ -1194,18 +1210,8 @@ func TestArraysBasic(t *testing.T) {
 	assert.Equal(t, int64(6), b.GetByIndex("longs", 1))
 
 	//test Array struct
-	a := b.Get("longs").(*Array)
-	longsActual := a.GetLongs()
-	assert.Equal(t, len(longs), len(longsActual))
-	for i, long := range longsActual {
-		assert.Equal(t, longs[i], long)
-	}
-	assert.True(t, a.Next())
-	assert.Equal(t, int64(5), a.Value())
-	assert.True(t, a.Next())
-	assert.Equal(t, int64(6), a.Value())
-	assert.False(t, a.Next())
-	assert.Nil(t, a.Value())
+	longsActual := b.Get("longs").([]int64)
+	assert.Equal(t, longs, longsActual)
 
 	// modify
 	longs = []int64{7, 8, 9}
@@ -1236,10 +1242,7 @@ func TestArraysBasic(t *testing.T) {
 	}
 	b = ReadBuffer(bytes, s)
 	assert.Nil(t, b.GetByIndex("longs", 0))
-	a = b.Get("longs").(*Array)
-	assert.Nil(t, a.Value())
-	assert.False(t, a.Next())
-	longsActual = a.GetLongs()
+	longsActual = b.Get("longs").([]int64)
 	assert.True(t, len(longsActual) == 0)
 }
 
@@ -1297,24 +1300,21 @@ func TestArraysAllTypesSet(t *testing.T) {
 	assert.Equal(t, true, b.GetByIndex("boolFalses", 1))
 	assert.Equal(t, byte(9), b.GetByIndex("bytes", 0))
 	assert.Equal(t, byte(10), b.GetByIndex("bytes", 1))
-	bytes, ok := b.GetBytes("bytes")
-	assert.True(t, ok)
-	assert.Equal(t, 2, len(bytes))
-	assert.Equal(t, byte(9), bytes[0])
-	assert.Equal(t, byte(10), bytes[1])
 	assert.Equal(t, "str1", b.GetByIndex("strings", 0))
 	assert.Equal(t, "str2", b.GetByIndex("strings", 1))
 	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
 	assert.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
 
-	assert.Equal(t, ints, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, longs, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, floats, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, doubles, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, trueBools, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, falseBools, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, bytesArr, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, strings, b.Get("strings").(*Array).GetAll().([]string))
+	assert.Equal(t, ints, b.Get("ints"))
+	assert.Equal(t, longs, b.Get("longs"))
+	assert.Equal(t, floats, b.Get("floats"))
+	assert.Equal(t, doubles, b.Get("doubles"))
+	assert.Equal(t, trueBools, b.Get("boolTrues"))
+	assert.Equal(t, falseBools, b.Get("boolFalses"))
+	assert.Equal(t, bytesArr, b.Get("bytes"))
+	assert.Equal(t, strings, b.Get("strings"))
+
+	assert.Nil(t, b.Get("unknown"))
 
 	// wrong type provided -> error
 	b.Set("ints", []float32{0})
@@ -1415,14 +1415,14 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	}
 	b = ReadBuffer(bytes, s)
 
-	assert.Equal(t, ints, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, longs, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, floats, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, doubles, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, trueBools, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, falseBools, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, bytesArr, b.Get("bytes").(*Array).GetBytes())
-	assert.Equal(t, strings, b.Get("strings").(*Array).GetAll().([]string))
+	assert.Equal(t, ints, b.Get("ints"))
+	assert.Equal(t, longs, b.Get("longs"))
+	assert.Equal(t, floats, b.Get("floats"))
+	assert.Equal(t, doubles, b.Get("doubles"))
+	assert.Equal(t, trueBools, b.Get("boolTrues"))
+	assert.Equal(t, falseBools, b.Get("boolFalses"))
+	assert.Equal(t, bytesArr, b.Get("bytes"))
+	assert.Equal(t, strings, b.Get("strings"))
 	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
 	assert.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
 
@@ -1447,17 +1447,14 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	}
 	b = ReadBuffer(bytes, s)
 
-	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints").(*Array).GetInts())
-	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs").(*Array).GetLongs())
-	assert.Equal(t, []float32{0.5, 0.6, -0.5, -0.6}, b.Get("floats").(*Array).GetFloats())
-	assert.Equal(t, []float64{0.7, 0.8, -0.7, -0.8}, b.Get("doubles").(*Array).GetDoubles())
-	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues").(*Array).GetBools())
-	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses").(*Array).GetBools())
-	assert.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes").(*Array).GetBytes())
-	bytes, _ = b.GetBytes("bytes")
-	assert.Equal(t, []byte{9, 10, 11, 12}, bytes)
-	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings").(*Array).GetAll().([]string))
-
+	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints"))
+	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs"))
+	assert.Equal(t, []float32{0.5, 0.6, -0.5, -0.6}, b.Get("floats"))
+	assert.Equal(t, []float64{0.7, 0.8, -0.7, -0.8}, b.Get("doubles"))
+	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
+	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
+	assert.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes"))
+	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
 }
 
 func TestArraysNested(t *testing.T) {
@@ -1498,26 +1495,14 @@ func TestArraysNested(t *testing.T) {
 	assert.Equal(t, float32(0.124), bNested.Get("price"))
 
 	// iterator
-	arr := b.Get("nes").(*Array)
-	buffers := arr.GetAll().([]*Buffer)
-	assert.Equal(t, int32(42), buffers[0].Get("quantity"))
-	assert.Equal(t, float32(0.123), buffers[0].Get("price"))
-	assert.Equal(t, int32(43), buffers[1].Get("quantity"))
-	assert.Equal(t, float32(0.124), buffers[1].Get("price"))
-
-	assert.True(t, arr.Next())
-	bufferIntf := arr.Value()
-	assert.Equal(t, int32(42), bufferIntf.(*Buffer).Get("quantity"))
-	assert.Equal(t, float32(0.123), bufferIntf.(*Buffer).Get("price"))
-
-	assert.True(t, arr.Next())
-	bufferIntf = arr.Value()
-	assert.Equal(t, int32(43), bufferIntf.(*Buffer).Get("quantity"))
-	assert.Equal(t, float32(0.124), bufferIntf.(*Buffer).Get("price"))
-
+	arr := b.Get("nes").(*ObjectArray)
+	arr.Next()
+	assert.Equal(t, int32(42), arr.Buffer.Get("quantity"))
+	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))
+	arr.Next()
+	assert.Equal(t, int32(43), arr.Buffer.Get("quantity"))
+	assert.Equal(t, float32(0.124), arr.Buffer.Get("price"))
 	assert.False(t, arr.Next())
-	bufferIntf = arr.Value()
-	assert.Nil(t, bufferIntf)
 
 	// non-[]*Buffer is provided -> error
 	b.Set("nes", []int32{1})
@@ -1527,9 +1512,7 @@ func TestArraysNested(t *testing.T) {
 	}
 
 	// set one of elements to nil -> error
-	buffers[0] = nil
-	buffers = append(buffers, nil)
-	buffers = append(buffers, nil)
+	buffers := []*Buffer{nil, nil, nil}
 	b.Set("nes", buffers)
 	bytes, err = b.ToBytes()
 	if err == nil {
@@ -1563,7 +1546,7 @@ func TestCopyBytes(t *testing.T) {
 	b = ReadBuffer(bytes, s)
 	assert.Equal(t, "str", b.Get("name"))
 	assert.Equal(t, int32(42), b.Get("id"))
-	arr := b.Get("longs").(*Array).GetLongs()
+	arr := b.Get("longs").([]int64)
 	assert.Equal(t, int64(45), arr[0])
 	assert.Equal(t, int64(46), arr[1])
 	assert.Equal(t, int64(45), b.GetByIndex("longs", 0))
@@ -1774,47 +1757,4 @@ func TestObjectsCopy(t *testing.T) {
 	tab := &flatbuffers.Table{}
 	tab.Bytes = bytes
 	tab.Pos = flatbuffers.GetUOffsetT(bytes)
-}
-
-func TestArrayNoAlloc(t *testing.T) {
-	schemeRoot := NewScheme()
-	schemeNested := NewScheme()
-	schemeNested.AddField("price", FieldTypeFloat, false)
-	schemeNested.AddField("quantity", FieldTypeInt, false)
-	schemeRoot.AddField("name", FieldTypeString, false)
-	schemeRoot.AddNestedArray("nes", schemeNested, false)
-	schemeRoot.AddField("last", FieldTypeInt, false)
-	b := NewBuffer(schemeRoot)
-
-	bNestedArr := []*Buffer{}
-	bNested := NewBuffer(schemeNested)
-	bNested.Set("price", 0.123)
-	bNested.Set("quantity", 42)
-	bNestedArr = append(bNestedArr, bNested)
-	bNested = NewBuffer(schemeNested)
-	bNested.Set("price", 0.124)
-	bNested.Set("quantity", 43)
-	bNestedArr = append(bNestedArr, bNested)
-
-	b.Set("name", "str")
-	b.Set("nes", bNestedArr)
-	b.Set("last", 42)
-	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	b = ReadBuffer(bytes, schemeRoot)
-
-	arr := NewObjectArray()
-	assert.False(t, arr.Next())
-	assert.NotNil(t, arr.Buffer) // not nil but empty
-	b.GetObjectArray("nes", arr)
-	assert.True(t, arr.Next())
-	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))
-	assert.Equal(t, int32(42), arr.Buffer.Get("quantity"))
-	assert.True(t, arr.Next())
-	assert.Equal(t, float32(0.124), arr.Buffer.Get("price"))
-	assert.Equal(t, int32(43), arr.Buffer.Get("quantity"))
-	assert.False(t, arr.Next())
 }
