@@ -115,7 +115,7 @@ func (oa *ObjectArray) Next() bool {
 	if oa.curElem >= oa.Len {
 		return false
 	}
-	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start+flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
+	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start + flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
 	return true
 }
 
@@ -312,6 +312,23 @@ func (b *Buffer) GetBool(name string) (bool, bool) {
 		return b.tab.GetBool(o), true
 	}
 	return false, false
+}
+
+// GetBytes returns []byte by name and if the Scheme contains the field and its type is an array of bytes and its value was set to non-nil
+func (b *Buffer) GetBytes(name string) ([]byte, bool) {
+	f, ok := b.Scheme.FieldsMap[name]
+	if !ok || !f.IsArray || f.Ft != FieldTypeByte {
+		return nil, false
+	}
+	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
+	if uOffsetT == 0 {
+		return nil, false
+	}
+	arrayLen := b.tab.VectorLen(uOffsetT - b.tab.Pos)
+	elemSize := getFBFieldSize(f.Ft)
+	arrayLen = arrayLen / elemSize
+	start := b.tab.Vector(uOffsetT - b.tab.Pos)
+	return b.tab.Bytes[start : arrayLen+int(start)], true
 }
 
 func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
@@ -520,7 +537,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 //   255 fits into float, double, int, long, byte;
 //   256 does not fit into byte
 //   math.MaxInt64 does not fit into int32
-// Unexisting field is provided -> no error (e.g. if trying to write data in new Scheme into buffer in old Scheme)
+// Unexisting field is provided -> error
 // Previousy stored or modified data is rewritten with the provided data
 // Byte arrays are expected to be base64 strings
 // Array element is nil -> error (not supported)
@@ -528,7 +545,7 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	for fn, fv := range data {
 		f, ok := b.Scheme.FieldsMap[fn]
 		if !ok {
-			continue
+			return fmt.Errorf("field %s does not exist in the scheme", fn)
 		}
 		if fv == nil {
 			b.set(f, nil)
@@ -717,7 +734,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField != nil {
 					if isSet = modifiedField.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, modifiedField.value) {
-							return 0, fmt.Errorf("wrong value %#v provided for field %s", modifiedField.value, f.QualifiedName())
+							return 0, fmt.Errorf("wrong value %T(%#v) provided for field %s", modifiedField.value, modifiedField.value, f.QualifiedName())
 						}
 					}
 				} else {
@@ -751,9 +768,14 @@ func (b *Buffer) GetObjectArray(name string, arr *ObjectArray) {
 	}
 	arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
 	arr.Buffer.tab.Bytes = b.tab.Bytes
-	arr.start = b.tab.Vector(uOffsetT-b.tab.Pos)
+	arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
 	arr.curElem = -1
 	arr.Buffer.Scheme = f.FieldScheme
+}
+
+// HasValue returns if specified field exists in the scheme and its value is set to non-nil
+func (b *Buffer) HasValue(name string) bool {
+	return b.getFieldUOffsetT(name) != 0
 }
 
 func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {

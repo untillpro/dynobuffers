@@ -24,7 +24,7 @@ import (
 func TestBasicUsage(t *testing.T) {
 	// Yaml representation of scheme
 	var schemeYaml = `
-name: string
+name: string 
 price: float
 quantity: int
 weight: long
@@ -88,6 +88,20 @@ weight: long
 	{
 		_, ok := b.GetInt("unknownField")
 		assert.False(t, ok)
+	}
+	
+	// check HasValue
+	{
+		b = NewBuffer(s)
+		b.Set("price", float32(0.123))
+		b.Set("quantity", nil)
+		bytes, err = b.ToBytes()
+		require.Nil(t, err, err)
+		b = ReadBuffer(bytes, s)
+		assert.True(t, b.HasValue("price"))
+		assert.False(t, b.HasValue("quantity")) // set to nil
+		assert.False(t, b.HasValue("name")) // not set
+		assert.False(t, b.HasValue("unknownField")) 
 	}
 
 	// set string field to non-string -> error
@@ -586,7 +600,7 @@ func TestApplyJsonErrors(t *testing.T) {
 	b := NewBuffer(scheme)
 
 	// unset field
-	json := []byte(`{"name": null, "price": 0.124, "unknown": 42}`)
+	json := []byte(`{"name": null, "price": 0.124}`)
 	bytes, err := b.ApplyJSONAndToBytes(json)
 	if err != nil {
 		t.Fatal(err)
@@ -596,19 +610,19 @@ func TestApplyJsonErrors(t *testing.T) {
 	assert.Equal(t, float32(0.124), b.Get("price"))
 
 	// wrong type -> error
-	json = []byte(`{"name": "str", "price": "wrong type", "unknown": 42}`)
+	json = []byte(`{"name": "str", "price": "wrong type"}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 
 	// unset mandatory field -> error
-	json = []byte(`{"name": "str", "price": null, "unknown": 42}`)
+	json = []byte(`{"name": "str", "price": null}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 
 	// mandatory field is not set -> error
-	json = []byte(`{"name": "str", "unknown": 42}`)
+	json = []byte(`{"name": "str"}`)
 	b = NewBuffer(scheme)
 	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
@@ -626,6 +640,12 @@ func TestApplyJsonErrors(t *testing.T) {
 	s.AddNested("nes", sNested, false)
 	b = NewBuffer(s)
 	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"nes": 42}`))
+	assert.Nil(t, bytes)
+	assert.NotNil(t, err)
+
+	// unknown field -> error
+	json = []byte(`{"price": 0.124, "unknown": 42}`)
+	bytes, err = b.ApplyJSONAndToBytes(json)
 	assert.Nil(t, bytes)
 	assert.NotNil(t, err)
 }
@@ -1003,7 +1023,7 @@ func TestApplyJsonPrimitiveAllTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	json := []byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124, "double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false, "unknown": -1}`)
+	json := []byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124, "double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false}`)
 	b := NewBuffer(scheme)
 	bytes, err := b.ApplyJSONAndToBytes(json)
 	if err != nil {
@@ -1277,6 +1297,11 @@ func TestArraysAllTypesSet(t *testing.T) {
 	assert.Equal(t, true, b.GetByIndex("boolFalses", 1))
 	assert.Equal(t, byte(9), b.GetByIndex("bytes", 0))
 	assert.Equal(t, byte(10), b.GetByIndex("bytes", 1))
+	bytes, ok := b.GetBytes("bytes")
+	assert.True(t, ok)
+	assert.Equal(t, 2, len(bytes))
+	assert.Equal(t, byte(9), bytes[0])
+	assert.Equal(t, byte(10), bytes[1])
 	assert.Equal(t, "str1", b.GetByIndex("strings", 0))
 	assert.Equal(t, "str2", b.GetByIndex("strings", 1))
 	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
@@ -1429,6 +1454,8 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues").(*Array).GetBools())
 	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses").(*Array).GetBools())
 	assert.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes").(*Array).GetBytes())
+	bytes, _ = b.GetBytes("bytes")
+	assert.Equal(t, []byte{9, 10, 11, 12}, bytes)
 	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings").(*Array).GetAll().([]string))
 
 }
