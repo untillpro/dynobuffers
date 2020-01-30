@@ -1122,6 +1122,11 @@ func (b *Buffer) ToJSON() []byte {
 	return []byte(strings.Replace(buf.String(), "\n", "", -1))
 }
 
+// GetBytes returns underlying byte buffer
+func (b *Buffer) GetBytes() []byte {
+	return b.tab.Bytes
+}
+
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
 	return &Scheme{"", map[string]*Field{}, []*Field{}}
