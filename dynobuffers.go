@@ -350,6 +350,10 @@ func getFBFieldSize(ft FieldType) int {
 }
 
 // Get returns stored field value by name.
+// field is scalar -> scalar is returned
+// field is array of scalars -> []T is returned
+// field is a nested object -> *dynobuffers.Buffer is returned
+// fields is an array of nested objects -> *dynobuffers.ObjectArray is returned
 // field is unset or no such field in the Scheme -> nil
 func (b *Buffer) Get(name string) interface{} {
 	f, ok := b.Scheme.FieldsMap[name]
