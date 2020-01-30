@@ -86,7 +86,7 @@ type modifiedField struct {
 	isAppend bool
 }
 
-// ObjectArray used to iterate over array of nested objects 
+// ObjectArray used to iterate over array of nested objects
 type ObjectArray struct {
 	Buffer  *Buffer
 	Len     int
@@ -102,6 +102,11 @@ func (oa *ObjectArray) Next() bool {
 	}
 	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start + flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
 	return true
+}
+
+// Value returns *dynobuffers.Buffer instance as current element
+func (oa *ObjectArray) Value() interface{} {
+	return oa.Buffer
 }
 
 func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) interface{} {
