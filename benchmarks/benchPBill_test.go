@@ -512,7 +512,7 @@ func BenchmarkPBillItemReadByIndex(b *testing.B) {
 	}
 
 	pb = dynobuffers.ReadBuffer(bytes, s)
-	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.Array).Len)
+	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.ObjectArray).Len)
 
 	sum := float32(0)
 
@@ -556,18 +556,17 @@ func BenchmarkPBillItemReadIter(b *testing.B) {
 	}
 
 	pb = dynobuffers.ReadBuffer(bytes, s)
-	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.Array).Len)
+	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.ObjectArray).Len)
 
 	sum := float32(0)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		pb = dynobuffers.ReadBuffer(bytes, s)
-		pbillItems := pb.Get("pbill_item").(*dynobuffers.Array)
-		pbillItems.GetDoubles()
+		pbillItems := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
+		// pbillItems.GetDoubles()
 		for pbillItems.Next() {
-			pbillItem := pbillItems.Value().(*dynobuffers.Buffer)
-			s, _ := pbillItem.GetFloat("price")
+			s, _ := pbillItems.Buffer.GetFloat("price")
 			sum += s
 		}
 	}
@@ -602,15 +601,14 @@ func BenchmarkPBillItemReadNoAlloc(b *testing.B) {
 	}
 
 	pb = dynobuffers.ReadBuffer(bytes, s)
-	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.Array).Len)
+	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.ObjectArray).Len)
 
 	sum := float32(0)
-	arr := dynobuffers.NewObjectArray()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		pb = dynobuffers.ReadBuffer(bytes, s)
-		pb.GetObjectArray("pbill_item", arr)
+		arr := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
 		for arr.Next() {
 			s, _ := arr.Buffer.GetFloat("price")
 			sum += s

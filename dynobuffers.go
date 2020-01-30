@@ -86,17 +86,7 @@ type modifiedField struct {
 	isAppend bool
 }
 
-// Array struct used to iterate over arrays
-type Array struct {
-	curElem  int
-	Len      int
-	field    *Field
-	b        *Buffer
-	start    flatbuffers.UOffsetT
-	elemSize int
-}
-
-// ObjectArray s.e.
+// ObjectArray used to iterate over array of nested objects 
 type ObjectArray struct {
 	Buffer  *Buffer
 	Len     int
@@ -104,12 +94,7 @@ type ObjectArray struct {
 	start   flatbuffers.UOffsetT
 }
 
-// NewObjectArray s.e.
-func NewObjectArray() *ObjectArray {
-	return &ObjectArray{Buffer: &Buffer{}}
-}
-
-// Next s.e.
+// Next proceeds to a next nested object in the array. If true then .Buffer represents the next element
 func (oa *ObjectArray) Next() bool {
 	oa.curElem++
 	if oa.curElem >= oa.Len {
@@ -119,118 +104,47 @@ func (oa *ObjectArray) Next() bool {
 	return true
 }
 
-// Next iterates to the next element shich should be obtained via `Value()``
-func (a *Array) Next() bool {
-	a.curElem++
-	return a.curElem < a.Len
-}
-
-// Value returns current array element
-func (a *Array) Value() interface{} {
-	if a.curElem < 0 || a.curElem >= a.Len {
-		return nil
-	}
-	return a.b.getValueByUOffsetT(a.field, a.start+flatbuffers.UOffsetT(a.curElem*a.elemSize))
-}
-
-// GetInts returns []int32
-// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
-func (a *Array) GetInts() []int32 {
-	bytesSlice := a.b.tab.Bytes[a.start:]
-	src := *(*[]int32)(unsafe.Pointer(&bytesSlice))
-	src = src[:a.Len]
-	res := make([]int32, len(src))
-	copy(res, src)
-	return res
-}
-
-// GetFloats returns []float32
-// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
-func (a *Array) GetFloats() []float32 {
-	bytesSlice := a.b.tab.Bytes[a.start:]
-	src := *(*[]float32)(unsafe.Pointer(&bytesSlice))
-	src = src[:a.Len]
-	res := make([]float32, len(src))
-	copy(res, src)
-	return res
-}
-
-// GetDoubles returns []float64
-// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
-func (a *Array) GetDoubles() []float64 {
-	bytesSlice := a.b.tab.Bytes[a.start:]
-	src := *(*[]float64)(unsafe.Pointer(&bytesSlice))
-	src = src[:a.Len]
-	res := make([]float64, len(src))
-	copy(res, src)
-	return res
-}
-
-// GetBytes returns []byte
-// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
-func (a *Array) GetBytes() []byte {
-	return a.b.tab.Bytes[a.start : a.Len+int(a.start)]
-}
-
-// GetBools returns []bool
-// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
-func (a *Array) GetBools() []bool {
-	bytesSlice := a.b.tab.Bytes[a.start:]
-	src := *(*[]bool)(unsafe.Pointer(&bytesSlice))
-	src = src[:a.Len]
-	res := make([]bool, len(src))
-	copy(res, src)
-	return res
-}
-
-// GetLongs returns []int64
-// Note: result array is a slice of underlying FlatBuffer byte array. Modifying this array means modifying result of Buffer.ToBytes() unless Buffer.Set() will be called
-func (a *Array) GetLongs() []int64 {
-	bytesSlice := a.b.tab.Bytes[a.start:]
-	src := *(*[]int64)(unsafe.Pointer(&bytesSlice))
-	src = src[:a.Len]
-	res := make([]int64, len(src))
-	copy(res, src)
-	return res
-}
-
-// GetStrings returns []string
-func (a *Array) GetStrings() []string {
-	res := make([]string, a.Len)
-	for i := 0; i < a.Len; i++ {
-		res[i] = a.b.getByField(a.field, i).(string)
-	}
-	return res
-}
-
-// GetObjects returns array of nested objects
-func (a *Array) GetObjects() []*Buffer {
-	res := make([]*Buffer, a.Len)
-	for i := 0; i < a.Len; i++ {
-		res[i] = a.b.getValueByUOffsetT(a.field, a.start+flatbuffers.UOffsetT(i*a.elemSize)).(*Buffer)
-	}
-	return res
-}
-
-// GetAll returns untyped array
-func (a *Array) GetAll() interface{} {
-	switch a.field.Ft {
+func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) interface{} {
+	bytesSlice := b.tab.Bytes[start:]
+	switch f.Ft {
 	case FieldTypeInt:
-		return a.GetInts()
-	case FieldTypeLong:
-		return a.GetLongs()
+		src := *(*[]int32)(unsafe.Pointer(&bytesSlice))
+		src = src[:arrLen]
+		res := make([]int32, len(src))
+		copy(res, src)
+		return res
 	case FieldTypeFloat:
-		return a.GetFloats()
+		src := *(*[]float32)(unsafe.Pointer(&bytesSlice))
+		src = src[:arrLen]
+		res := make([]float32, len(src))
+		copy(res, src)
+		return res
 	case FieldTypeDouble:
-		return a.GetDoubles()
+		src := *(*[]float64)(unsafe.Pointer(&bytesSlice))
+		src = src[:arrLen]
+		res := make([]float64, len(src))
+		copy(res, src)
+		return res
 	case FieldTypeByte:
-		return a.GetBytes()
+		return b.tab.Bytes[start : arrLen+int(start)]
 	case FieldTypeBool:
-		return a.GetBools()
-	case FieldTypeString:
-		return a.GetStrings()
+		src := *(*[]bool)(unsafe.Pointer(&bytesSlice))
+		src = src[:arrLen]
+		res := make([]bool, len(src))
+		copy(res, src)
+		return res
+	case FieldTypeLong:
+		src := *(*[]int64)(unsafe.Pointer(&bytesSlice))
+		src = src[:arrLen]
+		res := make([]int64, len(src))
+		copy(res, src)
+		return res
 	default:
-		return a.GetObjects()
+		res := make([]string, arrLen)
+		for i := 0; i < arrLen; i++ {
+			res[i] = b.getByField(f, i).(string)
+		}
+		return res
 	}
 }
 
@@ -314,23 +228,6 @@ func (b *Buffer) GetBool(name string) (bool, bool) {
 	return false, false
 }
 
-// GetBytes returns []byte by name and if the Scheme contains the field and its type is an array of bytes and its value was set to non-nil
-func (b *Buffer) GetBytes(name string) ([]byte, bool) {
-	f, ok := b.Scheme.FieldsMap[name]
-	if !ok || !f.IsArray || f.Ft != FieldTypeByte {
-		return nil, false
-	}
-	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
-	if uOffsetT == 0 {
-		return nil, false
-	}
-	arrayLen := b.tab.VectorLen(uOffsetT - b.tab.Pos)
-	elemSize := getFBFieldSize(f.Ft)
-	arrayLen = arrayLen / elemSize
-	start := b.tab.Vector(uOffsetT - b.tab.Pos)
-	return b.tab.Bytes[start : arrayLen+int(start)], true
-}
-
 func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
 	if len(b.tab.Bytes) == 0 {
 		return 0
@@ -376,14 +273,23 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 			// arrays with fixed-size elements are stored as byte arrays
 			arrayLen = arrayLen / elemSize
 		}
-		uOffsetT = b.tab.Vector(uOffsetT - b.tab.Pos)
 		if index < 0 {
-			return &Array{-1, arrayLen, f, b, uOffsetT, elemSize}
+			if f.Ft == FieldTypeObject {
+				arr := &ObjectArray{Buffer: &Buffer{}}
+				arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
+				arr.Buffer.tab.Bytes = b.tab.Bytes
+				arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
+				arr.curElem = -1
+				arr.Buffer.Scheme = f.FieldScheme
+				return arr
+			}
+			uOffsetT = b.tab.Vector(uOffsetT - b.tab.Pos)
+			return b.getAllValues(uOffsetT, arrayLen, f)
 		}
 		if index > arrayLen-1 {
 			return nil
 		}
-		uOffsetT += flatbuffers.UOffsetT(index * elemSize)
+		uOffsetT = b.tab.Vector(uOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(index*elemSize)
 	}
 	return b.getValueByUOffsetT(f, uOffsetT)
 }
@@ -444,6 +350,10 @@ func getFBFieldSize(ft FieldType) int {
 }
 
 // Get returns stored field value by name.
+// field is scalar -> scalar is returned
+// field is array of scalars -> []T is returned
+// field is a nested object -> *dynobuffers.Buffer is returned
+// fields is an array of nested objects -> *dynobuffers.ObjectArray is returned
 // field is unset or no such field in the Scheme -> nil
 func (b *Buffer) Get(name string) interface{} {
 	f, ok := b.Scheme.FieldsMap[name]
@@ -639,10 +549,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField.value != nil {
 					var toAppendToIntf interface{} = nil
 					if modifiedField.isAppend {
-						if existingValue := b.getByField(f, -1); existingValue != nil {
-							toAppendTo := existingValue.(*Array)
-							toAppendToIntf = toAppendTo.GetAll()
-						}
+						toAppendToIntf = b.getByField(f, -1)
 					}
 					if arrayUOffsetT, err = b.encodeArray(bl, f, modifiedField.value, toAppendToIntf); err != nil {
 						return 0, err
@@ -749,28 +656,6 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	res := bl.EndObject()
 	bl.Finish(res)
 	return res, nil
-}
-
-// GetObjectArray s.e.
-func (b *Buffer) GetObjectArray(name string, arr *ObjectArray) {
-	arr.Len = 0
-	arr.curElem = 0
-	if len(b.tab.Bytes) == 0 {
-		return
-	}
-	f, ok := b.Scheme.FieldsMap[name]
-	if !ok {
-		return
-	}
-	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
-	if uOffsetT == 0 {
-		return
-	}
-	arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
-	arr.Buffer.tab.Bytes = b.tab.Bytes
-	arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
-	arr.curElem = -1
-	arr.Buffer.Scheme = f.FieldScheme
 }
 
 // HasValue returns if specified field exists in the scheme and its value is set to non-nil
@@ -990,10 +875,6 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 				}
 				arr[i] = stringVal
 			}
-		case *Array:
-			// copied from existing
-			arrays := value.(*Array)
-			arr = arrays.GetStrings()
 		default:
 			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
 		}
@@ -1035,34 +916,31 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
-
-		case *Array:
-			// copied from existing
-			arr := value.(*Array)
+		case *ObjectArray:
+			arr := value.(*ObjectArray)
 			for arr.Next() {
-				buf := arr.Value().(*Buffer)
 				if StoreObjectsAsBytes {
-					nestedBytes, _ := buf.ToBytes()
+					nestedBytes, _ := arr.Buffer.ToBytes()
 					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
-					nestedUOffsetT, _ := buf.encodeBuffer(bl) // should be no errors here
+					nestedUOffsetT, _ := arr.Buffer.encodeBuffer(bl) // should be no errors here
 					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
 				}
-
 			}
+
 		default:
 			return 0, fmt.Errorf("%#v provided for field %s is not an array of nested objects", value, f.QualifiedName())
 		}
 
 		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]*Buffer)
-			toAppendToUOffsetTs := make([]flatbuffers.UOffsetT, len(toAppendTo))
-			for i, buf := range toAppendTo {
+			toAppendToArr := toAppendToIntf.(*ObjectArray)
+			toAppendToUOffsetTs := make([]flatbuffers.UOffsetT, toAppendToArr.Len)
+			for i := 0; toAppendToArr.Next(); i++ {
 				if StoreObjectsAsBytes {
-					bufBytes, _ := buf.ToBytes()
+					bufBytes, _ := toAppendToArr.Buffer.ToBytes()
 					toAppendToUOffsetTs[i] = bl.CreateByteVector(bufBytes)
 				} else {
-					toAppendToUOffsetTs[i], _ = buf.encodeBuffer(bl)
+					toAppendToUOffsetTs[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
 				}
 			}
 			toAppendToUOffsetTs = append(toAppendToUOffsetTs, nestedUOffsetTs...)
@@ -1205,21 +1083,21 @@ func (b *Buffer) ToJSON() []byte {
 			}
 		}
 		if value != nil {
-			if arr, ok := value.(*Array); ok {
-				value = arr.GetAll()
-			}
 			buf.WriteString("\"" + f.Name + "\":")
 			if f.Ft == FieldTypeObject {
 				if f.IsArray {
 					buf.WriteString("[")
-					buffers, ok := value.([]*Buffer)
-					if !ok {
-						arr := value.(*Array)
-						buffers = arr.GetObjects()
-					}
-					for _, buffer := range buffers {
-						buf.Write(buffer.ToJSON())
-						buf.WriteString(",")
+					if arr, ok := value.(*ObjectArray); ok {
+						for arr.Next() {
+							buf.Write(arr.Buffer.ToJSON())
+							buf.WriteString(",")
+						}
+					} else {
+						buffers, _ := value.([]*Buffer)
+						for _, buffer := range buffers {
+							buf.Write(buffer.ToJSON())
+							buf.WriteString(",")
+						}
 					}
 					buf.Truncate(buf.Len() - 1)
 					buf.WriteString("]")
