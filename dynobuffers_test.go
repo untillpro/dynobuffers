@@ -1591,7 +1591,20 @@ func TestObjectAsBytesInv(t *testing.T) {
 	nestedStrOffset := flatbuffers.UOffsetT(nestedTab.Offset(flatbuffers.VOffsetT((0+2)*2))) + nestedTab.Pos
 
 	assert.Equal(t, "nes1", byteSliceToString(nestedTab.ByteVector(nestedStrOffset)))
+}
 
+func TestGetBytes(t *testing.T) {
+	s := NewScheme()
+	s.AddField("name", FieldTypeString, false)
+	s.AddField("price", FieldTypeFloat, false)
+	s.AddArray("quantity", FieldTypeInt, false)
+	b := NewBuffer(s)
+	b.Set("price", float32(0.123))
+	b.Set("quantity", nil)
+	bytes, err := b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s)
+	require.Equal(t, bytes, b.GetBytes())
 }
 
 func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
