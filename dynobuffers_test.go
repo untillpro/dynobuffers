@@ -1500,8 +1500,8 @@ func TestArraysNested(t *testing.T) {
 	assert.Equal(t, int32(42), arr.Buffer.Get("quantity"))
 	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))
 	arr.Next()
-	assert.Equal(t, int32(43), arr.Buffer.Get("quantity"))
-	assert.Equal(t, float32(0.124), arr.Buffer.Get("price"))
+	assert.Equal(t, int32(43), arr.Value().(*Buffer).Get("quantity"))
+	assert.Equal(t, float32(0.124), arr.Value().(*Buffer).Get("price"))
 	assert.False(t, arr.Next())
 
 	// non-[]*Buffer is provided -> error
