@@ -358,7 +358,7 @@ func getFBFieldSize(ft FieldType) int {
 // field is scalar -> scalar is returned
 // field is array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned
-// fields is an array of nested objects -> *dynobuffers.ObjectArray is returned
+// field is an array of nested objects -> *dynobuffers.ObjectArray is returned
 // field is unset or no such field in the Scheme -> nil
 func (b *Buffer) Get(name string) interface{} {
 	f, ok := b.Scheme.FieldsMap[name]
@@ -366,7 +366,6 @@ func (b *Buffer) Get(name string) interface{} {
 		return nil
 	}
 	return b.getByField(f, -1)
-
 }
 
 // GetByIndex returns array field element by its index
@@ -1125,6 +1124,30 @@ func (b *Buffer) ToJSON() []byte {
 // GetBytes returns underlying byte buffer
 func (b *Buffer) GetBytes() []byte {
 	return b.tab.Bytes
+}
+
+// GetNames returns list of field names which values are non-nil in current buffer
+// Set() fields are not considered
+// fields of nested objects are not considered
+func (b *Buffer) GetNames() []string {
+	res := []string{}
+	if len(b.tab.Bytes) == 0 {
+		return res
+	}
+
+	vtable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
+	vOffsetT := b.tab.GetVOffsetT(vtable)
+
+	for order := 0; true; order++ {
+		vTableOffset := flatbuffers.VOffsetT((order + 2) * 2)
+		if  vTableOffset >= vOffsetT {
+			break
+		}
+		if b.tab.GetVOffsetT(vtable + flatbuffers.UOffsetT(vTableOffset)) > 0 {
+			res = append(res, b.Scheme.Fields[order].Name)
+		}
+	}
+	return res
 }
 
 // NewScheme creates new empty Scheme
