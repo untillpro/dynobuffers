@@ -1607,6 +1607,37 @@ func TestGetBytes(t *testing.T) {
 	require.Equal(t, bytes, b.GetBytes())
 }
 
+func TestGetNames(t *testing.T) {
+	s := NewScheme()
+	s.AddField("name", FieldTypeString, false)
+	s.AddField("price", FieldTypeFloat, false)
+	s.AddField("quantity", FieldTypeInt, false)
+	b := NewBuffer(s)
+
+	require.Empty(t, b.GetNames())
+
+	b.Set("price", 0.123)
+	require.Empty(t, b.GetNames())
+
+	b = NewBuffer(s)
+	bytes, err := b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s)
+	require.Empty(t, b.GetNames())
+
+	b.Set("price", 0.123)
+	bytes, err = b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s)
+	require.Equal(t, []string{"price"}, b.GetNames())
+
+	b.Set("quantity", 42)
+	bytes, err = b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s)
+	require.Equal(t, []string{"price", "quantity"}, b.GetNames())
+}
+
 func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
