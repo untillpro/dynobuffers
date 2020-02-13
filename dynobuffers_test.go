@@ -16,7 +16,6 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -41,7 +40,7 @@ weight: long
 		b = NewBuffer(s)
 		b.Set("name", "cola")
 		// We may NOT get it back yet
-		assert.Panics(t, func() { assert.Equal(t, "cola", b.Get("name").(string)) })
+		require.Panics(t, func() { require.Equal(t, "cola", b.Get("name").(string)) })
 		b.Set("price", float32(0.123))
 		b.Set("quantity", int32(42))
 		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
@@ -53,13 +52,13 @@ weight: long
 	{
 		b = ReadBuffer(bytes, s)
 		// Now we can Get fields
-		assert.Equal(t, "cola", b.Get("name").(string))
-		assert.Equal(t, float32(0.123), b.Get("price"))
-		assert.Equal(t, int32(42), b.Get("quantity"))
+		require.Equal(t, "cola", b.Get("name").(string))
+		require.Equal(t, float32(0.123), b.Get("price"))
+		require.Equal(t, int32(42), b.Get("quantity"))
 		// `unknownField` is set but does not exist in scheme, so it is not written
-		assert.Nil(t, b.Get("unknownField"))
+		require.Nil(t, b.Get("unknownField"))
 		// `weight` field exists but not set
-		assert.Nil(t, b.Get("weight"))
+		require.Nil(t, b.Get("weight"))
 	}
 
 	// Modify values
@@ -69,9 +68,9 @@ weight: long
 		bytes, err = b.ToBytes()
 		require.Nil(t, err)
 		b = ReadBuffer(bytes, s)
-		assert.Nil(t, b.Get("name"))
-		assert.Equal(t, float32(0.124), b.Get("price").(float32))
-		assert.Equal(t, int32(42), b.Get("quantity").(int32))
+		require.Nil(t, b.Get("name"))
+		require.Equal(t, float32(0.124), b.Get("price").(float32))
+		require.Equal(t, int32(42), b.Get("quantity").(int32))
 	}
 
 	// set untyped int value
@@ -81,13 +80,13 @@ weight: long
 		require.Nil(t, err)
 		b = ReadBuffer(bytes, s)
 		actual := b.Get("quantity")
-		assert.Equal(t, int32(45), actual.(int32))
+		require.Equal(t, int32(45), actual.(int32))
 	}
 
 	// Use typed getter
 	{
 		_, ok := b.GetInt("unknownField")
-		assert.False(t, ok)
+		require.False(t, ok)
 	}
 
 	// check HasValue
@@ -98,22 +97,20 @@ weight: long
 		bytes, err = b.ToBytes()
 		require.Nil(t, err, err)
 		b = ReadBuffer(bytes, s)
-		assert.True(t, b.HasValue("price"))
-		assert.False(t, b.HasValue("quantity")) // set to nil
-		assert.False(t, b.HasValue("name"))     // not set
-		assert.False(t, b.HasValue("unknownField"))
+		require.True(t, b.HasValue("price"))
+		require.False(t, b.HasValue("quantity")) // set to nil
+		require.False(t, b.HasValue("name"))     // not set
+		require.False(t, b.HasValue("unknownField"))
 	}
 
 	// set string field to non-string -> error
 	b.Set("name", 123)
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// nil Scheme provided -> panic
-	assert.Panics(t, func() { NewBuffer(nil) })
-	assert.Panics(t, func() { ReadBuffer([]byte{}, nil) })
+	require.Panics(t, func() { NewBuffer(nil) })
+	require.Panics(t, func() { ReadBuffer([]byte{}, nil) })
 }
 
 var schemeStr = `
@@ -160,17 +157,13 @@ intsObj..:
 
 func TestNilFields(t *testing.T) {
 	s, err := YamlToScheme(allTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	// test initially unset
 	b := NewBuffer(s)
 	testNilFields(t, b)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
 
@@ -184,9 +177,7 @@ func TestNilFields(t *testing.T) {
 	b.Set("boolTrue", nil)
 	b.Set("byte", nil)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
 
@@ -200,9 +191,7 @@ func TestNilFields(t *testing.T) {
 	b.Set("boolTrue", true)
 	b.Set("byte", byte(5))
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 	b.Set("int", nil)
 	b.Set("long", nil)
@@ -213,109 +202,93 @@ func TestNilFields(t *testing.T) {
 	b.Set("boolTrue", nil)
 	b.Set("byte", nil)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 	testNilFields(t, b)
 }
 
 func testNilFields(t *testing.T, b *Buffer) {
-	assert.Nil(t, b.Get("int"))
+	require.Nil(t, b.Get("int"))
 	_, ok := b.GetInt("int")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("long"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("long"))
 	_, ok = b.GetLong("long")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("float"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("float"))
 	_, ok = b.GetFloat("float")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("double"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("double"))
 	_, ok = b.GetDouble("double")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("string"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("string"))
 	_, ok = b.GetString("string")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("boolFalse"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("boolFalse"))
 	_, ok = b.GetBool("boolFalse")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("boolTrue"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("boolTrue"))
 	_, ok = b.GetBool("boolTrue")
-	assert.False(t, ok)
-	assert.Nil(t, b.Get("byte"))
+	require.False(t, ok)
+	require.Nil(t, b.Get("byte"))
 	_, ok = b.GetByte("byte")
-	assert.False(t, ok)
+	require.False(t, ok)
 }
 
 func TestWriteNewReadOld(t *testing.T) {
 	schemeNew, err := YamlToScheme(schemeStrNew)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(schemeNew)
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
 	b.Set("newField", int64(1))
 	bytesNew, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	schemeOld, err := YamlToScheme(schemeStr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytesNew, schemeOld)
 
 	actual := b.Get("name")
-	assert.Equal(t, "cola", actual.(string))
+	require.Equal(t, "cola", actual.(string))
 	actual = b.Get("price")
-	assert.Equal(t, float32(0.123), actual.(float32))
+	require.Equal(t, float32(0.123), actual.(float32))
 	actual = b.Get("quantity")
-	assert.Equal(t, int32(42), actual.(int32))
+	require.Equal(t, int32(42), actual.(int32))
 
 	actual = b.Get("newField")
-	assert.Nil(t, actual)
+	require.Nil(t, actual)
 }
 
 func TestWriteOldReadNew(t *testing.T) {
 	schemeOld, err := YamlToScheme(schemeStr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(schemeOld)
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
 	bytesOld, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	schemeNew, err := YamlToScheme(schemeStrNew)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytesOld, schemeNew)
 
 	actual := b.Get("name")
-	assert.Equal(t, "cola", actual.(string))
+	require.Equal(t, "cola", actual.(string))
 	actual = b.Get("price")
-	assert.Equal(t, float32(0.123), actual.(float32))
+	require.Equal(t, float32(0.123), actual.(float32))
 	actual = b.Get("quantity")
-	assert.Equal(t, int32(42), actual.(int32))
+	require.Equal(t, int32(42), actual.(int32))
 
 	actual = b.Get("newField")
-	assert.Nil(t, actual)
+	require.Nil(t, actual)
 }
 
 func TestToBytesFilledUnmodified(t *testing.T) {
 	b := getBufferAllFields(t, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, b.Scheme)
 	testFieldValues(t, b, int32(1), int64(2), float32(3), float64(4), "str", byte(5))
 }
@@ -333,9 +306,7 @@ func TestDefaultValuesAreValidValues(t *testing.T) {
 
 func getBufferAllFields(t *testing.T, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) *Buffer {
 	s, err := YamlToScheme(allTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(s)
 	b.Set("int", expectedInt32)
 	b.Set("long", expectedInt64)
@@ -346,9 +317,7 @@ func getBufferAllFields(t *testing.T, expectedInt32 int32, expectedInt64 int64, 
 	b.Set("boolTrue", true)
 	b.Set("byte", expectedByte)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 	return b
 }
@@ -356,64 +325,62 @@ func getBufferAllFields(t *testing.T, expectedInt32 int32, expectedInt64 int64, 
 func testFieldValues(t *testing.T, b *Buffer, expectedInt32 int32, expectedInt64 int64, expectedFloat32 float32, expectedFloat64 float64, expectedString string, expectedByte byte) {
 	actual := b.Get("int")
 	actualInt, ok := b.GetInt("int")
-	assert.Equal(t, expectedInt32, actual)
-	assert.Equal(t, expectedInt32, actualInt)
-	assert.True(t, ok)
+	require.Equal(t, expectedInt32, actual)
+	require.Equal(t, expectedInt32, actualInt)
+	require.True(t, ok)
 
 	actual = b.Get("long")
 	actualLong, ok := b.GetLong("long")
-	assert.Equal(t, expectedInt64, actual)
-	assert.Equal(t, expectedInt64, actualLong)
-	assert.True(t, ok)
+	require.Equal(t, expectedInt64, actual)
+	require.Equal(t, expectedInt64, actualLong)
+	require.True(t, ok)
 
 	actual = b.Get("float")
 	actualFloat, ok := b.GetFloat("float")
-	assert.Equal(t, expectedFloat32, actual)
-	assert.Equal(t, expectedFloat32, actualFloat)
-	assert.True(t, ok)
+	require.Equal(t, expectedFloat32, actual)
+	require.Equal(t, expectedFloat32, actualFloat)
+	require.True(t, ok)
 
 	actual = b.Get("double")
 	actualDouble, ok := b.GetDouble("double")
-	assert.Equal(t, expectedFloat64, actual)
-	assert.Equal(t, expectedFloat64, actualDouble)
-	assert.True(t, ok)
+	require.Equal(t, expectedFloat64, actual)
+	require.Equal(t, expectedFloat64, actualDouble)
+	require.True(t, ok)
 
 	actual = b.Get("string")
 	actualString, ok := b.GetString("string")
-	assert.Equal(t, expectedString, actual)
-	assert.Equal(t, expectedString, actualString)
-	assert.True(t, ok)
+	require.Equal(t, expectedString, actual)
+	require.Equal(t, expectedString, actualString)
+	require.True(t, ok)
 
 	actual = b.Get("byte")
 	actualByte, ok := b.GetByte("byte")
-	assert.Equal(t, expectedByte, actual)
-	assert.Equal(t, expectedByte, actualByte)
-	assert.True(t, ok)
+	require.Equal(t, expectedByte, actual)
+	require.Equal(t, expectedByte, actualByte)
+	require.True(t, ok)
 
 	actual = b.Get("boolTrue")
 	actualBool, ok := b.GetBool("boolTrue")
-	assert.Equal(t, true, actual)
-	assert.Equal(t, true, actualBool)
-	assert.True(t, ok)
+	require.Equal(t, true, actual)
+	require.Equal(t, true, actualBool)
+	require.True(t, ok)
 
 	actual = b.Get("boolFalse")
 	actualBool, ok = b.GetBool("boolFalse")
-	assert.Equal(t, false, actual)
-	assert.Equal(t, false, actualBool)
-	assert.True(t, ok)
+	require.Equal(t, false, actual)
+	require.Equal(t, false, actualBool)
+	require.True(t, ok)
 }
 
 func TestToJSONBasic(t *testing.T) {
 	scheme, err := YamlToScheme(schemeStr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b := NewBuffer(scheme)
 	dest := map[string]interface{}{}
 	jsonBytes := b.ToJSON()
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 0)
+	require.True(t, len(dest) == 0)
 
 	// basic test
 	b.Set("name", "cola")
@@ -421,23 +388,21 @@ func TestToJSONBasic(t *testing.T) {
 	b.Set("quantity", int32(42))
 	jsonBytes = b.ToJSON()
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 3)
-	assert.Equal(t, "cola", dest["name"])
-	assert.Equal(t, float64(0.123), dest["price"])
-	assert.Equal(t, float64(42), dest["quantity"])
+	require.True(t, len(dest) == 3)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, float64(0.123), dest["price"])
+	require.Equal(t, float64(42), dest["quantity"])
 
 	// unmodified
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, scheme)
 	jsonBytes = b.ToJSON()
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 3)
-	assert.Equal(t, "cola", dest["name"])
-	assert.Equal(t, float64(0.123), dest["price"])
-	assert.Equal(t, float64(42), dest["quantity"])
+	require.True(t, len(dest) == 3)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, float64(0.123), dest["price"])
+	require.Equal(t, float64(42), dest["quantity"])
 
 	// test field initially not set
 	b = NewBuffer(scheme)
@@ -446,76 +411,66 @@ func TestToJSONBasic(t *testing.T) {
 	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 2)
-	assert.Equal(t, "cola", dest["name"])
-	assert.Equal(t, float64(42), dest["quantity"])
+	require.True(t, len(dest) == 2)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, float64(42), dest["quantity"])
 
 	// test field not set on ReadBuffer
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, scheme)
 
 	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 2)
-	assert.Equal(t, "cola", dest["name"])
-	assert.Equal(t, float64(42), dest["quantity"])
+	require.True(t, len(dest) == 2)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, float64(42), dest["quantity"])
 
 	// test unset field
 	b.Set("quantity", nil)
 	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 1)
-	assert.Equal(t, "cola", dest["name"])
+	require.True(t, len(dest) == 1)
+	require.Equal(t, "cola", dest["name"])
 
 	// test read unset field
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, scheme)
 	jsonBytes = b.ToJSON()
 	dest = map[string]interface{}{}
 	json.Unmarshal(jsonBytes, &dest)
-	assert.True(t, len(dest) == 1)
-	assert.Equal(t, "cola", dest["name"])
+	require.True(t, len(dest) == 1)
+	require.Equal(t, "cola", dest["name"])
 
 	// buffer is unmodified ->
 }
 
 func TestDifferentOrder(t *testing.T) {
 	s, err := YamlToScheme(schemeStr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(s)
 	b.Set("quantity", int32(42))
 	b.Set("Name", "cola")
 	b.Set("price", float32(0.123))
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b = ReadBuffer(bytes, s)
 	b.Set("price", float32(0.124))
 	b.Set("name", "new cola")
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b = ReadBuffer(bytes, s)
 	actual := b.Get("name")
-	assert.Equal(t, "new cola", actual.(string))
+	require.Equal(t, "new cola", actual.(string))
 	actual = b.Get("price")
-	assert.Equal(t, float32(0.124), actual.(float32))
+	require.Equal(t, float32(0.124), actual.(float32))
 	actual = b.Get("quantity")
-	assert.Equal(t, int32(42), actual.(int32))
+	require.Equal(t, int32(42), actual.(int32))
 }
 
 func TestSchemeToFromYAML(t *testing.T) {
@@ -535,9 +490,7 @@ func TestSchemeToFromYAML(t *testing.T) {
 	bytes, err := yaml.Marshal(schemeRoot)
 	schemeNew := NewScheme()
 	err = yaml.Unmarshal(bytes, &schemeNew)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	pretty.CompareConfig.TrackCycles = true
 
@@ -550,89 +503,83 @@ func TestSchemeToFromYAML(t *testing.T) {
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 
 	_, err = YamlToScheme("wrong yaml")
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 	_, err = YamlToScheme("name: wrongType")
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 	_, err = YamlToScheme(`
 		nested:
 		  nestedField: wrongType`)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 	_, err = YamlToScheme(`
 		nested:
 		  wrong`)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func TestMandatoryFields(t *testing.T) {
 	scheme, err := YamlToScheme(schemeMandatory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(scheme)
 	bytes, err := b.ToBytes()
-	assert.NotNil(t, err)
-	assert.Nil(t, bytes)
+	require.NotNil(t, err)
+	require.Nil(t, bytes)
 
 	b.Set("name", "str")
 	bytes, err = b.ToBytes()
-	assert.NotNil(t, err)
-	assert.Nil(t, bytes)
+	require.NotNil(t, err)
+	require.Nil(t, bytes)
 
 	b.Set("price", 0.123)
 	bytes, err = b.ToBytes()
-	assert.Nil(t, err)
-	assert.NotNil(t, bytes)
+	require.Nil(t, err)
+	require.NotNil(t, bytes)
 
 	b = ReadBuffer(bytes, scheme)
 	bytes, err = b.ToBytes()
-	assert.Nil(t, err)
-	assert.NotNil(t, bytes)
+	require.Nil(t, err)
+	require.NotNil(t, bytes)
 }
 
 func TestApplyJsonErrors(t *testing.T) {
 	scheme, err := YamlToScheme(schemeMandatory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(scheme)
 
 	// unset field
 	json := []byte(`{"name": null, "price": 0.124}`)
 	bytes, err := b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, scheme)
-	assert.Nil(t, b.Get("name"))
-	assert.Equal(t, float32(0.124), b.Get("price"))
+	require.Nil(t, b.Get("name"))
+	require.Equal(t, float32(0.124), b.Get("price"))
 
 	// wrong type -> error
 	json = []byte(`{"name": "str", "price": "wrong type"}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	assert.Nil(t, bytes)
-	assert.NotNil(t, err)
+	require.Nil(t, bytes)
+	require.NotNil(t, err)
 
 	// unset mandatory field -> error
 	json = []byte(`{"name": "str", "price": null}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	assert.Nil(t, bytes)
-	assert.NotNil(t, err)
+	require.Nil(t, bytes)
+	require.NotNil(t, err)
 
 	// mandatory field is not set -> error
 	json = []byte(`{"name": "str"}`)
 	b = NewBuffer(scheme)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	assert.Nil(t, bytes)
-	assert.NotNil(t, err)
+	require.Nil(t, bytes)
+	require.NotNil(t, err)
 
 	// wrong json -> error
 	json = []byte(`wrong`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	assert.Nil(t, bytes)
-	assert.NotNil(t, err)
+	require.Nil(t, bytes)
+	require.NotNil(t, err)
 
 	// non-object is provided -> error
 	s := NewScheme()
@@ -640,14 +587,14 @@ func TestApplyJsonErrors(t *testing.T) {
 	s.AddNested("nes", sNested, false)
 	b = NewBuffer(s)
 	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"nes": 42}`))
-	assert.Nil(t, bytes)
-	assert.NotNil(t, err)
+	require.Nil(t, bytes)
+	require.NotNil(t, err)
 
 	// unknown field -> error
 	json = []byte(`{"price": 0.124, "unknown": 42}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	assert.Nil(t, bytes)
-	assert.NotNil(t, err)
+	require.Nil(t, bytes)
+	require.NotNil(t, err)
 }
 
 func TestApplyJSONNestedAndNestedArray(t *testing.T) {
@@ -663,321 +610,259 @@ func TestApplyJSONNestedAndNestedArray(t *testing.T) {
 
 	bRoot := NewBuffer(schemeRoot)
 	bytes, err := bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str1", "nested": {"price": 0.123,"quantity":42},"nestedarr":[{"price": 0.124,"quantity":43},{"price": 0.125,"quantity":44}], "ids": [45,46]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	bRoot = ReadBuffer(bytes, schemeRoot)
-	assert.Equal(t, "str1", bRoot.Get("name"))
+	require.Equal(t, "str1", bRoot.Get("name"))
 	ints := bRoot.Get("ids")
-	assert.Equal(t, []int32{45, 46}, ints)
+	require.Equal(t, []int32{45, 46}, ints)
 	bRoot.Set("ids", ints)
 	bytes, err = bRoot.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	bRoot = ReadBuffer(bytes, schemeRoot)
 	ints = bRoot.Get("ids")
-	assert.Equal(t, []int32{45, 46}, ints)
+	require.Equal(t, []int32{45, 46}, ints)
 	bNested := bRoot.Get("nested").(*Buffer)
-	assert.Equal(t, float32(0.123), bNested.Get("price"))
-	assert.Equal(t, int32(42), bNested.Get("quantity"))
+	require.Equal(t, float32(0.123), bNested.Get("price"))
+	require.Equal(t, int32(42), bNested.Get("quantity"))
 	bNesteds := bRoot.Get("nestedarr").(*ObjectArray)
 	bNesteds.Next()
-	assert.Equal(t, float32(0.124), bNesteds.Buffer.Get("price"))
-	assert.Equal(t, int32(43), bNesteds.Buffer.Get("quantity"))
+	require.Equal(t, float32(0.124), bNesteds.Buffer.Get("price"))
+	require.Equal(t, int32(43), bNesteds.Buffer.Get("quantity"))
 	bNesteds.Next()
-	assert.Equal(t, float32(0.125), bNesteds.Buffer.Get("price"))
-	assert.Equal(t, int32(44), bNesteds.Buffer.Get("quantity"))
-	assert.False(t, bNesteds.Next())
+	require.Equal(t, float32(0.125), bNesteds.Buffer.Get("price"))
+	require.Equal(t, int32(44), bNesteds.Buffer.Get("quantity"))
+	require.False(t, bNesteds.Next())
 
 	// error if not array is provided for an array field
 	bytes, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nestedarr":{"price":0.123,"quantity":42},"last":42}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if not object is provided as an array element
 	bytes, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nestedarr":[0.123],"last":42}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if wrong failed to encode an array
 	bytes, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nestedarr":[{"price":0.123,"quantity":"wrong value"}],"last":42}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if non-base64 string is provided for byte array field
 	bytes, err = bRoot.ApplyJSONAndToBytes([]byte(`{"bytes":[1]}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if wrong base64 string is provided for byte array field
 	bytes, err = bRoot.ApplyJSONAndToBytes([]byte(`{"bytes":"wrong base64"}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if mandatory nested object is null
 	bRoot = NewBuffer(schemeRoot)
 	_, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nested":null}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	bRoot = NewBuffer(schemeRoot)
 	_, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str"}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if mandatory field in nested object is null
 	bRoot = NewBuffer(schemeRoot)
 	_, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nested":{"price": 1,"quantity":null}}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	bRoot = NewBuffer(schemeRoot)
 	_, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nested":{"price": 1}}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	bRoot = NewBuffer(schemeRoot)
 	_, err = bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str","nes":{}}`))
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 }
 
 func TestApplyJSONArraysAllTypesAppend(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b := NewBuffer(s)
 	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	require.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	require.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
 	buffs := b.Get("intsObj").(*ObjectArray)
 	buffs.Next()
-	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	require.Equal(t, int32(7), buffs.Buffer.Get("int"))
 	buffs.Next()
-	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
-	assert.False(t, buffs.Next())
+	require.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	require.False(t, buffs.Next())
 
 	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124, -0.123, -0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126, -0.125, -0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6, 5, 6}, b.Get("bytes"))
-	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
-	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
+	require.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124, -0.123, -0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126, -0.125, -0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6, 5, 6}, b.Get("bytes"))
+	require.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
+	require.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
 	buffs = b.Get("intsObj").(*ObjectArray)
 	buffs.Next()
-	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	require.Equal(t, int32(7), buffs.Buffer.Get("int"))
 	buffs.Next()
-	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	require.Equal(t, int32(8), buffs.Buffer.Get("int"))
 	buffs.Next()
-	assert.Equal(t, int32(-7), buffs.Buffer.Get("int"))
+	require.Equal(t, int32(-7), buffs.Buffer.Get("int"))
 	buffs.Next()
-	assert.Equal(t, int32(-8), buffs.Buffer.Get("int"))
-	assert.False(t, buffs.Next())
+	require.Equal(t, int32(-8), buffs.Buffer.Get("int"))
+	require.False(t, buffs.Next())
 }
 
 func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	// ints
 	// element of wrong type -> error
 	json := []byte(`{"ints": [1, 0.123]}`)
 	b := NewBuffer(s)
 	_, err = b.ApplyJSONAndToBytes(json)
-	if err == nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, err)
 	json = []byte(`{"ints": [1, 2]}`)
 	b = NewBuffer(s)
 	bytes, err := b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
 
 	// longs
 	// element of wrong type -> error
 	json = []byte(`{"longs": [1, "str"]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
-	if err == nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, err)
 	json = []byte(`{"longs": [3, 4]}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
 
 	// floats
 	// element of wrong type -> error
 	json = []byte(`{"floats": [1, "str"]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
-	if err == nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, err)
 	json = []byte(`{"floats": [0.123, 0.124]}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
 
 	// doubles
 	// element of wrong type -> error
 	json = []byte(`{"doubles": [0.125, "str"]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
-	if err == nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, err)
 	json = []byte(`{"doubles": [0.125, 0.126]}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
 
 	// bytes
 	bytesBase64 := base64.StdEncoding.EncodeToString([]byte{5, 6})
 	json = []byte(fmt.Sprintf(`{"bytes": "%s"}`, bytesBase64))
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytes"))
 
 	// bools
 	// element of wrong type -> error
 	json = []byte(`{"boolTrues": ["str"]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
-	if err == nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, err)
 	json = []byte(`{"boolTrues": [true, false], "boolFalses": [false, true]}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	require.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true}, b.Get("boolFalses"))
 
 	// strings
 	// element of wrong type -> error
 	json = []byte(`{"strings": ["str1", 1]}`)
 	_, err = b.ApplyJSONAndToBytes(json)
-	if err == nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, err)
 	json = []byte(`{"strings": ["str1", "str2"]}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	require.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	require.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
 
 	// nested
 	json = []byte(`{"intsObj": [{"int": 7}, {"int": 8}]}`)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	require.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	require.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
 	buffs := b.Get("intsObj").(*ObjectArray)
 	buffs.Next()
-	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	require.Equal(t, int32(7), buffs.Buffer.Get("int"))
 	buffs.Next()
-	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
-	assert.False(t, buffs.Next())
+	require.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	require.False(t, buffs.Next())
 
 	// buffer -> json -> buffer
 	json = b.ToJSON()
 	b = NewBuffer(s)
 	bytes, err = b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{1, 2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
-	assert.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
-	assert.Equal(t, []byte{5, 6}, b.Get("bytes"))
-	assert.Equal(t, []bool{true, false}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true}, b.Get("boolFalses"))
-	assert.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
+	require.Equal(t, []int32{1, 2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4}, b.Get("longs"))
+	require.Equal(t, []float32{0.123, 0.124}, b.Get("floats"))
+	require.Equal(t, []float64{0.125, 0.126}, b.Get("doubles"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytes"))
+	require.Equal(t, []bool{true, false}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true}, b.Get("boolFalses"))
+	require.Equal(t, []string{"str1", "str2"}, b.Get("strings"))
 	buffs = b.Get("intsObj").(*ObjectArray)
 	buffs.Next()
-	assert.Equal(t, int32(7), buffs.Buffer.Get("int"))
+	require.Equal(t, int32(7), buffs.Buffer.Get("int"))
 	buffs.Next()
-	assert.Equal(t, int32(8), buffs.Buffer.Get("int"))
-	assert.False(t, buffs.Next())
+	require.Equal(t, int32(8), buffs.Buffer.Get("int"))
+	require.False(t, buffs.Next())
 
 	// empty arrays
 	b.Set("ints", []int32{})
@@ -991,15 +876,15 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 	b.Set("intsObj", []*Buffer{})
 	bytes, err = b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{}, b.Get("ints"))
-	assert.Equal(t, []int64{}, b.Get("longs"))
-	assert.Equal(t, []float32{}, b.Get("floats"))
-	assert.Equal(t, []float64{}, b.Get("doubles"))
-	assert.Equal(t, []byte{}, b.Get("bytes"))
-	assert.Equal(t, []bool{}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{}, b.Get("boolFalses"))
-	assert.Equal(t, []string{}, b.Get("strings"))
-	assert.Equal(t, 0, b.Get("intsObj").(*ObjectArray).Len)
+	require.Equal(t, []int32{}, b.Get("ints"))
+	require.Equal(t, []int64{}, b.Get("longs"))
+	require.Equal(t, []float32{}, b.Get("floats"))
+	require.Equal(t, []float64{}, b.Get("doubles"))
+	require.Equal(t, []byte{}, b.Get("bytes"))
+	require.Equal(t, []bool{}, b.Get("boolTrues"))
+	require.Equal(t, []bool{}, b.Get("boolFalses"))
+	require.Equal(t, []string{}, b.Get("strings"))
+	require.Equal(t, 0, b.Get("intsObj").(*ObjectArray).Len)
 
 	// empty arrays from json
 	b = NewBuffer(s)
@@ -1007,15 +892,15 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, []int32{}, b.Get("ints"))
-	assert.Equal(t, []int64{}, b.Get("longs"))
-	assert.Equal(t, []float32{}, b.Get("floats"))
-	assert.Equal(t, []float64{}, b.Get("doubles"))
-	assert.Equal(t, []byte{}, b.Get("bytes"))
-	assert.Equal(t, []bool{}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{}, b.Get("boolFalses"))
-	assert.Equal(t, []string{}, b.Get("strings"))
-	assert.Equal(t, 0, b.Get("intsObj").(*ObjectArray).Len)
+	require.Equal(t, []int32{}, b.Get("ints"))
+	require.Equal(t, []int64{}, b.Get("longs"))
+	require.Equal(t, []float32{}, b.Get("floats"))
+	require.Equal(t, []float64{}, b.Get("doubles"))
+	require.Equal(t, []byte{}, b.Get("bytes"))
+	require.Equal(t, []bool{}, b.Get("boolTrues"))
+	require.Equal(t, []bool{}, b.Get("boolFalses"))
+	require.Equal(t, []string{}, b.Get("strings"))
+	require.Equal(t, 0, b.Get("intsObj").(*ObjectArray).Len)
 
 	// null arrays from json
 	b = NewBuffer(s)
@@ -1023,39 +908,35 @@ func TestApplyJSONArraysAllTypesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	b = ReadBuffer(bytes, s)
-	assert.Nil(t, b.Get("ints"))
-	assert.Nil(t, b.Get("longs"))
-	assert.Nil(t, b.Get("floats"))
-	assert.Nil(t, b.Get("doubles"))
-	assert.Nil(t, b.Get("bytes"))
-	assert.Nil(t, b.Get("boolTrues"))
-	assert.Nil(t, b.Get("boolFalses"))
-	assert.Nil(t, b.Get("strings"))
-	assert.Nil(t, b.Get("intsObj"))
+	require.Nil(t, b.Get("ints"))
+	require.Nil(t, b.Get("longs"))
+	require.Nil(t, b.Get("floats"))
+	require.Nil(t, b.Get("doubles"))
+	require.Nil(t, b.Get("bytes"))
+	require.Nil(t, b.Get("boolTrues"))
+	require.Nil(t, b.Get("boolFalses"))
+	require.Nil(t, b.Get("strings"))
+	require.Nil(t, b.Get("intsObj"))
 }
 
 func TestApplyJsonPrimitiveAllTypes(t *testing.T) {
 	scheme, err := YamlToScheme(allTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	json := []byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124, "double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false}`)
 	b := NewBuffer(scheme)
 	bytes, err := b.ApplyJSONAndToBytes(json)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, scheme)
 	testFieldValues(t, b, int32(43), int64(42), float32(0.124), float64(0.125), "str", 6)
-	assert.True(t, b.Get("boolTrue").(bool))
-	assert.False(t, b.Get("boolFalse").(bool))
+	require.True(t, b.Get("boolTrue").(bool))
+	require.False(t, b.Get("boolFalse").(bool))
 }
 
 func TestNestedBasic(t *testing.T) {
-	schemeRoot := NewScheme()
 	schemeNested := NewScheme()
 	schemeNested.AddField("price", FieldTypeFloat, false)
 	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot := NewScheme()
 	schemeRoot.AddField("name", FieldTypeString, false)
 	schemeRoot.AddNested("nes", schemeNested, false)
 	schemeRoot.AddField("last", FieldTypeInt, false)
@@ -1063,20 +944,16 @@ func TestNestedBasic(t *testing.T) {
 	// initially nil
 	b := NewBuffer(schemeRoot)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Nil(t, b.Get("name"))
-	assert.Nil(t, b.Get("nes"))
-	assert.Nil(t, b.Get("last"))
+	require.Nil(t, err)
+	require.Nil(t, b.Get("name"))
+	require.Nil(t, b.Get("nes"))
+	require.Nil(t, b.Get("last"))
 
 	// nested still nil after Get() and not modify
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, schemeRoot)
-	assert.Nil(t, b.Get("nes"))
+	require.Nil(t, b.Get("nes"))
 
 	// fill
 	bNested := NewBuffer(schemeNested)
@@ -1086,17 +963,15 @@ func TestNestedBasic(t *testing.T) {
 	b.Set("nes", bNested)
 	b.Set("last", 42)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b = ReadBuffer(bytes, schemeRoot)
-	assert.Equal(t, "str", b.Get("name"))
-	assert.Equal(t, int32(42), b.Get("last"))
+	require.Equal(t, "str", b.Get("name"))
+	require.Equal(t, int32(42), b.Get("last"))
 
 	bNested = b.Get("nes").(*Buffer)
-	assert.Equal(t, int32(42), bNested.Get("quantity"))
-	assert.Equal(t, float32(0.123), bNested.Get("price"))
+	require.Equal(t, int32(42), bNested.Get("quantity"))
+	require.Equal(t, float32(0.123), bNested.Get("price"))
 }
 
 func TestNestedAdvanced(t *testing.T) {
@@ -1118,21 +993,15 @@ func TestNestedAdvanced(t *testing.T) {
 
 	// error if mandatory object is not set
 	bytes, err := b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("nes", nil)
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// set mandatory object
 	b.Set("nes", bNested)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	// modify nested
 	b = ReadBuffer(bytes, schemeRoot)
@@ -1140,37 +1009,29 @@ func TestNestedAdvanced(t *testing.T) {
 	bNested.Set("quantity", 43)
 	bNested.Set("price", 0.124)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, schemeRoot)
-	assert.Equal(t, "str", b.Get("name"))
-	assert.Equal(t, int32(42), b.Get("last"))
+	require.Equal(t, "str", b.Get("name"))
+	require.Equal(t, int32(42), b.Get("last"))
 	bNested = b.Get("nes").(*Buffer)
-	assert.Equal(t, int32(43), bNested.Get("quantity"))
-	assert.Equal(t, float32(0.124), bNested.Get("price"))
+	require.Equal(t, int32(43), bNested.Get("quantity"))
+	require.Equal(t, float32(0.124), bNested.Get("price"))
 
 	// non-*Buffer is provided -> error
 	b.Set("nes", []int32{0, 1})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("nes", bNested)
 
 	// error if unset mandatory in nested
 	bNested.Set("quantity", nil)
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// error if unset nested
 	b.Set("nes", nil)
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 }
 
 func TestArraysBasic(t *testing.T) {
@@ -1180,77 +1041,63 @@ func TestArraysBasic(t *testing.T) {
 	// initial
 	b := NewBuffer(s)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Nil(t, b.Get("longs"))
+	require.Nil(t, b.Get("longs"))
 
 	// set and read
 	longs := []int64{5, 6}
 	b.Set("longs", longs)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, int64(5), b.GetByIndex("longs", 0))
-	assert.Nil(t, b.GetByIndex("longs", 3))
-	assert.Equal(t, int64(6), b.GetByIndex("longs", 1))
-	assert.Nil(t, b.GetByIndex("longs", -1))
-	assert.Nil(t, b.GetByIndex("unexisting", 0))
+	require.Equal(t, int64(5), b.GetByIndex("longs", 0))
+	require.Nil(t, b.GetByIndex("longs", 3))
+	require.Equal(t, int64(6), b.GetByIndex("longs", 1))
+	require.Nil(t, b.GetByIndex("longs", -1))
+	require.Nil(t, b.GetByIndex("unexisting", 0))
 
 	// Non-modified array should be copied on ToBytes()
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, int64(5), b.GetByIndex("longs", 0))
-	assert.Equal(t, int64(6), b.GetByIndex("longs", 1))
+	require.Equal(t, int64(5), b.GetByIndex("longs", 0))
+	require.Equal(t, int64(6), b.GetByIndex("longs", 1))
 
 	//test Array struct
 	longsActual := b.Get("longs").([]int64)
-	assert.Equal(t, longs, longsActual)
+	require.Equal(t, longs, longsActual)
 
 	// modify
 	longs = []int64{7, 8, 9}
 	b.Set("longs", longs)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, int64(7), b.GetByIndex("longs", 0))
-	assert.Equal(t, int64(8), b.GetByIndex("longs", 1))
+	require.Equal(t, int64(7), b.GetByIndex("longs", 0))
+	require.Equal(t, int64(8), b.GetByIndex("longs", 1))
 
 	// unset
 	b.Set("longs", nil)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Nil(t, b.Get("longs"))
+	require.Nil(t, b.Get("longs"))
 
 	// set to empty
 	longs = []int64{}
 	b.Set("longs", longs)
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
-	assert.Nil(t, b.GetByIndex("longs", 0))
+	require.Nil(t, b.GetByIndex("longs", 0))
 	longsActual = b.Get("longs").([]int64)
-	assert.True(t, len(longsActual) == 0)
+	require.True(t, len(longsActual) == 0)
 }
 
 func TestArraysAllTypesSet(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	ints := []int32{1, 2}
 	longs := []int64{3, 4}
@@ -1281,104 +1128,84 @@ func TestArraysAllTypesSet(t *testing.T) {
 	bNestedArr = append(bNestedArr, bNested)
 	b.Set("intsObj", bNestedArr)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, int32(1), b.GetByIndex("ints", 0))
-	assert.Equal(t, int32(2), b.GetByIndex("ints", 1))
-	assert.Equal(t, int64(3), b.GetByIndex("longs", 0))
-	assert.Equal(t, int64(4), b.GetByIndex("longs", 1))
-	assert.Equal(t, float32(0.5), b.GetByIndex("floats", 0))
-	assert.Equal(t, float32(0.6), b.GetByIndex("floats", 1))
-	assert.Equal(t, float64(0.7), b.GetByIndex("doubles", 0))
-	assert.Equal(t, float64(0.8), b.GetByIndex("doubles", 1))
-	assert.Equal(t, true, b.GetByIndex("boolTrues", 0))
-	assert.Equal(t, false, b.GetByIndex("boolTrues", 1))
-	assert.Equal(t, false, b.GetByIndex("boolFalses", 0))
-	assert.Equal(t, true, b.GetByIndex("boolFalses", 1))
-	assert.Equal(t, byte(9), b.GetByIndex("bytes", 0))
-	assert.Equal(t, byte(10), b.GetByIndex("bytes", 1))
-	assert.Equal(t, "str1", b.GetByIndex("strings", 0))
-	assert.Equal(t, "str2", b.GetByIndex("strings", 1))
-	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
-	assert.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
+	require.Equal(t, int32(1), b.GetByIndex("ints", 0))
+	require.Equal(t, int32(2), b.GetByIndex("ints", 1))
+	require.Equal(t, int64(3), b.GetByIndex("longs", 0))
+	require.Equal(t, int64(4), b.GetByIndex("longs", 1))
+	require.Equal(t, float32(0.5), b.GetByIndex("floats", 0))
+	require.Equal(t, float32(0.6), b.GetByIndex("floats", 1))
+	require.Equal(t, float64(0.7), b.GetByIndex("doubles", 0))
+	require.Equal(t, float64(0.8), b.GetByIndex("doubles", 1))
+	require.Equal(t, true, b.GetByIndex("boolTrues", 0))
+	require.Equal(t, false, b.GetByIndex("boolTrues", 1))
+	require.Equal(t, false, b.GetByIndex("boolFalses", 0))
+	require.Equal(t, true, b.GetByIndex("boolFalses", 1))
+	require.Equal(t, byte(9), b.GetByIndex("bytes", 0))
+	require.Equal(t, byte(10), b.GetByIndex("bytes", 1))
+	require.Equal(t, "str1", b.GetByIndex("strings", 0))
+	require.Equal(t, "str2", b.GetByIndex("strings", 1))
+	require.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
+	require.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
 
-	assert.Equal(t, ints, b.Get("ints"))
-	assert.Equal(t, longs, b.Get("longs"))
-	assert.Equal(t, floats, b.Get("floats"))
-	assert.Equal(t, doubles, b.Get("doubles"))
-	assert.Equal(t, trueBools, b.Get("boolTrues"))
-	assert.Equal(t, falseBools, b.Get("boolFalses"))
-	assert.Equal(t, bytesArr, b.Get("bytes"))
-	assert.Equal(t, strings, b.Get("strings"))
+	require.Equal(t, ints, b.Get("ints"))
+	require.Equal(t, longs, b.Get("longs"))
+	require.Equal(t, floats, b.Get("floats"))
+	require.Equal(t, doubles, b.Get("doubles"))
+	require.Equal(t, trueBools, b.Get("boolTrues"))
+	require.Equal(t, falseBools, b.Get("boolFalses"))
+	require.Equal(t, bytesArr, b.Get("bytes"))
+	require.Equal(t, strings, b.Get("strings"))
 
-	assert.Nil(t, b.Get("unknown"))
+	require.Nil(t, b.Get("unknown"))
 
 	// wrong type provided -> error
 	b.Set("ints", []float32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("ints", ints)
 
 	b.Set("longs", []float32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("longs", longs)
 
 	b.Set("floats", []int32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("floats", floats)
 
 	b.Set("doubles", []int32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("doubles", doubles)
 
 	b.Set("boolTrues", []int32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("boolTrues", trueBools)
 
 	b.Set("boolFalses", []int32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("boolFalses", falseBools)
 
 	b.Set("bytes", []int32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("bytes", bytes)
 
 	b.Set("strings", []int32{0})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 	b.Set("strings", strings)
 }
 
 func TestArraysAllTypesAppend(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	ints := []int32{1, 2}
 	longs := []int64{3, 4}
@@ -1410,21 +1237,19 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	bNestedArr = append(bNestedArr, bNested)
 	b.Append("intsObj", bNestedArr)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 
-	assert.Equal(t, ints, b.Get("ints"))
-	assert.Equal(t, longs, b.Get("longs"))
-	assert.Equal(t, floats, b.Get("floats"))
-	assert.Equal(t, doubles, b.Get("doubles"))
-	assert.Equal(t, trueBools, b.Get("boolTrues"))
-	assert.Equal(t, falseBools, b.Get("boolFalses"))
-	assert.Equal(t, bytesArr, b.Get("bytes"))
-	assert.Equal(t, strings, b.Get("strings"))
-	assert.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
-	assert.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
+	require.Equal(t, ints, b.Get("ints"))
+	require.Equal(t, longs, b.Get("longs"))
+	require.Equal(t, floats, b.Get("floats"))
+	require.Equal(t, doubles, b.Get("doubles"))
+	require.Equal(t, trueBools, b.Get("boolTrues"))
+	require.Equal(t, falseBools, b.Get("boolFalses"))
+	require.Equal(t, bytesArr, b.Get("bytes"))
+	require.Equal(t, strings, b.Get("strings"))
+	require.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
+	require.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
 
 	// append to existing
 	b.Append("ints", []int32{-1, -2})
@@ -1442,19 +1267,17 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	b.Append("intsObj", bNestedArr)
 
 	bytes, err = b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 	b = ReadBuffer(bytes, s)
 
-	assert.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints"))
-	assert.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs"))
-	assert.Equal(t, []float32{0.5, 0.6, -0.5, -0.6}, b.Get("floats"))
-	assert.Equal(t, []float64{0.7, 0.8, -0.7, -0.8}, b.Get("doubles"))
-	assert.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
-	assert.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
-	assert.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes"))
-	assert.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
+	require.Equal(t, []int32{1, 2, -1, -2}, b.Get("ints"))
+	require.Equal(t, []int64{3, 4, -3, -4}, b.Get("longs"))
+	require.Equal(t, []float32{0.5, 0.6, -0.5, -0.6}, b.Get("floats"))
+	require.Equal(t, []float64{0.7, 0.8, -0.7, -0.8}, b.Get("doubles"))
+	require.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
+	require.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
+	require.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes"))
+	require.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
 }
 
 func TestArraysNested(t *testing.T) {
@@ -1481,43 +1304,50 @@ func TestArraysNested(t *testing.T) {
 	b.Set("nes", bNestedArr)
 	b.Set("last", 42)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	// GetByIndex
 	b = ReadBuffer(bytes, schemeRoot)
 	bNested = b.GetByIndex("nes", 0).(*Buffer)
-	assert.Equal(t, int32(42), bNested.Get("quantity"))
-	assert.Equal(t, float32(0.123), bNested.Get("price"))
+	require.Equal(t, int32(42), bNested.Get("quantity"))
+	require.Equal(t, float32(0.123), bNested.Get("price"))
 	bNested = b.GetByIndex("nes", 1).(*Buffer)
-	assert.Equal(t, int32(43), bNested.Get("quantity"))
-	assert.Equal(t, float32(0.124), bNested.Get("price"))
+	require.Equal(t, int32(43), bNested.Get("quantity"))
+	require.Equal(t, float32(0.124), bNested.Get("price"))
 
 	// iterator
 	arr := b.Get("nes").(*ObjectArray)
 	arr.Next()
-	assert.Equal(t, int32(42), arr.Buffer.Get("quantity"))
-	assert.Equal(t, float32(0.123), arr.Buffer.Get("price"))
+	require.Equal(t, int32(42), arr.Buffer.Get("quantity"))
+	require.Equal(t, float32(0.123), arr.Buffer.Get("price"))
 	arr.Next()
-	assert.Equal(t, int32(43), arr.Value().(*Buffer).Get("quantity"))
-	assert.Equal(t, float32(0.124), arr.Value().(*Buffer).Get("price"))
-	assert.False(t, arr.Next())
+	require.Equal(t, int32(43), arr.Value().(*Buffer).Get("quantity"))
+	require.Equal(t, float32(0.124), arr.Value().(*Buffer).Get("price"))
+	require.False(t, arr.Next())
 
 	// non-[]*Buffer is provided -> error
 	b.Set("nes", []int32{1})
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
 
 	// set one of elements to nil -> error
 	buffers := []*Buffer{nil, nil, nil}
 	b.Set("nes", buffers)
 	bytes, err = b.ToBytes()
-	if err == nil {
-		t.Fatal()
-	}
+	require.NotNil(t, err)
+}
+
+func TestNilArrayOfBytes(t *testing.T) {
+	s := NewScheme()
+	s.AddArray("bytes", FieldTypeByte, false)
+	b := NewBuffer(s)
+	var x []byte
+	x = nil
+	b.Set("bytes", x)
+	bytes, err := b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes, s)
+	require.Nil(t, b.Get("bytes"))
 }
 
 func TestCopyBytes(t *testing.T) {
@@ -1534,9 +1364,7 @@ func TestCopyBytes(t *testing.T) {
 	b.Set("longs", []int64{45, 46})
 	b.Set("float", 0.123)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	// make buffer unmodified
 	b = ReadBuffer(bytes, s)
@@ -1544,13 +1372,13 @@ func TestCopyBytes(t *testing.T) {
 	// force copy existing unmodified array
 	bytes, err = b.ToBytes()
 	b = ReadBuffer(bytes, s)
-	assert.Equal(t, "str", b.Get("name"))
-	assert.Equal(t, int32(42), b.Get("id"))
+	require.Equal(t, "str", b.Get("name"))
+	require.Equal(t, int32(42), b.Get("id"))
 	arr := b.Get("longs").([]int64)
-	assert.Equal(t, int64(45), arr[0])
-	assert.Equal(t, int64(46), arr[1])
-	assert.Equal(t, int64(45), b.GetByIndex("longs", 0))
-	assert.Equal(t, float32(0.123), b.Get("float"))
+	require.Equal(t, int64(45), arr[0])
+	require.Equal(t, int64(46), arr[1])
+	require.Equal(t, int64(45), b.GetByIndex("longs", 0))
+	require.Equal(t, float32(0.123), b.Get("float"))
 }
 
 func TestObjectAsBytesInv(t *testing.T) {
@@ -1585,12 +1413,12 @@ func TestObjectAsBytesInv(t *testing.T) {
 	nestedOffset := flatbuffers.UOffsetT(outTab.Offset(flatbuffers.VOffsetT((2+2)*2))) + outTab.Pos
 	nestedTab := &flatbuffers.Table{}
 	nestedTab.Bytes = outTab.ByteVector(nestedOffset)
-	assert.True(t, reflect.DeepEqual(bytesNested, nestedTab.Bytes))
+	require.True(t, reflect.DeepEqual(bytesNested, nestedTab.Bytes))
 	nestedTab.Pos = flatbuffers.GetUOffsetT(nestedTab.Bytes)
 
 	nestedStrOffset := flatbuffers.UOffsetT(nestedTab.Offset(flatbuffers.VOffsetT((0+2)*2))) + nestedTab.Pos
 
-	assert.Equal(t, "nes1", byteSliceToString(nestedTab.ByteVector(nestedStrOffset)))
+	require.Equal(t, "nes1", byteSliceToString(nestedTab.ByteVector(nestedStrOffset)))
 }
 
 func TestGetBytes(t *testing.T) {
@@ -1794,9 +1622,7 @@ func TestObjectsCopy(t *testing.T) {
 	buffs = append(buffs, bNested)
 	b.Set("ints", buffs)
 	bytes, err := b.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Nil(t, err)
 
 	tab := &flatbuffers.Table{}
 	tab.Bytes = bytes

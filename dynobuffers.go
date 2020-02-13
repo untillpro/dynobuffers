@@ -47,8 +47,8 @@ const (
 	FieldTypeByte
 )
 
-// StoreObjectsAsBytes defines if nested objects will be stored as byte vectors. False decreases performance a bit but takes less memory
-const StoreObjectsAsBytes = false
+// storeObjectsAsBytes defines if nested objects will be stored as byte vectors.
+var storeObjectsAsBytes = false
 
 var yamlFieldTypesMap = map[string]FieldType{
 	"int":    FieldTypeInt,
@@ -315,7 +315,7 @@ func (b *Buffer) getValueByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) int
 		return b.tab.GetBool(uOffsetT)
 	case FieldTypeObject:
 		var res *Buffer
-		if StoreObjectsAsBytes {
+		if storeObjectsAsBytes {
 			bytesNested := b.tab.ByteVector(uOffsetT)
 			res = ReadBuffer(bytesNested, f.FieldScheme)
 		} else {
@@ -356,10 +356,10 @@ func getFBFieldSize(ft FieldType) int {
 
 // Get returns stored field value by name.
 // field is scalar -> scalar is returned
-// field is array of scalars -> []T is returned
+// field is an array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned
 // field is an array of nested objects -> *dynobuffers.ObjectArray is returned
-// field is unset or no such field in the Scheme -> nil
+// field is not set, set to nil or no such field in the Scheme -> nil
 func (b *Buffer) Get(name string) interface{} {
 	f, ok := b.Scheme.FieldsMap[name]
 	if !ok {
@@ -550,7 +550,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			arrayUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil {
-				if modifiedField.value != nil {
+				if modifiedField.value != nil && !reflect.ValueOf(modifiedField.value).IsNil() {
 					var toAppendToIntf interface{} = nil
 					if modifiedField.isAppend {
 						toAppendToIntf = b.getByField(f, -1)
@@ -583,7 +583,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField.value != nil {
 					if nestedBuffer, ok := modifiedField.value.(*Buffer); !ok {
 						return 0, fmt.Errorf("nested object required but %#v provided for field %s", modifiedField.value, f.QualifiedName())
-					} else if StoreObjectsAsBytes {
+					} else if storeObjectsAsBytes {
 						nestedBytes, err := nestedBuffer.ToBytes()
 						if err != nil {
 							return 0, fmt.Errorf("failed to encode nested object %s: %s", f.QualifiedName(), err)
@@ -596,7 +596,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
 					bufToWrite := b.getByUOffsetT(f, -1, uOffsetT) // can not be nil
-					if StoreObjectsAsBytes {
+					if storeObjectsAsBytes {
 						nestedBytes, _ := bufToWrite.(*Buffer).ToBytes() // no errors should be here
 						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
 					} else {
@@ -906,7 +906,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 				if arr[i] == nil {
 					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
 				}
-				if StoreObjectsAsBytes {
+				if storeObjectsAsBytes {
 					nestedBytes, err := arr[i].ToBytes()
 					if err != nil {
 						return 0, err
@@ -923,7 +923,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		case *ObjectArray:
 			arr := value.(*ObjectArray)
 			for arr.Next() {
-				if StoreObjectsAsBytes {
+				if storeObjectsAsBytes {
 					nestedBytes, _ := arr.Buffer.ToBytes()
 					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
@@ -940,7 +940,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			toAppendToArr := toAppendToIntf.(*ObjectArray)
 			toAppendToUOffsetTs := make([]flatbuffers.UOffsetT, toAppendToArr.Len)
 			for i := 0; toAppendToArr.Next(); i++ {
-				if StoreObjectsAsBytes {
+				if storeObjectsAsBytes {
 					bufBytes, _ := toAppendToArr.Buffer.ToBytes()
 					toAppendToUOffsetTs[i] = bl.CreateByteVector(bufBytes)
 				} else {
@@ -1140,10 +1140,10 @@ func (b *Buffer) GetNames() []string {
 
 	for order := 0; true; order++ {
 		vTableOffset := flatbuffers.VOffsetT((order + 2) * 2)
-		if  vTableOffset >= vOffsetT {
+		if vTableOffset >= vOffsetT {
 			break
 		}
-		if b.tab.GetVOffsetT(vtable + flatbuffers.UOffsetT(vTableOffset)) > 0 {
+		if b.tab.GetVOffsetT(vtable+flatbuffers.UOffsetT(vTableOffset)) > 0 {
 			res = append(res, b.Scheme.Fields[order].Name)
 		}
 	}
