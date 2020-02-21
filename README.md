@@ -71,6 +71,10 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
     jsonStr := b.ToJSON()
 	```
 	Note: arrays of byte are encoded to base64 strings
+- To map key-value (JSON-compatible)
+	```go
+	jsonMap := b.ToJSONMap()
+	```
 - Read Buffer from bytes using Scheme
 	```go
 	b = dynobuffers.ReadBuffer(bytes, scheme)
