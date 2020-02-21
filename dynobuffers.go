@@ -1150,6 +1150,50 @@ func (b *Buffer) GetNames() []string {
 	return res
 }
 
+// ToJSONMap returns map[string]interface{} representation of the buffer compatible to json
+// numeric field types are kept (not float64 as json does)
+func (b *Buffer) ToJSONMap() map[string]interface{} {
+	res := map[string]interface{}{}
+	for _, f := range b.Scheme.Fields {
+		var storedVal interface{}
+		if len(b.modifiedFields) == 0 {
+			storedVal = b.getByField(f, -1)
+		} else {
+			modifiedField := b.modifiedFields[f.order]
+			if modifiedField != nil {
+				storedVal = modifiedField.value
+			} else {
+				storedVal = b.getByField(f, -1)
+			}
+		}
+		if storedVal != nil {
+			if f.Ft == FieldTypeObject {
+				if f.IsArray {
+					targetArr := []interface{}{}
+					if arr, ok := storedVal.(*ObjectArray); ok {
+						for arr.Next() {
+							targetArr = append(targetArr, arr.Buffer.ToJSONMap())
+						}
+						
+					} else {
+						buffers, _ := storedVal.([]*Buffer)
+						for _, buffer := range buffers {
+							targetArr = append(targetArr, buffer.ToJSONMap())
+						}
+					}
+					res[f.Name] = targetArr
+				} else {
+					res[f.Name] = storedVal.(*Buffer).ToJSONMap()
+				}
+			} else {
+				res[f.Name] = storedVal
+			}			
+		}
+	}	
+	return res
+}
+
+
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
 	return &Scheme{"", map[string]*Field{}, []*Field{}}
