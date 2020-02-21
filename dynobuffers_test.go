@@ -444,8 +444,119 @@ func TestToJSONBasic(t *testing.T) {
 	json.Unmarshal(jsonBytes, &dest)
 	require.True(t, len(dest) == 1)
 	require.Equal(t, "cola", dest["name"])
+}
 
-	// buffer is unmodified ->
+func TestToJSONMapBasic(t *testing.T) {
+	scheme, err := YamlToScheme(schemeStr)
+	require.Nil(t, err)
+
+	b := NewBuffer(scheme)
+	dest := b.ToJSONMap()
+	require.True(t, len(dest) == 0)
+
+	// basic test
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
+	dest = b.ToJSONMap()
+	require.True(t, len(dest) == 3)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, float32(0.123), dest["price"])
+	require.Equal(t, int32(42), dest["quantity"])
+
+	// unmodified
+	bytes, err := b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes, scheme)
+	dest = b.ToJSONMap()
+	require.True(t, len(dest) == 3)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, float32(0.123), dest["price"])
+	require.Equal(t, int32(42), dest["quantity"])
+
+	// test field initially not set
+	b = NewBuffer(scheme)
+	b.Set("name", "cola")
+	b.Set("quantity", int32(42))
+	dest = b.ToJSONMap()
+	require.True(t, len(dest) == 2)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, int32(42), dest["quantity"])
+
+	// test field not set on ReadBuffer
+	bytes, err = b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes, scheme)
+
+	dest = b.ToJSONMap()
+	require.True(t, len(dest) == 2)
+	require.Equal(t, "cola", dest["name"])
+	require.Equal(t, int32(42), dest["quantity"])
+
+	// test unset field
+	b.Set("quantity", nil)
+	dest = b.ToJSONMap()
+	require.True(t, len(dest) == 1)
+	require.Equal(t, "cola", dest["name"])
+
+	// test read unset field
+	bytes, err = b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes, scheme)
+	dest = b.ToJSONMap()
+	require.True(t, len(dest) == 1)
+	require.Equal(t, "cola", dest["name"])
+}
+
+func TestToJSONMapNestedAndNestedArray(t *testing.T) {
+	schemeRoot := NewScheme()
+	schemeNested := NewScheme()
+	schemeNested.AddField("price", FieldTypeFloat, false)
+	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddField("name", FieldTypeString, false)
+	schemeRoot.AddNested("nested", schemeNested, true)
+	schemeRoot.AddNestedArray("nestedarr", schemeNested, false)
+	schemeRoot.AddArray("ids", FieldTypeInt, false)
+	schemeRoot.AddArray("bytes", FieldTypeByte, false)
+
+	bRoot := NewBuffer(schemeRoot)
+	bytes, err := bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str1", "nested": {"price": 0.123,"quantity":42},"nestedarr":[{"price": 0.124,"quantity":43},{"price": 0.125,"quantity":44}], "ids": [45,46]}`))
+	require.Nil(t, err)
+	
+	m := bRoot.ToJSONMap()
+	require.Equal(t, "str1", m["name"])
+	nested := m["nested"].(map[string]interface{})
+	require.Equal(t, float64(0.123), nested["price"])
+	require.Equal(t, float64(42), nested["quantity"])
+	nestedArr := m["nestedarr"].([]interface{})
+	nesteArrElem := nestedArr[0].(map[string]interface{})
+	require.Equal(t, float64(0.124), nesteArrElem["price"])
+	require.Equal(t, float64(43), nesteArrElem["quantity"])
+	require.Len(t, nesteArrElem, 2)
+	nesteArrElem = nestedArr[1].(map[string]interface{})
+	require.Equal(t, float64(0.125), nesteArrElem["price"])
+	require.Equal(t, float64(44), nesteArrElem["quantity"])
+	require.Len(t, nesteArrElem, 2)
+	require.Len(t, nestedArr, 2)
+	require.Equal(t, []interface{}{float64(45), float64(46)}, m["ids"])
+
+	bRoot = ReadBuffer(bytes, schemeRoot)
+	m = bRoot.ToJSONMap()
+	require.Equal(t, "str1", m["name"])
+	nested = m["nested"].(map[string]interface{})
+	require.Equal(t, float32(0.123), nested["price"])
+	require.Equal(t, int32(42), nested["quantity"])
+	nestedArr = m["nestedarr"].([]interface{})
+	nesteArrElem = nestedArr[0].(map[string]interface{})
+	require.Equal(t, float32(0.124), nesteArrElem["price"])
+	require.Equal(t, int32(43), nesteArrElem["quantity"])
+	require.Len(t, nesteArrElem, 2)
+	nesteArrElem = nestedArr[1].(map[string]interface{})
+	require.Equal(t, float32(0.125), nesteArrElem["price"])
+	require.Equal(t, int32(44), nesteArrElem["quantity"])
+	require.Len(t, nesteArrElem, 2)
+	require.Len(t, nestedArr, 2)
+	require.Equal(t, []int32{45, 46}, m["ids"])
 }
 
 func TestDifferentOrder(t *testing.T) {
