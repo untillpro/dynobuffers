@@ -550,7 +550,11 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			arrayUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil {
-				if modifiedField.value != nil && !reflect.ValueOf(modifiedField.value).IsNil() {
+				if modifiedField.value != nil {
+					val := reflect.ValueOf(modifiedField.value)
+					if isSlice(val.Kind()) && val.IsNil() {
+						continue
+					}
 					var toAppendToIntf interface{} = nil
 					if modifiedField.isAppend {
 						toAppendToIntf = b.getByField(f, -1)
@@ -1187,9 +1191,9 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 				}
 			} else {
 				res[f.Name] = storedVal
-			}			
+			}
 		}
-	}	
+	}
 	return res
 }
 
@@ -1367,4 +1371,8 @@ func byteSliceToString(b []byte) string {
 
 func isFixedSizeField(f *Field) bool {
 	return f.Ft != FieldTypeObject && f.Ft != FieldTypeString
+}
+
+func isSlice(kind reflect.Kind) bool {
+	return kind == reflect.Array || kind == reflect.Slice
 }

@@ -1577,6 +1577,17 @@ func TestGetNames(t *testing.T) {
 	require.Equal(t, []string{"price", "quantity"}, b.GetNames())
 }
 
+func TestCorrectErrorOnReflectIsNilForArrayField(t *testing.T) {
+	s := NewScheme()
+	s.AddArray("arr", FieldTypeInt, true)
+	b := NewBuffer(s)
+	b.Set("arr", "non-array")
+	bytes, err := b.ToBytes()
+	// expecting panic on reflect.ValueOf("non-array").IsNil() at encodeBuffer() is avoided
+	require.NotNil(t, err)
+	require.Nil(t, bytes)
+}
+
 func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
