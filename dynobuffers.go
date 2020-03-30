@@ -494,17 +494,6 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 			}
 		} else {
 			if f.IsArray {
-				if f.Ft == FieldTypeByte {
-					base64Str, ok := fv.(string)
-					if !ok {
-						return fmt.Errorf("base64 encoded byte array is expected for %s, %#v provided", f.QualifiedName(), fv)
-					}
-					var err error
-					fv, err = base64.StdEncoding.DecodeString(base64Str)
-					if err != nil {
-						return err
-					}
-				}
 				b.append(f, fv)
 			} else {
 				b.set(f, fv)
@@ -550,7 +539,11 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			arrayUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil {
-				if modifiedField.value != nil && !reflect.ValueOf(modifiedField.value).IsNil() {
+				if modifiedField.value != nil {
+					val := reflect.ValueOf(modifiedField.value)
+					if isSlice(val.Kind()) && val.IsNil() {
+						continue
+					}
 					var toAppendToIntf interface{} = nil
 					if modifiedField.isAppend {
 						toAppendToIntf = b.getByField(f, -1)
@@ -852,16 +845,25 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		target := *(*[]byte)(unsafe.Pointer(&hdr))
 		return bl.CreateByteVector(target), nil
 	case FieldTypeByte:
-		arr, ok := value.([]byte)
+		target := []byte{}
+		switch arr := value.(type) {
+		case []byte:
+			target = arr
+		case string:
+			var err error
+			if target, err = base64.StdEncoding.DecodeString(arr); err != nil {
+				return 0, fmt.Errorf("the string %s considered as base64-encoded value for field %s: %s", arr, f.QualifiedName(), err)
+			}
+		default:
+			return 0, fmt.Errorf("[]byte or base64-encoded string required but %#v provided for field %s", value, f.QualifiedName())
+
+		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]byte)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
+			toAppendTo = append(toAppendTo, target...)
+			target = toAppendTo
 		}
-		if !ok {
-			return 0, fmt.Errorf("[]byte required but %#v provided for field %s", value, f.QualifiedName())
-		}
-		return bl.CreateByteVector(arr), nil
+		return bl.CreateByteVector(target), nil
 	case FieldTypeString:
 		var arr []string
 		switch value.(type) {
@@ -1174,7 +1176,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 						for arr.Next() {
 							targetArr = append(targetArr, arr.Buffer.ToJSONMap())
 						}
-						
+
 					} else {
 						buffers, _ := storedVal.([]*Buffer)
 						for _, buffer := range buffers {
@@ -1187,12 +1189,11 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 				}
 			} else {
 				res[f.Name] = storedVal
-			}			
+			}
 		}
-	}	
+	}
 	return res
 }
-
 
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
@@ -1367,4 +1368,8 @@ func byteSliceToString(b []byte) string {
 
 func isFixedSizeField(f *Field) bool {
 	return f.Ft != FieldTypeObject && f.Ft != FieldTypeString
+}
+
+func isSlice(kind reflect.Kind) bool {
+	return kind == reflect.Array || kind == reflect.Slice
 }

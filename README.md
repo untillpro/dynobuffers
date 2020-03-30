@@ -250,7 +250,8 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
 		}
 		```	
  - Nils as array elements are not supported
- - Byte arrays are decoded\encoded from\to JSON as base64 strings
+ - Byte arrays are decoded to JSON as base64 strings
+ - Byte array value could be set from either byte array and base64-encoded string
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
 
 # Benchmarks

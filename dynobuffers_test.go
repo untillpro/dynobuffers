@@ -151,6 +151,7 @@ strings..: string
 boolTrues..: bool
 boolFalses..: bool
 bytes..: byte
+bytesBase64..: byte
 intsObj..:
   int: int
 `
@@ -1217,6 +1218,7 @@ func TestArraysAllTypesSet(t *testing.T) {
 	trueBools := []bool{true, false}
 	falseBools := []bool{false, true}
 	bytesArr := []byte{9, 10}
+	base64 := "BQY="
 	strings := []string{"str1", "str2"}
 
 	b := NewBuffer(s)
@@ -1227,6 +1229,7 @@ func TestArraysAllTypesSet(t *testing.T) {
 	b.Set("boolTrues", trueBools)
 	b.Set("boolFalses", falseBools)
 	b.Set("bytes", bytesArr)
+	b.Set("bytesBase64", base64)
 	b.Set("strings", strings)
 	schemeNested := s.GetNestedScheme("intsObj")
 
@@ -1256,6 +1259,8 @@ func TestArraysAllTypesSet(t *testing.T) {
 	require.Equal(t, true, b.GetByIndex("boolFalses", 1))
 	require.Equal(t, byte(9), b.GetByIndex("bytes", 0))
 	require.Equal(t, byte(10), b.GetByIndex("bytes", 1))
+	require.Equal(t, byte(5), b.GetByIndex("bytesBase64", 0))
+	require.Equal(t, byte(6), b.GetByIndex("bytesBase64", 1))
 	require.Equal(t, "str1", b.GetByIndex("strings", 0))
 	require.Equal(t, "str2", b.GetByIndex("strings", 1))
 	require.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
@@ -1268,6 +1273,7 @@ func TestArraysAllTypesSet(t *testing.T) {
 	require.Equal(t, trueBools, b.Get("boolTrues"))
 	require.Equal(t, falseBools, b.Get("boolFalses"))
 	require.Equal(t, bytesArr, b.Get("bytes"))
+	require.Equal(t, []byte{5, 6}, b.Get("bytesBase64"))
 	require.Equal(t, strings, b.Get("strings"))
 
 	require.Nil(t, b.Get("unknown"))
@@ -1312,6 +1318,12 @@ func TestArraysAllTypesSet(t *testing.T) {
 	bytes, err = b.ToBytes()
 	require.NotNil(t, err)
 	b.Set("strings", strings)
+
+	// non-base64 string provided for byte array -> error 
+	b.Set("bytes", "wrong base64")
+	bytes, err = b.ToBytes()
+	require.NotNil(t, err)
+	b.Set("bytes", bytes)
 }
 
 func TestArraysAllTypesAppend(t *testing.T) {
@@ -1327,7 +1339,7 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	bytesArr := []byte{9, 10}
 	strings := []string{"str1", "str2"}
 
-	// initial, arrays are nil -> equivalent to Set()
+	// initial, arrays are nil -> Append() is equivalent to Set()
 	b := NewBuffer(s)
 	b.Append("ints", ints)
 	b.Append("longs", longs)
@@ -1336,6 +1348,7 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	b.Append("boolTrues", trueBools)
 	b.Append("boolFalses", falseBools)
 	b.Append("bytes", bytesArr)
+	b.Append("bytesBase64", bytesArr)
 	b.Append("strings", strings)
 	schemeNested := s.GetNestedScheme("intsObj")
 
@@ -1358,6 +1371,7 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	require.Equal(t, trueBools, b.Get("boolTrues"))
 	require.Equal(t, falseBools, b.Get("boolFalses"))
 	require.Equal(t, bytesArr, b.Get("bytes"))
+	require.Equal(t, bytesArr, b.Get("bytesBase64"))
 	require.Equal(t, strings, b.Get("strings"))
 	require.Equal(t, int32(55), b.GetByIndex("intsObj", 0).(*Buffer).Get("int"))
 	require.Equal(t, int32(56), b.GetByIndex("intsObj", 1).(*Buffer).Get("int"))
@@ -1370,6 +1384,7 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	b.Append("boolTrues", []bool{true, true})
 	b.Append("boolFalses", []bool{false, false})
 	b.Append("bytes", []byte{11, 12})
+	b.Append("bytesBase64", "BQY=")
 	b.Append("strings", []string{"", "str4"})
 	bNestedArr = []*Buffer{}
 	bNested = NewBuffer(schemeNested)
@@ -1388,6 +1403,7 @@ func TestArraysAllTypesAppend(t *testing.T) {
 	require.Equal(t, []bool{true, false, true, true}, b.Get("boolTrues"))
 	require.Equal(t, []bool{false, true, false, false}, b.Get("boolFalses"))
 	require.Equal(t, []byte{9, 10, 11, 12}, b.Get("bytes"))
+	require.Equal(t, []byte{9, 10, 5, 6}, b.Get("bytesBase64"))
 	require.Equal(t, []string{"str1", "str2", "", "str4"}, b.Get("strings"))
 }
 
@@ -1575,6 +1591,17 @@ func TestGetNames(t *testing.T) {
 	require.Nil(t, err, err)
 	b = ReadBuffer(bytes, s)
 	require.Equal(t, []string{"price", "quantity"}, b.GetNames())
+}
+
+func TestCorrectErrorOnReflectIsNilForArrayField(t *testing.T) {
+	s := NewScheme()
+	s.AddArray("arr", FieldTypeInt, true)
+	b := NewBuffer(s)
+	b.Set("arr", "non-array")
+	bytes, err := b.ToBytes()
+	// expecting panic on reflect.ValueOf("non-array").IsNil() at encodeBuffer() is avoided
+	require.NotNil(t, err)
+	require.Nil(t, bytes)
 }
 
 func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
