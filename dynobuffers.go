@@ -380,7 +380,11 @@ func (b *Buffer) GetByIndex(name string, index int) interface{} {
 
 // ReadBuffer creates Buffer from bytes using provided Scheme
 func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
-	b := NewBuffer(Scheme)
+	if Scheme == nil {
+		panic("nil Scheme provided")
+	}
+	b := &Buffer{}
+	b.Scheme = Scheme
 	b.tab.Bytes = bytes
 	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
 	return b
@@ -865,45 +869,43 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		}
 		return bl.CreateByteVector(target), nil
 	case FieldTypeString:
-		var arr []string
-		switch value.(type) {
+		var target []string
+		switch arr := value.(type) {
 		case []string:
 			// Set("", []string) was called
-			arr = value.([]string)
+			target = arr
 		case []interface{}:
 			// came from JSON
-			intfs := value.([]interface{})
-			arr = make([]string, len(intfs))
-			for i, intf := range intfs {
+			target = make([]string, len(arr))
+			for i, intf := range arr {
 				stringVal, ok := intf.(string)
 				if !ok {
 					return 0, fmt.Errorf("[]byte required but %#v provided for field %s", value, f.QualifiedName())
 				}
-				arr[i] = stringVal
+				target[i] = stringVal
 			}
 		default:
 			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]string)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
+			toAppendTo = append(toAppendTo, target...)
+			target = toAppendTo
 		}
-		stringUOffsetTs := make([]flatbuffers.UOffsetT, len(arr))
-		for i := 0; i < len(arr); i++ {
-			stringUOffsetTs[i] = bl.CreateString(arr[i])
+		stringUOffsetTs := make([]flatbuffers.UOffsetT, len(target))
+		for i := 0; i < len(target); i++ {
+			stringUOffsetTs[i] = bl.CreateString(target[i])
 		}
-		bl.StartVector(elemSize, len(arr), elemSize)
-		for i := len(arr) - 1; i >= 0; i-- {
+		bl.StartVector(elemSize, len(target), elemSize)
+		for i := len(target) - 1; i >= 0; i-- {
 			bl.PrependUOffsetT(stringUOffsetTs[i])
 		}
-		return bl.EndVector(len(arr)), nil
+		return bl.EndVector(len(target)), nil
 	default:
 		nestedUOffsetTs := []flatbuffers.UOffsetT{}
-		switch value.(type) {
+		switch arr := value.(type) {
 		case []*Buffer:
 			// explicit Set\Append("", []*Buffer) was called
-			arr := value.([]*Buffer)
 			for i := 0; i < len(arr); i++ {
 				if arr[i] == nil {
 					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
@@ -923,7 +925,6 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 				}
 			}
 		case *ObjectArray:
-			arr := value.(*ObjectArray)
 			for arr.Next() {
 				if storeObjectsAsBytes {
 					nestedBytes, _ := arr.Buffer.ToBytes()
@@ -1137,15 +1138,15 @@ func (b *Buffer) GetNames() []string {
 		return res
 	}
 
-	vtable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
-	vOffsetT := b.tab.GetVOffsetT(vtable)
+	vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
+	vOffsetT := b.tab.GetVOffsetT(vTable)
 
 	for order := 0; true; order++ {
 		vTableOffset := flatbuffers.VOffsetT((order + 2) * 2)
 		if vTableOffset >= vOffsetT {
 			break
 		}
-		if b.tab.GetVOffsetT(vtable+flatbuffers.UOffsetT(vTableOffset)) > 0 {
+		if b.tab.GetVOffsetT(vTable+flatbuffers.UOffsetT(vTableOffset)) > 0 {
 			res = append(res, b.Scheme.Fields[order].Name)
 		}
 	}
@@ -1176,7 +1177,6 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 						for arr.Next() {
 							targetArr = append(targetArr, arr.Buffer.ToJSONMap())
 						}
-
 					} else {
 						buffers, _ := storedVal.([]*Buffer)
 						for _, buffer := range buffers {
