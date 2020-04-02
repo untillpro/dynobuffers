@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/untillpro/dynobuffers/branch/master/graph/badge.svg)](https://codecov.io/gh/untillpro/dynobuffers)
+
 # Dyno Buffers
 
 Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) with get\set by name feature
