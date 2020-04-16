@@ -4,7 +4,8 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-package dynobuffers
+
+package benchmarks
 
 import (
 	"encoding/json"
@@ -96,7 +97,6 @@ intsObj..:
 	}
 	b = dynobuffers.ReadBuffer(bytes, s)
 
-
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY="}`)
 	err = json.Unmarshal(jsonBytes, &dest)
@@ -117,7 +117,6 @@ intsObj..:
 		b = dynobuffers.ReadBuffer(bytes, s)
 	}
 }
-
 
 func BenchmarkReadDynoBuffersApplyJSONArraysAllTypesAppendNested(t *testing.B) {
 	arraysAllTypesYaml := `
@@ -142,7 +141,6 @@ intsObj..:
 		t.Fatal(err)
 	}
 	b = dynobuffers.ReadBuffer(bytes, s)
-
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`)

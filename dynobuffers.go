@@ -68,6 +68,7 @@ type Buffer struct {
 	tab            flatbuffers.Table
 	isModified     bool
 	owner          *Buffer
+	builder        *flatbuffers.Builder
 }
 
 // Field describes a Scheme field
@@ -513,12 +514,30 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	if !b.isModified && len(b.tab.Bytes) > 0 {
 		return b.tab.Bytes, nil
 	}
-	bl := flatbuffers.NewBuilder(0)
-	_, err := b.encodeBuffer(bl)
+	if nil == b.builder {
+		b.builder = flatbuffers.NewBuilder(0)
+	} else {
+		b.builder.Reset()
+	}
+	_, err := b.encodeBuffer(b.builder)
 	if err != nil {
 		return nil, err
 	}
-	return bl.FinishedBytes(), nil
+	return b.builder.FinishedBytes(), nil
+}
+
+// Reset all internal structures so instance can be reused with minimal re-allocations
+// TODO Reset is useless when nested objects are used
+// TODO Reset is not tested
+func (b *Buffer) Reset() {
+	for idx := range b.modifiedFields {
+		b.modifiedFields[idx] = nil
+	}
+	b.tab.Bytes = nil
+	b.tab.Pos = flatbuffers.UOffsetT(0)
+	b.isModified = false
+	b.owner = nil
+	b.builder.Reset()
 }
 
 func (b *Buffer) prepareModifiedFields() {
