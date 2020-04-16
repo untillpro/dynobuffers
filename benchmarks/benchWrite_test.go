@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"testing"
 
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
 	"github.com/untillpro/dynobuffers"
 )
@@ -20,20 +21,20 @@ Prior optimization
 BenchmarkWriteSimpleDyno-8   	  667756	      1518 ns/op	     520 B/op	      16 allocs/op
 */
 
-func BenchmarkWriteSimple_DynoReset(b *testing.B) {
+func BenchmarkWriteSimple_Dyno_SameBuilder(b *testing.B) {
 	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
+	builder := flatbuffers.NewBuilder(0)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bf.Set("name", "cola")
 		bf.Set("price", float32(0.123))
 		bf.Set("quantity", int32(42))
-		_, err := bf.ToBytes()
+		_, err := bf.ToBytesWithBuilder(builder)
 		if err != nil {
 			b.Fatal(err)
 		}
-		bf.Reset()
 	}
 }
 
