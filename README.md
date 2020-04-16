@@ -257,45 +257,52 @@ Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) wi
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
 
 # Benchmarks
-## Description
-- [benchmarks\benchRead_test.go](benchmarks/benchRead_test.go) read benchmarks comparing to Avro, FlatBuffers, JSON
-- [benchmarks\benchReadWrite_test.go](benchmarks/benchReadWrite_test.go) read and write benchmarks comparing to Avro, FlatBuffers, JSON
-- Benchmarks naming
-  - BenchmarkWrite... - benchmark read, change 1 field and write
-  - BenchmarkRead... - benchmark read only
-  - ...Simple... - scheme with 3 fields, read and multiply 2 fields
-  - ...Article... - scheme with 123 fields
-  - ...ReadFewFields... - read and multiply 2 fields
-  - ...ReadAllFields... - read all fields
-## Results
 
-- Scheme of 123 fields, read and multiply 2 fields, change 1 field and write
+## Reading Many Fields
+
+- cd benchmarks
+- go test -bench=ReadAllArticleFields -benchmem
+
 ```
-DynoBuffers    	  	    200000	      8763 ns/op	    5240 B/op	      41 allocs/op
-FlatBuffers         	    300000	      5702 ns/op	    3672 B/op	      19 allocs/op
-Json                	     10000	    201575 ns/op	   29096 B/op	     857 allocs/op
-LinkedInAvro                100000	     25173 ns/op	   11929 B/op	     176 allocs/op
+goos: windows
+goarch: amd64
+pkg: github.com/untillpro/dynobuffers/benchmarks
+Benchmark_ReadAllArticleFields_Avro-8                      71046             23394 ns/op           11257 B/op        149 allocs/op
+Benchmark_ReadAllArticleFields_Dyno_Untyped-8             195801              6437 ns/op             808 B/op         84 allocs/op
+Benchmark_ReadAllArticleFields_Dyno_Typed-8               313376              3776 ns/op               0 B/op          0 allocs/op
+Benchmark_ReadAllArticleFields_Flat-8                    1000000              1132 ns/op               0 B/op          0 allocs/op
+Benchmark_ReadAllArticleFields_Json-8                      14431             87331 ns/op           14145 B/op        603 allocs/op
 ```
-- Scheme of 3 fields, read and multiply 2 fields (`int` and `float` types)
+
+## Reading Few of Many Fields
+
+- cd benchmarks
+- go test -bench=ReadFewArticleFields -benchmem
+
 ```
-DynoBuffers               20000000	      65.0 ns/op	       0 B/op	       0 allocs/op
-FlatBuffers               50000000	      33.2 ns/op	       0 B/op	       0 allocs/op
-Json                        500000	      2660 ns/op	     760 B/op	      21 allocs/op
-LinkedInAvro               2000000	       859 ns/op	     744 B/op	      10 allocs/op
+goos: windows
+goarch: amd64
+pkg: github.com/untillpro/dynobuffers/benchmarks
+Benchmark_ReadFewArticleFields_Avro-8              98437             19311 ns/op           11257 B/op        149 allocs/op
+Benchmark_ReadFewArticleFields_Dyno_Typed-8     18520500                62.2 ns/op             0 B/op          0 allocs/op
+Benchmark_ReadFewArticleFields_Flat-8           60032416                19.8 ns/op             0 B/op          0 allocs/op
+Benchmark_ReadFewArticleFields_Json-8              15333             83824 ns/op           11073 B/op        603 allocs/op
 ```
-- Scheme of 123 fields, read and multiple 2 fields
+
+## Reading Few Fields
+
+- cd benchmarks
+- go test -bench=ReadSimple -benchmem
+
 ```
-DynoBuffers     	  20000000	      83.2 ns/op	       0 B/op	       0 allocs/op
-FlatBuffers          	 100000000	      26.5 ns/op	       0 B/op	       0 allocs/op
-Json                 	     10000	    108663 ns/op	   13730 B/op	     604 allocs/op
-LinkedInAvro         	    100000	     14936 ns/op	   11257 B/op	     149 allocs/op
-```
-- Scheme of 123 fields, simply read all fields
-```
-DynoBuffers      	    300000	      4935 ns/op	      35 B/op	      11 allocs/op
-FlatBuffers          	   1000000	      1421 ns/op	       0 B/op	       0 allocs/op
-Json                 	     10000	    116814 ns/op	   14130 B/op	     603 allocs/op
-LinkedInAvro         	    100000	     19187 ns/op	   11257 B/op	     149 allocs/op
+goos: windows
+goarch: amd64
+pkg: github.com/untillpro/dynobuffers/benchmarks
+Benchmark_ReadSimple_Avro-8              2038466              1193 ns/op             744 B/op         10 allocs/op
+Benchmark_ReadSimple_Dyno_Typed-8       20017480                55.2 ns/op             0 B/op          0 allocs/op
+Benchmark_ReadSimple_Flat-8             59981404                20.2 ns/op             0 B/op          0 allocs/op
+Benchmark_ReadSimple_Flat_String-8      29275360                40.7 ns/op             0 B/op          0 allocs/op
+Benchmark_ReadSimple_Json-8               545769              2423 ns/op             776 B/op         21 allocs/op
 ```
 
 NOTE: DynoBuffers allocs caused by string types
