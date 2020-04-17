@@ -15,6 +15,7 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
+	"github.com/stretchr/testify/require"
 	"github.com/untillpro/dynobuffers"
 )
 
@@ -265,25 +266,19 @@ func Benchmark_ReadSimple_Json(b *testing.B) {
 
 func Benchmark_ReadFewArticleFields_Avro(b *testing.B) {
 	schemaStr, err := ioutil.ReadFile("article.avsc")
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	codec, err := goavro.NewCodec(string(schemaStr))
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	articleData, err := ioutil.ReadFile("articleData.json")
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	native, _, err := codec.NativeFromTextual(articleData)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	bytes, err := codec.BinaryFromNative(nil, native)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
 
 	b.ResetTimer()
 	sum := float64(0)
@@ -345,25 +340,19 @@ func Benchmark_ReadFewArticleFields_Json(b *testing.B) {
 
 func Benchmark_ReadAllArticleFields_Avro(b *testing.B) {
 	schemaStr, err := ioutil.ReadFile("article.avsc")
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	codec, err := goavro.NewCodec(string(schemaStr))
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	articleData, err := ioutil.ReadFile("articleData.json")
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	native, _, err := codec.NativeFromTextual(articleData)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
+
 	bytes, err := codec.BinaryFromNative(nil, native)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.Nil(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
