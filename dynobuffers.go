@@ -520,6 +520,12 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	return bl.FinishedBytes(), nil
 }
 
+// SetBytes sets current underlying byte array. Useful for *Buffer instance reuse
+func (b *Buffer) SetBytes(bytes []byte) {
+	b.tab.Bytes = bytes
+	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
+}
+
 func (b *Buffer) prepareModifiedFields() {
 	if len(b.modifiedFields) == 0 {
 		b.modifiedFields = make([]*modifiedField, len(b.Scheme.Fields))
