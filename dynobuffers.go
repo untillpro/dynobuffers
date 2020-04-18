@@ -509,21 +509,25 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
 func (b *Buffer) ToBytes() ([]byte, error) {
+	return b.ToBytesWithBuilder(nil)
+}
+
+// ToBytesWithBuilder same as ToBytes but uses builder
+// builder.Reset() is invoked
+func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) ([]byte, error) {
 	if !b.isModified && len(b.tab.Bytes) > 0 {
 		return b.tab.Bytes, nil
 	}
-	bl := flatbuffers.NewBuilder(0)
-	_, err := b.encodeBuffer(bl)
+	if nil != builder {
+		builder.Reset()
+	} else {
+		builder = flatbuffers.NewBuilder(0)
+	}
+	_, err := b.encodeBuffer(builder)
 	if err != nil {
 		return nil, err
 	}
-	return bl.FinishedBytes(), nil
-}
-
-// SetBytes sets current underlying byte array. Useful for *Buffer instance reuse
-func (b *Buffer) SetBytes(bytes []byte) {
-	b.tab.Bytes = bytes
-	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
+	return builder.FinishedBytes(), nil
 }
 
 func (b *Buffer) prepareModifiedFields() {
@@ -669,7 +673,7 @@ func (b *Buffer) HasValue(name string) bool {
 	return b.getFieldUOffsetT(name) != 0
 }
 
-// SetBytes sets underlying byte buffer. Useful for *Buffer instance reuse
+// SetBytes sets current underlying byte array. Useful for *Buffer instance reuse
 func (b *Buffer) SetBytes(bytes []byte) {
 	b.tab.Bytes = bytes
 	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
