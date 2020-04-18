@@ -385,8 +385,7 @@ func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
 	}
 	b := &Buffer{}
 	b.Scheme = Scheme
-	b.tab.Bytes = bytes
-	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
+	b.SetBytes(bytes)
 	return b
 }
 
@@ -662,6 +661,12 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 // HasValue returns if specified field exists in the scheme and its value is set to non-nil
 func (b *Buffer) HasValue(name string) bool {
 	return b.getFieldUOffsetT(name) != 0
+}
+
+// SetBytes sets underlying byte buffer. Useful for *Buffer instance reuse
+func (b *Buffer) SetBytes(bytes []byte) {
+	b.tab.Bytes = bytes
+	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
 }
 
 func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
