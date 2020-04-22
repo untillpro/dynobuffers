@@ -28,9 +28,15 @@ price: float
 quantity: int
 weight: long
 `
-	// Create Scheme from yaml representation
-	s, err := YamlToScheme(schemeYaml)
-	require.Nil(t, err)
+
+	var s *Scheme
+	var err error
+
+	// Creating Scheme from yaml representation
+	{
+		s, err = YamlToScheme(schemeYaml)
+		require.Nil(t, err)
+	}
 
 	var b *Buffer
 	var bytes []byte
@@ -89,7 +95,7 @@ weight: long
 		require.False(t, ok)
 	}
 
-	// check HasValue
+	// Check HasValue
 	{
 		b = NewBuffer(s)
 		b.Set("price", float32(0.123))
@@ -103,14 +109,18 @@ weight: long
 		require.False(t, b.HasValue("unknownField"))
 	}
 
-	// set string field to non-string -> error
-	b.Set("name", 123)
-	bytes, err = b.ToBytes()
-	require.NotNil(t, err)
+	// Set string field to non-string -> error
+	{
+		b.Set("name", 123)
+		bytes, err = b.ToBytes()
+		require.NotNil(t, err)
+	}
 
 	// nil Scheme provided -> panic
-	require.Panics(t, func() { NewBuffer(nil) })
-	require.Panics(t, func() { ReadBuffer([]byte{}, nil) })
+	{
+		require.Panics(t, func() { NewBuffer(nil) })
+		require.Panics(t, func() { ReadBuffer([]byte{}, nil) })
+	}
 }
 
 var schemeStr = `
@@ -523,7 +533,7 @@ func TestToJSONMapNestedAndNestedArray(t *testing.T) {
 	bRoot := NewBuffer(schemeRoot)
 	bytes, err := bRoot.ApplyJSONAndToBytes([]byte(`{"name":"str1", "nested": {"price": 0.123,"quantity":42},"nestedarr":[{"price": 0.124,"quantity":43},{"price": 0.125,"quantity":44}], "ids": [45,46]}`))
 	require.Nil(t, err)
-	
+
 	m := bRoot.ToJSONMap()
 	require.Equal(t, "str1", m["name"])
 	nested := m["nested"].(map[string]interface{})
@@ -1319,7 +1329,7 @@ func TestArraysAllTypesSet(t *testing.T) {
 	require.NotNil(t, err)
 	b.Set("strings", strings)
 
-	// non-base64 string provided for byte array -> error 
+	// non-base64 string provided for byte array -> error
 	b.Set("bytes", "wrong base64")
 	bytes, err = b.ToBytes()
 	require.NotNil(t, err)
@@ -1765,4 +1775,26 @@ func TestObjectsCopy(t *testing.T) {
 	tab := &flatbuffers.Table{}
 	tab.Bytes = bytes
 	tab.Pos = flatbuffers.GetUOffsetT(bytes)
+}
+
+func TestSetBytes(t *testing.T) {
+	s := NewScheme()
+	s.AddField("name", FieldTypeString, false)
+	s.AddField("price", FieldTypeFloat, false)
+	s.AddField("quantity", FieldTypeInt, false)
+	b := NewBuffer(s)
+	b.Set("price", float32(0.123))
+	b.Set("quantity", nil)
+	bytes, err := b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s) 
+	b.Set("price", float32(0.124))
+	b.Set("quantity", 1)
+	bytes2, err := b.ToBytes()
+	require.Nil(t, err, err)
+
+	b = ReadBuffer(bytes2, s)
+	require.Equal(t, int32(1), b.Get("quantity"))
+	b.SetBytes(bytes)
+	require.Nil(t, b.Get("quantity"))
 }
