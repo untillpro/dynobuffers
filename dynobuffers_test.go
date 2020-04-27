@@ -1782,19 +1782,23 @@ func TestSetBytes(t *testing.T) {
 	s.AddField("name", FieldTypeString, false)
 	s.AddField("price", FieldTypeFloat, false)
 	s.AddField("quantity", FieldTypeInt, false)
+	
 	b := NewBuffer(s)
 	b.Set("price", float32(0.123))
-	b.Set("quantity", nil)
+	b.Set("quantity", 1)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err, err)
+
 	b = ReadBuffer(bytes, s) 
 	b.Set("price", float32(0.124))
-	b.Set("quantity", 1)
+	b.Set("quantity", 2)
 	bytes2, err := b.ToBytes()
 	require.Nil(t, err, err)
 
 	b = ReadBuffer(bytes2, s)
-	require.Equal(t, int32(1), b.Get("quantity"))
+	require.Equal(t, int32(2), b.Get("quantity"))
+	require.Equal(t, float32(0.124), b.Get("price"))
 	b.SetBytes(bytes)
-	require.Nil(t, b.Get("quantity"))
+	require.Equal(t, int32(1), b.Get("quantity"))
+	require.Equal(t, float32(0.123), b.Get("price"))
 }
