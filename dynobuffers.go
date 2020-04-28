@@ -63,7 +63,12 @@ var yamlFieldTypesMap = map[string]FieldType{
 
 // Buffer is wrapper for FlatBuffers
 type Buffer struct {
-	Scheme         *Scheme
+	Scheme *Scheme
+	// if not to collect modified fields and write to out bytes on Set():
+	// - Set(fld, nil): Need to remember which fields should not be read from initial bytes on ToBytes()
+	// - need to remember which fields should be read from initial bytes and which were Set() on ToBytes()
+	// - what to do if Set() twice for one field?
+	// - impossible to write strings, arrays and nested objects because it must be written before the root object started (flatbuffers feature)
 	modifiedFields []*modifiedField
 	tab            flatbuffers.Table
 	isModified     bool
@@ -385,7 +390,7 @@ func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
 	}
 	b := &Buffer{}
 	b.Scheme = Scheme
-	b.SetBytes(bytes)
+	b.Reset(bytes)
 	return b
 }
 
@@ -515,7 +520,7 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 // ToBytesWithBuilder same as ToBytes but uses builder
 // builder.Reset() is invoked
 func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) ([]byte, error) {
-	if !b.isModified && len(b.tab.Bytes) > 0 {
+	if !b.isModified {
 		return b.tab.Bytes, nil
 	}
 	if nil != builder {
@@ -673,10 +678,17 @@ func (b *Buffer) HasValue(name string) bool {
 	return b.getFieldUOffsetT(name) != 0
 }
 
-// SetBytes sets current underlying byte array. Useful for *Buffer instance reuse
-func (b *Buffer) SetBytes(bytes []byte) {
+// Reset sets current underlying byte array and clears modified fields. Useful for *Buffer instance reuse
+// Note: bytes must match the Buffer's scheme
+func (b *Buffer) Reset(bytes []byte) {
 	b.tab.Bytes = bytes
-	b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
+	if len(bytes) == 0 {
+		b.tab.Pos = 0
+	} else {
+		b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
+	}
+	b.modifiedFields = nil
+	b.isModified = false
 }
 
 func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
@@ -1148,11 +1160,11 @@ func (b *Buffer) GetBytes() []byte {
 // Set() fields are not considered
 // fields of nested objects are not considered
 func (b *Buffer) GetNames() []string {
-	res := []string{}
 	if len(b.tab.Bytes) == 0 {
-		return res
+		return nil
 	}
-
+	
+	res := []string{}
 	vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
 	vOffsetT := b.tab.GetVOffsetT(vTable)
 
