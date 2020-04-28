@@ -520,7 +520,7 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 // ToBytesWithBuilder same as ToBytes but uses builder
 // builder.Reset() is invoked
 func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) ([]byte, error) {
-	if !b.isModified {
+	if !b.isModified && len(b.tab.Bytes) > 0 { // mandatory fields should be checked
 		return b.tab.Bytes, nil
 	}
 	if nil != builder {

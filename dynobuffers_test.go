@@ -1807,7 +1807,9 @@ func TestReset(t *testing.T) {
 	b.Reset(nil)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
-	require.Nil(t, bytes)
+	// not empty array with an empty table
+	require.NotNil(t, bytes) 
+	require.Empty(t, b.GetNames())
 	
 	// reset to bytes1
 	b.Reset(bytes1)
