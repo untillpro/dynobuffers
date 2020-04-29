@@ -1776,3 +1776,55 @@ func TestObjectsCopy(t *testing.T) {
 	tab.Bytes = bytes
 	tab.Pos = flatbuffers.GetUOffsetT(bytes)
 }
+
+func TestReset(t *testing.T) {
+	s := NewScheme()
+	s.AddField("name", FieldTypeString, false)
+	s.AddField("price", FieldTypeFloat, false)
+	s.AddField("quantity", FieldTypeInt, false)
+
+	// create new empty, fill and to bytes1
+	b := NewBuffer(s)
+	b.Set("price", float32(0.123))
+	b.Set("quantity", 1)
+	bytes1, err := b.ToBytes()
+	require.Nil(t, err, err)
+
+	// create new from bytes1, modify and to bytes2
+	b = ReadBuffer(bytes1, s) 
+	b.Set("price", float32(0.124))
+	b.Set("quantity", 2)
+	bytes2, err := b.ToBytes()
+	require.Nil(t, err, err)
+
+	// create new from bytes2
+	b = ReadBuffer(bytes2, s)
+	require.Equal(t, int32(2), b.Get("quantity"))
+	require.Equal(t, float32(0.124), b.Get("price"))
+	b.Set("quantity", 3) // to check modified fields clear later
+
+	// reset to empty
+	b.Reset(nil)
+	bytes, err := b.ToBytes()
+	require.Nil(t, err)
+	// not empty array with an empty table
+	require.NotNil(t, bytes) 
+	require.Empty(t, b.GetNames())
+	
+	// reset to bytes1
+	b.Reset(bytes1)
+	require.Equal(t, int32(1), b.Get("quantity"))
+	require.Equal(t, float32(0.123), b.Get("price"))
+	//check modified fields are cleared
+	bytes1, err = b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes1, s)
+	require.Equal(t, int32(1), b.Get("quantity"))
+
+	// check modifiedFields is not broken
+	b.Set("quantity", 5)
+	bytes1, err = b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes1, s)
+	require.Equal(t, int32(5), b.Get("quantity"))
+}
