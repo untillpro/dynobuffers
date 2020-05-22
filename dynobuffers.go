@@ -681,7 +681,7 @@ func (b *Buffer) HasValue(name string) bool {
 // Reset sets current underlying byte array and clears modified fields. Useful for *Buffer instance reuse
 // Note: bytes must match the Buffer's scheme
 func (b *Buffer) Reset(bytes []byte) {
-	b.tab.Bytes = bytes
+	b.tab.Bytes = append(b.tab.Bytes[:0], bytes...)
 	if len(bytes) == 0 {
 		b.tab.Pos = 0
 	} else {
