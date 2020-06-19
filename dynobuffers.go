@@ -150,9 +150,12 @@ func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) 
 		copy(res, src)
 		return res
 	default:
+		// string
 		res := make([]string, arrLen)
+		arrayUOffsetT := b.getFieldUOffsetTByOrder(f.order)
 		for i := 0; i < arrLen; i++ {
-			res[i] = b.getByField(f, i).(string)
+			elementUOffsetT := b.tab.Vector(arrayUOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(i*flatbuffers.SizeUOffsetT)
+			res[i] = byteSliceToString(b.tab.ByteVector(elementUOffsetT))
 		}
 		return res
 	}
@@ -1163,8 +1166,8 @@ func (b *Buffer) GetNames() []string {
 	if len(b.tab.Bytes) == 0 {
 		return nil
 	}
-	
-	res := []string{}
+
+	res := make([]string, 0, len(b.Scheme.Fields))
 	vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
 	vOffsetT := b.tab.GetVOffsetT(vTable)
 
