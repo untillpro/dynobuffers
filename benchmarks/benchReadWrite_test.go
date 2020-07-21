@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/untillpro/dynobuffers"
+	"github.com/Yohanson555/dynobuffers"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
