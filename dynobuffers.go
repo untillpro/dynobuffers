@@ -72,7 +72,14 @@ type Buffer struct {
 	modifiedFields []*modifiedField
 	tab            flatbuffers.Table
 	isModified     bool
+	isReleased     bool
 	owner          *Buffer
+	builder        *flatbuffers.Builder
+}
+
+//Builder s.e.
+func (b *Buffer) Builder() *flatbuffers.Builder {
+	return b.builder
 }
 
 // Field describes a Scheme field
@@ -87,8 +94,31 @@ type Field struct {
 }
 
 type modifiedField struct {
-	value    interface{}
-	isAppend bool
+	value      interface{}
+	isAppend   bool
+	isReleased bool
+}
+
+func (m *modifiedField) Release() {
+	if buf, ok := m.value.(*Buffer); ok {
+		if buf != nil {
+			buf.Release()
+		}
+	}
+
+	if buf, ok := m.value.([]*Buffer); ok {
+		for _, bb := range buf {
+			if bb != nil {
+				bb.Release()
+			}
+		}
+
+		putBufferSlice(buf)
+	}
+
+	m.value = nil
+	m.isAppend = false
+	m.isReleased = true
 }
 
 // ObjectArray used to iterate over array of nested objects
@@ -170,9 +200,36 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 	if Scheme == nil {
 		panic("nil Scheme provided")
 	}
-	b := &Buffer{}
+
+	b := getBuffer()
+
 	b.Scheme = Scheme
+	b.isReleased = false
+	b.owner = nil
+
+	b.isModified = false
+
+	b.Reset(nil)
+
 	return b
+}
+
+func (b *Buffer) Release() {
+	if !b.isReleased {
+		b.ReleaseFields()
+		b.isReleased = true
+		BufferPool.Put(b)
+	}
+}
+
+func (b *Buffer) ReleaseFields() {
+	if b.modifiedFields != nil && len(b.modifiedFields) > 0 {
+		for _, m := range b.modifiedFields {
+			if m != nil {
+				m.Release()
+			}
+		}
+	}
 }
 
 // GetInt returns int32 value by name and if the Scheme contains the field and the value was set to non-nil
@@ -414,10 +471,22 @@ func (b *Buffer) setModified() {
 
 func (b *Buffer) set(f *Field, value interface{}) {
 	b.prepareModifiedFields()
-	b.modifiedFields[f.order] = &modifiedField{value, false}
+	m := b.modifiedFields[f.order]
+
+	if m == nil {
+		m = &modifiedField{}
+	}
+
+	m.value = value
+	m.isAppend = false
+	m.isReleased = false
+
+	b.modifiedFields[f.order] = m
+
 	if bNested, ok := value.(*Buffer); ok {
 		bNested.owner = b
 	}
+
 	b.setModified()
 }
 
@@ -431,8 +500,20 @@ func (b *Buffer) Append(name string, toAppend interface{}) {
 }
 
 func (b *Buffer) append(f *Field, toAppend interface{}) {
+
 	b.prepareModifiedFields()
-	b.modifiedFields[f.order] = &modifiedField{toAppend, true}
+
+	m := b.modifiedFields[f.order]
+
+	if m == nil {
+		m = &modifiedField{}
+	}
+
+	m.value = toAppend
+	m.isAppend = true
+
+	b.modifiedFields[f.order] = m
+
 	b.setModified()
 }
 
@@ -449,7 +530,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return b.ToBytes()
+	return b.ToBytesWithBuilder(nil)
 }
 
 // ApplyMap sets field values described by provided map[string]interface{}
@@ -463,6 +544,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 // Previousy stored or modified data is rewritten with the provided data
 // Byte arrays are expected to be base64 strings
 // Array element is nil -> error (not supported)
+
 func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	for fn, fv := range data {
 		f, ok := b.Scheme.FieldsMap[fn]
@@ -473,22 +555,29 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 			b.set(f, nil)
 			continue
 		}
+
 		if f.Ft == FieldTypeObject {
 			if f.IsArray {
 				datasNested, ok := fv.([]interface{})
+
 				if !ok {
 					return fmt.Errorf("array of objects required but %#v provided for field %s", fv, f.QualifiedName())
 				}
-				buffers := make([]*Buffer, len(datasNested))
+
+				buffers := getBufferSlice(len(datasNested))
+
 				for i, dataNestedIntf := range datasNested {
 					dataNested, ok := dataNestedIntf.(map[string]interface{})
+
 					if !ok {
 						return fmt.Errorf("element value of array field %s must be an object, %#v provided", fn, dataNestedIntf)
 					}
+
 					buffers[i] = NewBuffer(f.FieldScheme)
 					buffers[i].owner = b
 					buffers[i].ApplyMap(dataNested)
 				}
+
 				b.append(f, buffers)
 			} else {
 				bNested := NewBuffer(f.FieldScheme)
@@ -511,10 +600,30 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	return nil
 }
 
+func ApplyMapBuffer(jsonMap []byte) error {
+	return nil
+}
+
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
 func (b *Buffer) ToBytes() ([]byte, error) {
-	return b.ToBytesWithBuilder(nil)
+
+	var builder *flatbuffers.Builder
+
+	if b.builder != nil {
+		builder = b.builder
+	} else {
+		builder = BuilderPool.Get().(*flatbuffers.Builder)
+	}
+
+	bytes, err := b.ToBytesWithBuilder(builder)
+
+	if b.builder == nil {
+		BuilderPool.Put(builder)
+	}
+
+	return bytes, err
+
 }
 
 // ToBytesWithBuilder same as ToBytes but uses builder
@@ -523,21 +632,29 @@ func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) ([]byte, error
 	if !b.isModified && len(b.tab.Bytes) > 0 { // mandatory fields should be checked
 		return b.tab.Bytes, nil
 	}
+
 	if nil != builder {
 		builder.Reset()
 	} else {
 		builder = flatbuffers.NewBuilder(0)
 	}
+
 	_, err := b.encodeBuffer(builder)
+
 	if err != nil {
 		return nil, err
 	}
-	return builder.FinishedBytes(), nil
+
+	buf := builder.FinishedBytes()
+
+	return buf, nil
 }
 
 func (b *Buffer) prepareModifiedFields() {
-	if len(b.modifiedFields) == 0 {
+	if len(b.Scheme.Fields) > cap(b.modifiedFields) {
 		b.modifiedFields = make([]*modifiedField, len(b.Scheme.Fields))
+	} else {
+		b.modifiedFields = b.modifiedFields[:len(b.Scheme.Fields)]
 	}
 }
 
@@ -548,8 +665,10 @@ type offset struct {
 }
 
 func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, error) {
-	offsets := make([]offset, len(b.Scheme.Fields))
+	offsets := getOffsetSlice(len(b.Scheme.Fields))
+
 	b.prepareModifiedFields()
+
 	var err error
 
 	for _, f := range b.Scheme.Fields {
@@ -586,7 +705,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets[f.order].arr = arrayUOffsetT
+			offsets.Slice[f.order].arr = arrayUOffsetT
 		} else if f.Ft == FieldTypeObject {
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.order]
@@ -615,20 +734,20 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets[f.order].obj = nestedUOffsetT
+			offsets.Slice[f.order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
 			modifiedStringField := b.modifiedFields[f.order]
 			if modifiedStringField != nil {
 				if modifiedStringField.value != nil {
 					if strToWrite, ok := modifiedStringField.value.(string); ok {
-						offsets[f.order].str = bl.CreateString(strToWrite)
+						offsets.Slice[f.order].str = bl.CreateString(strToWrite)
 					} else {
 						return 0, fmt.Errorf("string required but %#v provided for field %s", modifiedStringField.value, f.QualifiedName())
 					}
 				}
 			} else {
 				if strToWrite, ok := b.getByStringField(f); ok {
-					offsets[f.order].str = bl.CreateString(strToWrite)
+					offsets.Slice[f.order].str = bl.CreateString(strToWrite)
 				}
 			}
 		}
@@ -638,18 +757,18 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	for _, f := range b.Scheme.Fields {
 		isSet := false
 		if f.IsArray {
-			if isSet = offsets[f.order].arr > 0; isSet {
-				bl.PrependUOffsetTSlot(f.order, offsets[f.order].arr, 0)
+			if isSet = offsets.Slice[f.order].arr > 0; isSet {
+				bl.PrependUOffsetTSlot(f.order, offsets.Slice[f.order].arr, 0)
 			}
 		} else {
 			switch f.Ft {
 			case FieldTypeString:
-				if isSet = offsets[f.order].str > 0; isSet {
-					bl.PrependUOffsetTSlot(f.order, offsets[f.order].str, 0)
+				if isSet = offsets.Slice[f.order].str > 0; isSet {
+					bl.PrependUOffsetTSlot(f.order, offsets.Slice[f.order].str, 0)
 				}
 			case FieldTypeObject:
-				if isSet = offsets[f.order].obj > 0; isSet {
-					bl.PrependUOffsetTSlot(f.order, offsets[f.order].obj, 0)
+				if isSet = offsets.Slice[f.order].obj > 0; isSet {
+					bl.PrependUOffsetTSlot(f.order, offsets.Slice[f.order].obj, 0)
 				}
 			default:
 				modifiedField := b.modifiedFields[f.order]
@@ -670,6 +789,9 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	}
 	res := bl.EndObject()
 	bl.Finish(res)
+
+	putOffsetSlice(offsets)
+
 	return res, nil
 }
 
@@ -687,12 +809,19 @@ func (b *Buffer) Reset(bytes []byte) {
 	} else {
 		b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
 	}
-	b.modifiedFields = nil
+
+	if b.modifiedFields != nil {
+		b.ReleaseFields()
+
+		b.modifiedFields = b.modifiedFields[:0]
+	}
+
 	b.isModified = false
 }
 
 func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
 	arr, ok := value.([]int32)
+
 	if !ok {
 		intfs, ok := value.([]interface{})
 		if !ok {
@@ -707,6 +836,7 @@ func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
 			arr[i] = int32(float64Src)
 		}
 	}
+
 	return arr, true
 }
 
@@ -903,7 +1033,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			target = arr
 		case []interface{}:
 			// came from JSON
-			target = make([]string, len(arr))
+			target = getStringSlice(len(arr)) //make([]string, )
 			for i, intf := range arr {
 				stringVal, ok := intf.(string)
 				if !ok {
@@ -919,17 +1049,25 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			toAppendTo = append(toAppendTo, target...)
 			target = toAppendTo
 		}
-		stringUOffsetTs := make([]flatbuffers.UOffsetT, len(target))
+
+		stringUOffsetTs := getUOffsetSlice(len(target))
+
 		for i := 0; i < len(target); i++ {
-			stringUOffsetTs[i] = bl.CreateString(target[i])
+			stringUOffsetTs.Slice[i] = bl.CreateString(target[i])
 		}
 		bl.StartVector(elemSize, len(target), elemSize)
 		for i := len(target) - 1; i >= 0; i-- {
-			bl.PrependUOffsetT(stringUOffsetTs[i])
+			bl.PrependUOffsetT(stringUOffsetTs.Slice[i])
 		}
-		return bl.EndVector(len(target)), nil
+
+		putUOffsetSlice(stringUOffsetTs)
+		of := bl.EndVector(len(target))
+
+		putStringSlice(target)
+
+		return of, nil
 	default:
-		nestedUOffsetTs := []flatbuffers.UOffsetT{}
+		nestedUOffsetTs := getUOffsetSlice(0)
 		switch arr := value.(type) {
 		case []*Buffer:
 			// explicit Set\Append("", []*Buffer) was called
@@ -942,23 +1080,23 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
+					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, err := arr[i].encodeBuffer(bl)
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
+					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, nestedUOffsetT)
 				}
 			}
 		case *ObjectArray:
 			for arr.Next() {
 				if storeObjectsAsBytes {
 					nestedBytes, _ := arr.Buffer.ToBytes()
-					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
+					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, _ := arr.Buffer.encodeBuffer(bl) // should be no errors here
-					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
+					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, nestedUOffsetT)
 				}
 			}
 
@@ -968,25 +1106,34 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 
 		if toAppendToIntf != nil {
 			toAppendToArr := toAppendToIntf.(*ObjectArray)
-			toAppendToUOffsetTs := make([]flatbuffers.UOffsetT, toAppendToArr.Len)
+
+			toAppendToUOffsetTs := getUOffsetSlice(toAppendToArr.Len)
+
 			for i := 0; toAppendToArr.Next(); i++ {
 				if storeObjectsAsBytes {
 					bufBytes, _ := toAppendToArr.Buffer.ToBytes()
-					toAppendToUOffsetTs[i] = bl.CreateByteVector(bufBytes)
+					toAppendToUOffsetTs.Slice[i] = bl.CreateByteVector(bufBytes)
 				} else {
-					toAppendToUOffsetTs[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
+					toAppendToUOffsetTs.Slice[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
 				}
 			}
-			toAppendToUOffsetTs = append(toAppendToUOffsetTs, nestedUOffsetTs...)
+
+			toAppendToUOffsetTs.Slice = append(toAppendToUOffsetTs.Slice, nestedUOffsetTs.Slice...)
+
+			putUOffsetSlice(nestedUOffsetTs)
+
 			nestedUOffsetTs = toAppendToUOffsetTs
 		}
 
-		bl.StartVector(elemSize, len(nestedUOffsetTs), elemSize)
-		for i := len(nestedUOffsetTs) - 1; i >= 0; i-- {
-			bl.PrependUOffsetT(nestedUOffsetTs[i])
+		bl.StartVector(elemSize, len(nestedUOffsetTs.Slice), elemSize)
+		for i := len(nestedUOffsetTs.Slice) - 1; i >= 0; i-- {
+			bl.PrependUOffsetT(nestedUOffsetTs.Slice[i])
 		}
-		return bl.EndVector(len(nestedUOffsetTs)), nil
 
+		o := bl.EndVector(len(nestedUOffsetTs.Slice))
+		putUOffsetSlice(nestedUOffsetTs)
+
+		return o, nil
 	}
 }
 
@@ -1163,7 +1310,7 @@ func (b *Buffer) GetNames() []string {
 	if len(b.tab.Bytes) == 0 {
 		return nil
 	}
-	
+
 	res := []string{}
 	vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
 	vOffsetT := b.tab.GetVOffsetT(vTable)
