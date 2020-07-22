@@ -445,7 +445,9 @@ func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
 	if Scheme == nil {
 		panic("nil Scheme provided")
 	}
-	b := &Buffer{}
+
+	b := NewBuffer(Scheme)
+	//b := &Buffer{}
 	b.Scheme = Scheme
 	b.Reset(bytes)
 	return b
@@ -530,7 +532,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return b.ToBytesWithBuilder(nil)
+	return b.ToBytes()
 }
 
 // ApplyMap sets field values described by provided map[string]interface{}
