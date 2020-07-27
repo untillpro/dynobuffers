@@ -13,22 +13,7 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-type SafeCounter struct {
-	v   int
-	mux sync.Mutex
-}
-
-func (c *SafeCounter) Value() int {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	return c.v
-}
-
-func (c *SafeCounter) Set(val int) {
-	c.mux.Lock()
-	c.v = val
-	c.mux.Unlock()
-}
+const DefaultBufferSize = 10
 
 var BuilderPool = sync.Pool{
 	New: func() interface{} { return flatbuffers.NewBuilder(0) },
@@ -38,7 +23,7 @@ var BufferPool = sync.Pool{
 	New: func() interface{} {
 		return &Buffer{
 			builder:        flatbuffers.NewBuilder(0),
-			modifiedFields: make([]*modifiedField, 10),
+			modifiedFields: make([]*modifiedField, DefaultBufferSize),
 		}
 	},
 }
@@ -54,29 +39,19 @@ type UOffsetSliceC struct {
 	Slice []flatbuffers.UOffsetT
 }
 
-var UOffsetSliceMax = SafeCounter{}
 var UOffsetPool = sync.Pool{
 	New: func() interface{} {
-		l := UOffsetSliceMax.Value()
-
 		return &UOffsetSliceC{
-			Slice: make([]flatbuffers.UOffsetT, l),
+			Slice: make([]flatbuffers.UOffsetT, DefaultBufferSize),
 		}
 	},
 }
 
 func getUOffsetSlice(l int) (cont *UOffsetSliceC) {
-	max := UOffsetSliceMax.Value()
-
-	if l > max {
-		max = l
-		UOffsetSliceMax.Set(l)
-	}
-
 	cont = UOffsetPool.Get().(*UOffsetSliceC)
 
-	if cap(cont.Slice) < max {
-		cont.Slice = make([]flatbuffers.UOffsetT, max)
+	if cap(cont.Slice) < l {
+		cont.Slice = make([]flatbuffers.UOffsetT, l)
 	} else {
 		cont.Slice = cont.Slice[:l]
 
@@ -89,15 +64,7 @@ func getUOffsetSlice(l int) (cont *UOffsetSliceC) {
 }
 
 func putUOffsetSlice(cont *UOffsetSliceC) {
-	max := UOffsetSliceMax.Value()
-	c := cap(cont.Slice)
-	if c >= max {
-		UOffsetPool.Put(cont)
-
-		if c > max {
-			UOffsetSliceMax.Set(c)
-		}
-	}
+	UOffsetPool.Put(cont)
 }
 
 //getUOffsetSlice
@@ -106,30 +73,19 @@ type OffsetSliceC struct {
 	Slice []offset
 }
 
-var OffsetSliceMax = SafeCounter{}
 var OffsetPool = sync.Pool{
 	New: func() interface{} {
-		l := OffsetSliceMax.Value()
-
 		return &OffsetSliceC{
-
-			Slice: make([]offset, l),
+			Slice: make([]offset, DefaultBufferSize),
 		}
 	},
 }
 
 func getOffsetSlice(l int) (cont *OffsetSliceC) {
-	max := OffsetSliceMax.Value()
-
-	if l > max {
-		max = l
-		OffsetSliceMax.Set(l)
-	}
-
 	cont = OffsetPool.Get().(*OffsetSliceC)
 
-	if cap(cont.Slice) < max {
-		cont.Slice = make([]offset, max)
+	if cap(cont.Slice) < l {
+		cont.Slice = make([]offset, l)
 	} else {
 		cont.Slice = cont.Slice[:l]
 
@@ -142,16 +98,7 @@ func getOffsetSlice(l int) (cont *OffsetSliceC) {
 }
 
 func putOffsetSlice(cont *OffsetSliceC) {
-	max := OffsetSliceMax.Value()
-	c := cap(cont.Slice)
-
-	if c >= max {
-		OffsetPool.Put(cont)
-
-		if c > max {
-			OffsetSliceMax.Set(c)
-		}
-	}
+	OffsetPool.Put(cont)
 }
 
 //getUOffsetSlice
@@ -159,8 +106,6 @@ func putOffsetSlice(cont *OffsetSliceC) {
 type BuffersSliceC struct {
 	Slice []*Buffer
 }
-
-var BuffersSliceMax = SafeCounter{}
 
 var BuffersContPool = sync.Pool{
 	New: func() interface{} {
@@ -170,30 +115,20 @@ var BuffersContPool = sync.Pool{
 
 var BuffersPool = sync.Pool{
 	New: func() interface{} {
-		l := BuffersSliceMax.Value()
-
 		return &BuffersSliceC{
-			Slice: make([]*Buffer, l),
+			Slice: make([]*Buffer, DefaultBufferSize),
 		}
 	},
 }
 
 func getBufferSlice(l int) (b []*Buffer) {
-
-	max := BuffersSliceMax.Value()
-
-	if l > max {
-		max = l
-		BuffersSliceMax.Set(l)
-	}
-
 	c := BuffersPool.Get().(*BuffersSliceC)
 	b = c.Slice
 	c.Slice = nil
 	BuffersContPool.Put(c)
 
-	if cap(b) < max {
-		b = make([]*Buffer, max)
+	if cap(b) < l {
+		b = make([]*Buffer, l)
 	} else {
 		b = b[:l]
 
@@ -206,86 +141,51 @@ func getBufferSlice(l int) (b []*Buffer) {
 }
 
 func putBufferSlice(b []*Buffer) {
-	max := BuffersSliceMax.Value()
-	l := cap(b)
+	c := BuffersContPool.Get().(*BuffersSliceC)
+	c.Slice = b
 
-	if l >= max {
-		c := BuffersContPool.Get().(*BuffersSliceC)
-		c.Slice = b
-
-		BuffersPool.Put(c)
-
-		if l > max {
-			BuffersSliceMax.Set(l)
-		}
-
-	}
+	BuffersPool.Put(c)
 }
 
 //getStringSlice
 
-type StringsSliceC struct {
+type StringsSlice struct {
 	Slice []string
 }
 
-var StringsSliceMax = SafeCounter{}
-
 var StringsContPool = sync.Pool{
 	New: func() interface{} {
-		return &StringsSliceC{}
+		return &StringsSlice{}
 	},
 }
 
 var StringsPool = sync.Pool{
 	New: func() interface{} {
-		l := StringsSliceMax.Value()
-
-		return &StringsSliceC{
-			Slice: make([]string, l),
+		return &StringsSlice{
+			Slice: make([]string, DefaultBufferSize),
 		}
 	},
 }
 
-func getStringSlice(l int) (b []string) {
-	max := StringsSliceMax.Value()
+func getStringSlice(l int) (b *StringsSlice) {
 
-	if l > max {
-		max = l
-		StringsSliceMax.Set(l)
-	}
+	b = StringsPool.Get().(*StringsSlice)
 
-	c := StringsPool.Get().(*StringsSliceC)
-	b = c.Slice
-	c.Slice = nil
-	StringsContPool.Put(c)
-
-	if cap(b) < max {
-		b = make([]string, max)
+	if cap(b.Slice) < l {
+		b.Slice = make([]string, l)
 	} else {
-		b = b[:l]
+		b.Slice = b.Slice[:l]
 
-		for k := range b {
-			b[k] = ""
+		for k := range b.Slice {
+			b.Slice[k] = ""
 		}
 	}
 
 	return
 }
 
-func putStringSlice(b []string) {
-	max := StringsSliceMax.Value()
-	l := cap(b)
-
-	if l >= max {
-		c := StringsContPool.Get().(*StringsSliceC)
-		c.Slice = b
-
-		StringsPool.Put(c)
-
-		if l > max {
-			StringsSliceMax.Set(l)
-		}
-	}
+func putStringSlice(b *StringsSlice) {
+	StringsPool.Put(b)
 }
 
 /*
