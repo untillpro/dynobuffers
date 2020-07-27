@@ -130,17 +130,21 @@ func BenchmarkWriteNested_ToBytes_Parallel(b *testing.B) {
 	b.ResetTimer()
 
 	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			bf := dynobuffers.NewBuffer(s)
+		bf := dynobuffers.NewBuffer(s)
 
-			bf.ApplyMap(data)
+		bf.ApplyMap(data)
+
+		for pb.Next() {
+
 			_, err := bf.ToBytes()
 
 			if err != nil {
 				b.Fatal(err)
 			}
-			bf.Release()
+
 		}
+
+		bf.Release()
 	})
 
 	b.StopTimer()
