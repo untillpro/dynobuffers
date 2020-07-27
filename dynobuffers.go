@@ -1028,11 +1028,11 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		}
 		return bl.CreateByteVector(target), nil
 	case FieldTypeString:
-		var target []string
+		var target *StringsSlice
 		switch arr := value.(type) {
 		case []string:
 			// Set("", []string) was called
-			target = arr
+			target = &StringsSlice{Slice: arr}
 		case []interface{}:
 			// came from JSON
 			target = getStringSlice(len(arr)) //make([]string, )
@@ -1041,29 +1041,30 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 				if !ok {
 					return 0, fmt.Errorf("[]byte required but %#v provided for field %s", value, f.QualifiedName())
 				}
-				target[i] = stringVal
+				target.Slice[i] = stringVal
 			}
 		default:
 			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]string)
-			toAppendTo = append(toAppendTo, target...)
-			target = toAppendTo
+			toAppendTo = append(toAppendTo, target.Slice...)
+			target.Slice = toAppendTo
 		}
 
-		stringUOffsetTs := getUOffsetSlice(len(target))
+		stringUOffsetTs := getUOffsetSlice(len(target.Slice))
 
-		for i := 0; i < len(target); i++ {
-			stringUOffsetTs.Slice[i] = bl.CreateString(target[i])
+		for i := 0; i < len(target.Slice); i++ {
+			stringUOffsetTs.Slice[i] = bl.CreateString(target.Slice[i])
 		}
-		bl.StartVector(elemSize, len(target), elemSize)
-		for i := len(target) - 1; i >= 0; i-- {
+		bl.StartVector(elemSize, len(target.Slice), elemSize)
+
+		for i := len(target.Slice) - 1; i >= 0; i-- {
 			bl.PrependUOffsetT(stringUOffsetTs.Slice[i])
 		}
 
 		putUOffsetSlice(stringUOffsetTs)
-		of := bl.EndVector(len(target))
+		of := bl.EndVector(len(target.Slice))
 
 		putStringSlice(target)
 
