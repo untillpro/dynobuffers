@@ -532,7 +532,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return b.ToBytes()
+	return b.ToBytesWithBuilder(nil)
 }
 
 // ApplyMap sets field values described by provided map[string]interface{}
