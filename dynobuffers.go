@@ -106,8 +106,8 @@ func (m *modifiedField) Release() {
 		}
 	}
 
-	if buf, ok := m.value.([]*Buffer); ok {
-		for _, bb := range buf {
+	if buf, ok := m.value.(*BuffersSlice); ok {
+		for _, bb := range buf.Slice {
 			if bb != nil {
 				bb.Release()
 			}
@@ -448,7 +448,7 @@ func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
 
 	b := NewBuffer(Scheme)
 	//b := &Buffer{}
-	b.Scheme = Scheme
+	//b.Scheme = Scheme
 	b.Reset(bytes)
 	return b
 }
@@ -575,9 +575,9 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 						return fmt.Errorf("element value of array field %s must be an object, %#v provided", fn, dataNestedIntf)
 					}
 
-					buffers[i] = NewBuffer(f.FieldScheme)
-					buffers[i].owner = b
-					buffers[i].ApplyMap(dataNested)
+					buffers.Slice[i] = NewBuffer(f.FieldScheme)
+					buffers.Slice[i].owner = b
+					buffers.Slice[i].ApplyMap(dataNested)
 				}
 
 				b.append(f, buffers)
@@ -1072,6 +1072,26 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	default:
 		nestedUOffsetTs := getUOffsetSlice(0)
 		switch arr := value.(type) {
+		case *BuffersSlice:
+			// explicit Set\Append("", []*Buffer) was called
+			for i := 0; i < len(arr.Slice); i++ {
+				if arr.Slice[i] == nil {
+					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
+				}
+				if storeObjectsAsBytes {
+					nestedBytes, err := arr.Slice[i].ToBytes()
+					if err != nil {
+						return 0, err
+					}
+					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, bl.CreateByteVector(nestedBytes))
+				} else {
+					nestedUOffsetT, err := arr.Slice[i].encodeBuffer(bl)
+					if err != nil {
+						return 0, err
+					}
+					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, nestedUOffsetT)
+				}
+			}
 		case []*Buffer:
 			// explicit Set\Append("", []*Buffer) was called
 			for i := 0; i < len(arr); i++ {
@@ -1276,11 +1296,21 @@ func (b *Buffer) ToJSON() []byte {
 							buf.Write(arr.Buffer.ToJSON())
 							buf.WriteString(",")
 						}
+					} else if bs, ok := value.(*BuffersSlice); ok {
+						for _, buffer := range bs.Slice {
+							if buffer != nil {
+								buf.Write(buffer.ToJSON())
+								buf.WriteString(",")
+							}
+						}
 					} else {
 						buffers, _ := value.([]*Buffer)
 						for _, buffer := range buffers {
-							buf.Write(buffer.ToJSON())
-							buf.WriteString(",")
+							if buffer != nil {
+								buf.Write(buffer.ToJSON())
+								buf.WriteString(",")
+							}
+
 						}
 					}
 					buf.Truncate(buf.Len() - 1)
@@ -1355,8 +1385,8 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 							targetArr = append(targetArr, arr.Buffer.ToJSONMap())
 						}
 					} else {
-						buffers, _ := storedVal.([]*Buffer)
-						for _, buffer := range buffers {
+						buffers, _ := storedVal.(*BuffersSlice)
+						for _, buffer := range buffers.Slice {
 							targetArr = append(targetArr, buffer.ToJSONMap())
 						}
 					}

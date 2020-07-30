@@ -31,10 +31,13 @@ func BenchmarkReadDynoBuffersSimpleTypedReadString(b *testing.B) {
 	sum := float32(0)
 	for i := 0; i < b.N; i++ {
 		bf := dynobuffers.ReadBuffer(bytes, s)
+
 		price, _ := bf.GetFloat("price")
 		quantity, _ := bf.GetInt("quantity")
 		_, _ = bf.GetString("name")
 		sum += price * float32(quantity)
+
+		bf.Release()
 	}
 }
 
@@ -53,6 +56,7 @@ func BenchmarkReadDynoBuffersSimpleUntyped(b *testing.B) {
 		price := bf.Get("price").(float32)
 		quantity := bf.Get("quantity").(int32)
 		sum += price * float32(quantity)
+		bf.Release()
 	}
 }
 
@@ -78,7 +82,6 @@ intsObj..:
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = dynobuffers.ReadBuffer(bytes, s)
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY="}`)
@@ -89,15 +92,17 @@ intsObj..:
 
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
-		err = b.ApplyMap(dest)
+		bf := dynobuffers.ReadBuffer(bytes, s)
+		err = bf.ApplyMap(dest)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = b.ToBytes()
+		_, err = bf.ToBytes()
 		if err != nil {
 			t.Fatal(err)
 		}
-		b = dynobuffers.ReadBuffer(bytes, s)
+
+		bf.Release()
 	}
 }
 
@@ -123,7 +128,6 @@ intsObj..:
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = dynobuffers.ReadBuffer(bytes, s)
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`)
@@ -134,15 +138,16 @@ intsObj..:
 
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
-		err = b.ApplyMap(dest)
+		bf := dynobuffers.ReadBuffer(bytes, s)
+		err = bf.ApplyMap(dest)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = b.ToBytes()
+		_, err = bf.ToBytes()
 		if err != nil {
 			t.Fatal(err)
 		}
-		b = dynobuffers.ReadBuffer(bytes, s)
+		bf.Release()
 	}
 }
 
@@ -198,6 +203,7 @@ func Benchmark_ReadSimple_Dyno_Typed(b *testing.B) {
 		price, _ := bf.GetFloat("price")
 		quantity, _ := bf.GetInt("quantity")
 		sum += price * float32(quantity)
+		bf.Release()
 	}
 }
 func Benchmark_ReadSimple_Flat(b *testing.B) {
@@ -305,6 +311,7 @@ func Benchmark_ReadFewArticleFields_Dyno_Typed(b *testing.B) {
 		q, _ := bf.GetInt("quantity")
 		price, _ := bf.GetFloat("purchase_price")
 		sum += float64(float32(q) * price)
+		bf.Release()
 	}
 }
 func Benchmark_ReadFewArticleFields_Flat(b *testing.B) {
@@ -618,6 +625,8 @@ func Benchmark_ReadAllArticleFields_Dyno_Untyped(b *testing.B) {
 		bf.Get("auto_resetcourse")
 		bf.Get("block_transfer")
 		bf.Get("id_size_modifier")
+
+		bf.Release()
 	}
 }
 
@@ -753,6 +762,8 @@ func Benchmark_ReadAllArticleFields_Dyno_Typed(b *testing.B) {
 		bf.GetInt("auto_resetcourse")
 		bf.GetInt("block_transfer")
 		bf.GetLong("id_size_modifier")
+
+		bf.Release()
 	}
 }
 func Benchmark_ReadAllArticleFields_Flat(b *testing.B) {

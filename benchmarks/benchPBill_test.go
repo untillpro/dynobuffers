@@ -431,12 +431,12 @@ func BenchmarkPBillSet(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	pb := dynobuffers.NewBuffer(s)
+	bb := dynobuffers.NewBuffer(s)
 
-	fillBuffer(pb)
+	fillBuffer(bb)
 
-	jsonBytes := []byte(pb.ToJSON())
-	pb = dynobuffers.NewBuffer(s)
+	jsonBytes := []byte(bb.ToJSON())
+
 	dest := map[string]interface{}{}
 	err = json.Unmarshal(jsonBytes, &dest)
 	if err != nil {
@@ -445,11 +445,15 @@ func BenchmarkPBillSet(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		pb := dynobuffers.NewBuffer(s)
+
 		err = pb.ApplyMap(dest)
 		if err != nil {
 			b.Fatal(err)
 		}
 		_, _ = pb.ToBytes()
+
+		pb.Release()
 	}
 }
 
@@ -471,16 +475,17 @@ func BenchmarkPBillAppend(b *testing.B) {
 		b.Fatal(err)
 	}
 	bytes, err := pb.ApplyJSONAndToBytes(jsonBytes)
-	pb = dynobuffers.ReadBuffer(bytes, s)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		pb = dynobuffers.ReadBuffer(bytes, s)
 		err = pb.ApplyMap(dest)
 		if err != nil {
 			b.Fatal(err)
 		}
 		_, _ = pb.ToBytes()
 		pb = dynobuffers.ReadBuffer(bytes, s)
+		pb.Release()
 	}
 }
 
@@ -523,7 +528,9 @@ func BenchmarkPBillItemReadByIndex(b *testing.B) {
 			pbillItem := pb.GetByIndex("pbill_item", i).(*dynobuffers.Buffer)
 			s, _ := pbillItem.GetFloat("price")
 			sum += s
+			pbillItem.Release()
 		}
+		pb.Release()
 	}
 	_ = sum
 }
@@ -569,6 +576,8 @@ func BenchmarkPBillItemReadIter(b *testing.B) {
 			s, _ := pbillItems.Buffer.GetFloat("price")
 			sum += s
 		}
+
+		pb.Release()
 	}
 	_ = sum
 }
@@ -613,6 +622,7 @@ func BenchmarkPBillItemReadNoAlloc(b *testing.B) {
 			s, _ := arr.Buffer.GetFloat("price")
 			sum += s
 		}
+		pb.Release()
 	}
 	_ = sum
 }

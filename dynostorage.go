@@ -35,128 +35,110 @@ func getBuffer() (b *Buffer) {
 
 //getUOffsetSlice
 
-type UOffsetSliceC struct {
+type UOffsetSlice struct {
 	Slice []flatbuffers.UOffsetT
 }
 
 var UOffsetPool = sync.Pool{
 	New: func() interface{} {
-		return &UOffsetSliceC{
+		return &UOffsetSlice{
 			Slice: make([]flatbuffers.UOffsetT, DefaultBufferSize),
 		}
 	},
 }
 
-func getUOffsetSlice(l int) (cont *UOffsetSliceC) {
-	cont = UOffsetPool.Get().(*UOffsetSliceC)
+func getUOffsetSlice(l int) (c *UOffsetSlice) {
+	c = UOffsetPool.Get().(*UOffsetSlice)
 
-	if cap(cont.Slice) < l {
-		cont.Slice = make([]flatbuffers.UOffsetT, l)
+	if cap(c.Slice) < l {
+		c.Slice = make([]flatbuffers.UOffsetT, l)
 	} else {
-		cont.Slice = cont.Slice[:l]
+		c.Slice = c.Slice[:l]
 
-		for k := range cont.Slice {
-			cont.Slice[k] = 0
+		for k := range c.Slice {
+			c.Slice[k] = 0
 		}
 	}
 
 	return
 }
 
-func putUOffsetSlice(cont *UOffsetSliceC) {
-	UOffsetPool.Put(cont)
+func putUOffsetSlice(c *UOffsetSlice) {
+	UOffsetPool.Put(c)
 }
 
 //getUOffsetSlice
 
-type OffsetSliceC struct {
+type OffsetSlice struct {
 	Slice []offset
 }
 
 var OffsetPool = sync.Pool{
 	New: func() interface{} {
-		return &OffsetSliceC{
+		return &OffsetSlice{
 			Slice: make([]offset, DefaultBufferSize),
 		}
 	},
 }
 
-func getOffsetSlice(l int) (cont *OffsetSliceC) {
-	cont = OffsetPool.Get().(*OffsetSliceC)
+func getOffsetSlice(l int) (c *OffsetSlice) {
+	c = OffsetPool.Get().(*OffsetSlice)
 
-	if cap(cont.Slice) < l {
-		cont.Slice = make([]offset, l)
+	if cap(c.Slice) < l {
+		c.Slice = make([]offset, l)
 	} else {
-		cont.Slice = cont.Slice[:l]
+		c.Slice = c.Slice[:l]
 
-		for k := range cont.Slice {
-			cont.Slice[k] = offset{}
+		for k := range c.Slice {
+			c.Slice[k] = offset{}
 		}
 	}
 
 	return
 }
 
-func putOffsetSlice(cont *OffsetSliceC) {
-	OffsetPool.Put(cont)
+func putOffsetSlice(c *OffsetSlice) {
+	OffsetPool.Put(c)
 }
 
 //getUOffsetSlice
 
-type BuffersSliceC struct {
+type BuffersSlice struct {
 	Slice []*Buffer
-}
-
-var BuffersContPool = sync.Pool{
-	New: func() interface{} {
-		return &BuffersSliceC{}
-	},
 }
 
 var BuffersPool = sync.Pool{
 	New: func() interface{} {
-		return &BuffersSliceC{
+		return &BuffersSlice{
 			Slice: make([]*Buffer, DefaultBufferSize),
 		}
 	},
 }
 
-func getBufferSlice(l int) (b []*Buffer) {
-	c := BuffersPool.Get().(*BuffersSliceC)
-	b = c.Slice
-	c.Slice = nil
-	BuffersContPool.Put(c)
+func getBufferSlice(l int) (b *BuffersSlice) {
+	b = BuffersPool.Get().(*BuffersSlice)
 
-	if cap(b) < l {
-		b = make([]*Buffer, l)
+	if cap(b.Slice) < l {
+		b.Slice = make([]*Buffer, l)
 	} else {
-		b = b[:l]
+		b.Slice = b.Slice[:l]
 
-		for k := range b {
-			b[k] = nil
+		for k := range b.Slice {
+			b.Slice[k] = nil
 		}
 	}
 
 	return
 }
 
-func putBufferSlice(b []*Buffer) {
-	c := BuffersContPool.Get().(*BuffersSliceC)
-	c.Slice = b
-
-	BuffersPool.Put(c)
+func putBufferSlice(b *BuffersSlice) {
+	BuffersPool.Put(b)
 }
 
 //getStringSlice
 
 type StringsSlice struct {
 	Slice []string
-}
-
-var StringsContPool = sync.Pool{
-	New: func() interface{} {
-		return &StringsSlice{}
-	},
 }
 
 var StringsPool = sync.Pool{
@@ -187,31 +169,3 @@ func getStringSlice(l int) (b *StringsSlice) {
 func putStringSlice(b *StringsSlice) {
 	StringsPool.Put(b)
 }
-
-/*
-
-
-
-var StringSlice = make([]string, MaxBufLen)
-var StringsCursor = 0
-var NextStringsCursor = 0
-
-func getStringSlice(l int) (buf []string) {
-	NextStringsCursor = StringsCursor + l
-
-	if NextStringsCursor >= MaxBufLen {
-		StringsCursor = 0
-		NextStringsCursor = l
-	}
-
-	buf = StringSlice[StringsCursor:NextStringsCursor]
-	StringsCursor = NextStringsCursor
-
-	for k := range buf {
-		buf[k] = ""
-	}
-
-	return
-}
-
-*/

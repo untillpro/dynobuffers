@@ -46,6 +46,7 @@ func BenchmarkWriteSimple_Dyno(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		bf.Release()
 	}
 }
 
