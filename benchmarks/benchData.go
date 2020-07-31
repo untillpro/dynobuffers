@@ -8,8 +8,8 @@
 package benchmarks
 
 import (
+	"github.com/Yohanson555/dynobuffers"
 	flatbuffers "github.com/google/flatbuffers/go"
-	"github.com/untillpro/dynobuffers"
 )
 
 func fillArticleFlatBuffers(bl *flatbuffers.Builder) flatbuffers.UOffsetT {

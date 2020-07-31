@@ -11,15 +11,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/Yohanson555/dynobuffers"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
-	"github.com/untillpro/dynobuffers"
 )
-
-/*
-Prior optimization
-BenchmarkWriteSimpleDyno-8   	  667756	      1518 ns/op	     520 B/op	      16 allocs/op
-*/
 
 func BenchmarkWriteSimple_Dyno_SameBuilder(b *testing.B) {
 	s := getSimpleScheme()
@@ -51,7 +46,109 @@ func BenchmarkWriteSimple_Dyno(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		bf.Release()
 	}
+}
+
+func BenchmarkWriteNestedSimple_Dyno(b *testing.B) {
+	s := getNestedScheme()
+	data := getNestedData()
+	bf := dynobuffers.NewBuffer(s)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bf.Reset(nil)
+		bf.ApplyMap(data)
+		_, err := bf.ToBytes()
+
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkWriteNestedSimple_Dyno_SameBuilder(b *testing.B) {
+	s := getNestedScheme()
+	data := getNestedData()
+	builder := flatbuffers.NewBuilder(0)
+
+	bf := dynobuffers.NewBuffer(s)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		bf.Reset(nil)
+		bf.ApplyMap(data)
+		_, err := bf.ToBytesWithBuilder(builder)
+
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkWriteNestedSimple_ApplyMap_Test(b *testing.B) {
+	s := getNestedScheme()
+	data := getNestedData()
+
+	bf := dynobuffers.NewBuffer(s)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		bf.Reset(nil)
+		bf.ApplyMap(data)
+	}
+
+	b.StopTimer()
+}
+
+func BenchmarkWriteNested_ToBytes_Test(b *testing.B) {
+	s := getNestedScheme()
+	data := getNestedData()
+
+	bf := dynobuffers.NewBuffer(s)
+
+	bf.ApplyMap(data)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, err := bf.ToBytes()
+
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.StopTimer()
+}
+
+func BenchmarkWriteNested_ToBytes_Parallel(b *testing.B) {
+	s := getNestedScheme()
+	data := getNestedData()
+
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		bf := dynobuffers.NewBuffer(s)
+
+		bf.ApplyMap(data)
+
+		for pb.Next() {
+
+			_, err := bf.ToBytes()
+
+			if err != nil {
+				b.Fatal(err)
+			}
+
+		}
+
+		bf.Release()
+	})
+
+	b.StopTimer()
 }
 
 func BenchmarkWriteSimple_Avro(b *testing.B) {
@@ -82,4 +179,17 @@ func BenchmarkWriteSimple_Avro(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestWriteNestedSimple_ApplyMap_Test(b *testing.T) {
+	s := getNestedScheme()
+	data := getNestedData()
+
+	bf := dynobuffers.NewBuffer(s)
+
+	for i := 0; i < 1000; i++ {
+		bf.ApplyMap(data)
+		bf.Reset(nil)
+	}
+	bf.Release()
 }

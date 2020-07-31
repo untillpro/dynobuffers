@@ -1,13 +1,12 @@
-module github.com/untillpro/dynobuffers
+module github.com/Yohanson555/dynobuffers
 
 go 1.13
 
 require (
-	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/flatbuffers v1.12.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/linkedin/goavro v2.1.0+incompatible
-	github.com/stretchr/testify v1.5.1
-	gopkg.in/linkedin/goavro.v1 v1.0.5 // indirect
-	gopkg.in/yaml.v2 v2.2.8
+	github.com/stretchr/testify v1.6.1
+	github.com/untillpro/dynobuffers v0.0.0-20200429144718-eda901a86abf
+	gopkg.in/yaml.v2 v2.3.0
 )

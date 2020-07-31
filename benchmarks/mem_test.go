@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
- 
+
 package benchmarks
 
 import (
@@ -12,9 +12,9 @@ import (
 	"log"
 	"testing"
 
+	"github.com/Yohanson555/dynobuffers"
 	"github.com/linkedin/goavro"
 	"github.com/stretchr/testify/require"
-	"github.com/untillpro/dynobuffers"
 )
 
 func Test_MemFewArticleFields_Avro(t *testing.T) {

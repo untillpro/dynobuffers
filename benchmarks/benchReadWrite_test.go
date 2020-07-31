@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/untillpro/dynobuffers"
+	"github.com/Yohanson555/dynobuffers"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
@@ -39,6 +39,7 @@ func BenchmarkWriteDynoBuffersSimpleTyped(b *testing.B) {
 		sum += price * float32(quantity)
 		bf.Set("quantity", int32(3))
 		_, _ = bf.ToBytes()
+		bf.Release()
 	}
 }
 
@@ -60,6 +61,7 @@ func BenchmarkWriteDynoBuffersSimpleTypedReadWriteString(b *testing.B) {
 		sum += price * float32(quantity)
 		bf.Set("name", "new")
 		_, _ = bf.ToBytes()
+		bf.Release()
 	}
 }
 
@@ -80,6 +82,7 @@ func BenchmarkWriteDynoBuffersSimpleUntyped(b *testing.B) {
 		sum += price * float32(quantity)
 		bf.Set("quantity", int32(3))
 		_, _ = bf.ToBytes()
+		bf.Release()
 	}
 }
 
@@ -199,6 +202,7 @@ func BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
 		sum += float64(float32(q) * price)
 		bf.Set("qauntity", int32(123))
 		_, _ = bf.ToBytes()
+		bf.Release()
 	}
 }
 func BenchmarkWriteFlatBuffersArticleReadFewFields(b *testing.B) {
@@ -692,6 +696,8 @@ func BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
 		bf.Get("id_size_modifier")
 		bf.Set("quantity", int32(123))
 		_, _ = bf.ToBytes()
+
+		bf.Release()
 	}
 }
 
