@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Yohanson555/dynobuffers"
 	"github.com/stretchr/testify/assert"
+	"github.com/untillpro/dynobuffers"
 )
 
 var pbillYaml string = `

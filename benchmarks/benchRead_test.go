@@ -13,10 +13,10 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/Yohanson555/dynobuffers"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
 	"github.com/stretchr/testify/require"
+	"github.com/untillpro/dynobuffers"
 )
 
 func BenchmarkReadDynoBuffersSimpleTypedReadString(b *testing.B) {
