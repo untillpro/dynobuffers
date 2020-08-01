@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Yohanson555/dynobuffers"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/linkedin/goavro"
+	"github.com/untillpro/dynobuffers"
 )
 
 func BenchmarkWriteSimple_Dyno_SameBuilder(b *testing.B) {

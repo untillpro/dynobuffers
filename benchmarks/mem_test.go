@@ -12,9 +12,9 @@ import (
 	"log"
 	"testing"
 
-	"github.com/Yohanson555/dynobuffers"
 	"github.com/linkedin/goavro"
 	"github.com/stretchr/testify/require"
+	"github.com/untillpro/dynobuffers"
 )
 
 func Test_MemFewArticleFields_Avro(t *testing.T) {
