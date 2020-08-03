@@ -1021,10 +1021,11 @@ func isFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 		return true
 	}
 	if float64Src == float64(int32(float64Src)) {
+		res := f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
 		if float64Src >= 0 && float64Src <= 255 {
-			return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat || f.Ft == FieldTypeByte
+			return res || f.Ft == FieldTypeByte
 		}
-		return f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
+		return res
 	} else if float64Src == float64(int64(float64Src)) {
 		return f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble
 	} else {
