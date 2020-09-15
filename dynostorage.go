@@ -10,6 +10,7 @@ package dynobuffers
 import (
 	"sync"
 
+	"github.com/francoispqt/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
@@ -105,6 +106,24 @@ func putOffsetSlice(c *OffsetSlice) {
 
 type BuffersSlice struct {
 	Slice []*Buffer
+
+	Owner  *Buffer
+	Scheme *Scheme
+}
+
+func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
+
+	buffer := NewBuffer(b.Scheme)
+	buffer.owner = b.Owner
+
+	if err := dec.Object(buffer); err != nil {
+		return err
+	}
+
+	b.Slice = append(b.Slice, buffer)
+	//b.Slice[dec.Index()] = buffer
+
+	return nil
 }
 
 var BuffersPool = sync.Pool{
@@ -132,6 +151,9 @@ func getBufferSlice(l int) (b *BuffersSlice) {
 }
 
 func putBufferSlice(b *BuffersSlice) {
+	b.Scheme = nil
+	b.Owner = nil
+
 	BuffersPool.Put(b)
 }
 
