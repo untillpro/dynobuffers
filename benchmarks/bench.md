@@ -27,6 +27,7 @@ ok      github.com/untillpro/dynobuffers/benchmarks     28.160s
 
 ## After
 
+
 goos: windows
 goarch: amd64
 pkg: github.com/Yohanson555/dynobuffers/benchmarks
