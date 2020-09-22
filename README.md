@@ -2,8 +2,8 @@
 
 # Dyno Buffers
 
-Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) with get\set by name feature
-Status: under development
+- Codegen-less wrapper for [FlatBuffers](https://github.com/google/flatbuffers) with get\set by name feature
+- Status: under development
 
 # Features
 - Uses FlatBuffer to read\write values from\to byte array converting to the required type described in the Scheme.
