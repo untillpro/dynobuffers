@@ -218,13 +218,13 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 
 func (b *Buffer) Release() {
 	if !b.isReleased {
-		b.ReleaseFields()
+		b.releaseFields()
 		b.isReleased = true
 		BufferPool.Put(b)
 	}
 }
 
-func (b *Buffer) ReleaseFields() {
+func (b *Buffer) releaseFields() {
 	if b.modifiedFields != nil && len(b.modifiedFields) > 0 {
 		for _, m := range b.modifiedFields {
 			if m != nil {
@@ -548,7 +548,6 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 // Previousy stored or modified data is rewritten with the provided data
 // Byte arrays are expected to be base64 strings
 // Array element is nil -> error (not supported)
-
 func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	for fn, fv := range data {
 		f, ok := b.Scheme.FieldsMap[fn]
@@ -815,7 +814,7 @@ func (b *Buffer) Reset(bytes []byte) {
 	}
 
 	if b.modifiedFields != nil {
-		b.ReleaseFields()
+		b.releaseFields()
 
 		b.modifiedFields = b.modifiedFields[:0]
 	}
