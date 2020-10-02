@@ -1,5 +1,6 @@
 # Optimization 2020-07-30
 
+
 ## Before
 
 goos: windows
@@ -26,6 +27,7 @@ PASS
 ok      github.com/untillpro/dynobuffers/benchmarks     28.160s
 
 ## After
+
 
 goos: windows
 goarch: amd64

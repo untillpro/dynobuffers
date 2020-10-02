@@ -19,6 +19,7 @@ import (
 	"unicode"
 	"unsafe"
 
+	"github.com/francoispqt/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"gopkg.in/yaml.v2"
 )
@@ -603,8 +604,101 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	return nil
 }
 
-func ApplyMapBuffer(jsonMap []byte) error {
+func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) error {
+	var err error
+
+	f, ok := b.Scheme.FieldsMap[fn]
+	if !ok {
+		return fmt.Errorf("field %s does not exist in the scheme", fn)
+	}
+
+	if f.Ft == FieldTypeObject {
+		if f.IsArray {
+			buffers := getBufferSlice(0)
+			buffers.Scheme = f.FieldScheme
+			buffers.Owner = b
+
+			if err = dec.Array(buffers); err != nil {
+				return err
+			}
+
+			b.append(f, buffers)
+		} else {
+			bNested := NewBuffer(f.FieldScheme)
+			bNested.owner = b
+
+			if err = dec.Object(bNested); err != nil {
+				return err
+			}
+
+			b.set(f, bNested)
+		}
+	} else {
+		//fv, err := b.unmarshalField(dec, f)
+
+		var fv string
+
+		err = dec.String(&fv)
+
+		if err != nil {
+			return err
+		}
+
+		if f.IsArray {
+			b.append(f, fv)
+		} else {
+			b.set(f, fv)
+		}
+	}
+
 	return nil
+}
+
+func (b *Buffer) unmarshalField(dec *gojay.Decoder, f *Field) (interface{}, error) {
+	var s string
+	var d float64
+	var i int
+	var l int64
+	var fl float64
+	var bl bool
+	var bt int8
+	var intf interface{}
+	var err error
+
+	switch f.Ft {
+	case FieldTypeString:
+		err = dec.String(&s)
+		return s, err
+	case FieldTypeBool:
+		err = dec.Bool(&bl)
+		return bl, err
+	case FieldTypeByte:
+		err = dec.Int8(&bt)
+		return bt, err
+	case FieldTypeDouble:
+		err = dec.Float64(&d)
+		return d, err
+	case FieldTypeFloat:
+		err = dec.Float(&fl)
+		return fl, err
+	case FieldTypeInt:
+		err = dec.Int(&i)
+		return i, err
+	case FieldTypeLong:
+		err = dec.Int64(&l)
+		return l, err
+	default:
+		err = dec.Interface(&intf)
+		return intf, err
+	}
+}
+
+func (b *Buffer) NKeys() int {
+	return len(b.Scheme.FieldsMap)
+}
+
+func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
+	return gojay.UnmarshalJSONObject(jsonMap, b)
 }
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
