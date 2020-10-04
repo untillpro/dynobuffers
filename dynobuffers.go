@@ -19,7 +19,7 @@ import (
 	"unicode"
 	"unsafe"
 
-	"github.com/francoispqt/gojay"
+	"github.com/Yohanson555/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"gopkg.in/yaml.v2"
 )
@@ -76,6 +76,7 @@ type Buffer struct {
 	isReleased     bool
 	owner          *Buffer
 	builder        *flatbuffers.Builder
+	names          *StringsSlice
 }
 
 //Builder s.e.
@@ -218,8 +219,13 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 func (b *Buffer) Release() {
 	if !b.isReleased {
 		b.ReleaseFields()
-		b.isReleased = true
-		BufferPool.Put(b)
+
+		if b.names != nil {
+			putStringSlice(b.names)
+			b.names = nil
+		}
+
+		putBuffer(b)
 	}
 }
 
@@ -697,7 +703,7 @@ func (b *Buffer) NKeys() int {
 }
 
 func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
-	return gojay.UnmarshalJSONObject(jsonMap, b)
+	return gojay.UnmarshalJSONObjectWithPool(jsonMap, b)
 }
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
@@ -1438,7 +1444,12 @@ func (b *Buffer) GetNames() []string {
 		return nil
 	}
 
-	res := []string{}
+	if b.names == nil {
+		b.names = getStringSlice(0)
+	} else {
+		b.names.Slice = b.names.Slice[:0]
+	}
+
 	vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
 	vOffsetT := b.tab.GetVOffsetT(vTable)
 
@@ -1448,10 +1459,11 @@ func (b *Buffer) GetNames() []string {
 			break
 		}
 		if b.tab.GetVOffsetT(vTable+flatbuffers.UOffsetT(vTableOffset)) > 0 {
-			res = append(res, b.Scheme.Fields[order].Name)
+			b.names.Slice = append(b.names.Slice, b.Scheme.Fields[order].Name)
 		}
 	}
-	return res
+
+	return b.names.Slice
 }
 
 // ToJSONMap returns map[string]interface{} representation of the buffer compatible to json

@@ -8,13 +8,38 @@
 package dynobuffers
 
 import (
+	"fmt"
 	"sync"
 
-	"github.com/francoispqt/gojay"
+	"github.com/Yohanson555/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
 const DefaultBufferSize = 10
+
+var mux sync.Mutex
+var poolStat map[string]int = map[string]int{}
+
+func StatIncrement(bucket string, value int) {
+	mux.Lock()
+	poolStat[bucket] += value
+	mux.Unlock()
+}
+
+func FlushPoolStat() {
+	mux.Lock()
+	poolStat = map[string]int{}
+	mux.Unlock()
+}
+
+func PrintPoolStat() {
+	fmt.Printf("IBuffers pool stat begins: ------------ \n\n")
+	for k, v := range poolStat {
+		fmt.Printf("s.%v: %v\n", k, v)
+	}
+}
+
+// Begin pools
 
 var BuilderPool = sync.Pool{
 	New: func() interface{} { return flatbuffers.NewBuilder(0) },
@@ -31,7 +56,17 @@ var BufferPool = sync.Pool{
 
 func getBuffer() (b *Buffer) {
 	b = BufferPool.Get().(*Buffer)
+	b.isReleased = false
+	StatIncrement("BufferGet", 1)
 	return
+}
+
+func putBuffer(b *Buffer) {
+	if !b.isReleased {
+		b.isReleased = true
+		BufferPool.Put(b)
+		StatIncrement("BufferPut", 1)
+	}
 }
 
 //getUOffsetSlice
@@ -61,11 +96,13 @@ func getUOffsetSlice(l int) (c *UOffsetSlice) {
 		}
 	}
 
+	StatIncrement("UOffsetSliceGet", 1)
 	return
 }
 
 func putUOffsetSlice(c *UOffsetSlice) {
 	UOffsetPool.Put(c)
+	StatIncrement("UOffsetSlicePut", 1)
 }
 
 //getUOffsetSlice
@@ -95,11 +132,13 @@ func getOffsetSlice(l int) (c *OffsetSlice) {
 		}
 	}
 
+	StatIncrement("OffsetSliceGet", 1)
 	return
 }
 
 func putOffsetSlice(c *OffsetSlice) {
 	OffsetPool.Put(c)
+	StatIncrement("OffsetSlicePut", 1)
 }
 
 //getUOffsetSlice
@@ -112,7 +151,6 @@ type BuffersSlice struct {
 }
 
 func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
-
 	buffer := NewBuffer(b.Scheme)
 	buffer.owner = b.Owner
 
@@ -121,7 +159,6 @@ func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
 	}
 
 	b.Slice = append(b.Slice, buffer)
-	//b.Slice[dec.Index()] = buffer
 
 	return nil
 }
@@ -147,6 +184,7 @@ func getBufferSlice(l int) (b *BuffersSlice) {
 		}
 	}
 
+	StatIncrement("BuffersSliceGet", 1)
 	return
 }
 
@@ -155,6 +193,7 @@ func putBufferSlice(b *BuffersSlice) {
 	b.Owner = nil
 
 	BuffersPool.Put(b)
+	StatIncrement("BuffersSlicePut", 1)
 }
 
 //getStringSlice
@@ -185,9 +224,11 @@ func getStringSlice(l int) (b *StringsSlice) {
 		}
 	}
 
+	StatIncrement("StringSliceGet", 1)
 	return
 }
 
 func putStringSlice(b *StringsSlice) {
 	StringsPool.Put(b)
+	StatIncrement("StringsSlicePut", 1)
 }

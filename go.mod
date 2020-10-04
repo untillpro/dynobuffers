@@ -3,7 +3,7 @@ module github.com/untillpro/dynobuffers
 go 1.14
 
 require (
-	github.com/francoispqt/gojay v1.2.13
+	github.com/Yohanson555/gojay v1.2.14
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/flatbuffers v1.12.0
 	github.com/kylelemons/godebug v1.1.0
