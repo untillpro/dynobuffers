@@ -912,6 +912,11 @@ func (b *Buffer) Reset(bytes []byte) {
 		b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
 	}
 
+	if b.names != nil {
+		putStringSlice(b.names)
+		b.names = nil
+	}
+
 	if b.modifiedFields != nil {
 		b.ReleaseFields()
 

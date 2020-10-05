@@ -8,7 +8,6 @@
 package dynobuffers
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/Yohanson555/gojay"
@@ -16,28 +15,6 @@ import (
 )
 
 const DefaultBufferSize = 10
-
-var mux sync.Mutex
-var poolStat map[string]int = map[string]int{}
-
-func StatIncrement(bucket string, value int) {
-	mux.Lock()
-	poolStat[bucket] += value
-	mux.Unlock()
-}
-
-func FlushPoolStat() {
-	mux.Lock()
-	poolStat = map[string]int{}
-	mux.Unlock()
-}
-
-func PrintPoolStat() {
-	fmt.Printf("Dynobuffers pool stat begins: ------------ \n\n")
-	for k, v := range poolStat {
-		fmt.Printf("s.%v: %v\n", k, v)
-	}
-}
 
 // Begin pools
 
@@ -57,7 +34,6 @@ var BufferPool = sync.Pool{
 func getBuffer() (b *Buffer) {
 	b = BufferPool.Get().(*Buffer)
 	b.isReleased = false
-	StatIncrement("BufferGet", 1)
 	return
 }
 
@@ -65,7 +41,6 @@ func putBuffer(b *Buffer) {
 	if !b.isReleased {
 		b.isReleased = true
 		BufferPool.Put(b)
-		StatIncrement("BufferPut", 1)
 	}
 }
 
@@ -95,14 +70,11 @@ func getUOffsetSlice(l int) (c *UOffsetSlice) {
 			c.Slice[k] = 0
 		}
 	}
-
-	StatIncrement("UOffsetSliceGet", 1)
 	return
 }
 
 func putUOffsetSlice(c *UOffsetSlice) {
 	UOffsetPool.Put(c)
-	StatIncrement("UOffsetSlicePut", 1)
 }
 
 //getUOffsetSlice
@@ -131,14 +103,11 @@ func getOffsetSlice(l int) (c *OffsetSlice) {
 			c.Slice[k] = offset{}
 		}
 	}
-
-	StatIncrement("OffsetSliceGet", 1)
 	return
 }
 
 func putOffsetSlice(c *OffsetSlice) {
 	OffsetPool.Put(c)
-	StatIncrement("OffsetSlicePut", 1)
 }
 
 //getUOffsetSlice
@@ -183,8 +152,6 @@ func getBufferSlice(l int) (b *BuffersSlice) {
 			b.Slice[k] = nil
 		}
 	}
-
-	StatIncrement("BuffersSliceGet", 1)
 	return
 }
 
@@ -193,7 +160,7 @@ func putBufferSlice(b *BuffersSlice) {
 	b.Owner = nil
 
 	BuffersPool.Put(b)
-	StatIncrement("BuffersSlicePut", 1)
+	//StatIncrement("BuffersSlicePut", 1)
 }
 
 //getStringSlice
@@ -211,7 +178,6 @@ var StringsPool = sync.Pool{
 }
 
 func getStringSlice(l int) (b *StringsSlice) {
-
 	b = StringsPool.Get().(*StringsSlice)
 
 	if cap(b.Slice) < l {
@@ -223,12 +189,9 @@ func getStringSlice(l int) (b *StringsSlice) {
 			b.Slice[k] = ""
 		}
 	}
-
-	StatIncrement("StringSliceGet", 1)
 	return
 }
 
 func putStringSlice(b *StringsSlice) {
 	StringsPool.Put(b)
-	StatIncrement("StringsSlicePut", 1)
 }
