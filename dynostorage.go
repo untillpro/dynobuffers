@@ -33,7 +33,7 @@ func FlushPoolStat() {
 }
 
 func PrintPoolStat() {
-	fmt.Printf("IBuffers pool stat begins: ------------ \n\n")
+	fmt.Printf("Dynobuffers pool stat begins: ------------ \n\n")
 	for k, v := range poolStat {
 		fmt.Printf("s.%v: %v\n", k, v)
 	}
