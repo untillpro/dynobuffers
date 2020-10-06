@@ -19,8 +19,8 @@ import (
 	"unicode"
 	"unsafe"
 
-	"github.com/Yohanson555/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/untillpro/gojay"
 	"gopkg.in/yaml.v2"
 )
 

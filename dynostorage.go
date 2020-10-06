@@ -10,8 +10,8 @@ package dynobuffers
 import (
 	"sync"
 
-	"github.com/Yohanson555/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/untillpro/gojay"
 )
 
 const DefaultBufferSize = 10
