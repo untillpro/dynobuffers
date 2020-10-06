@@ -138,13 +138,11 @@ func BenchmarkWriteNested_ToBytes_Parallel(b *testing.B) {
 		bf.ApplyMap(data)
 
 		for pb.Next() {
-
 			_, err := bf.ToBytes()
 
 			if err != nil {
 				b.Fatal(err)
 			}
-
 		}
 
 		bf.Release()
