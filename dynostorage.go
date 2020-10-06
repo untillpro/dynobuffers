@@ -33,15 +33,11 @@ var BufferPool = sync.Pool{
 
 func getBuffer() (b *Buffer) {
 	b = BufferPool.Get().(*Buffer)
-	b.isReleased = false
 	return
 }
 
 func putBuffer(b *Buffer) {
-	if !b.isReleased {
-		b.isReleased = true
-		BufferPool.Put(b)
-	}
+	BufferPool.Put(b)
 }
 
 //getUOffsetSlice
@@ -160,7 +156,6 @@ func putBufferSlice(b *BuffersSlice) {
 	b.Owner = nil
 
 	BuffersPool.Put(b)
-	//StatIncrement("BuffersSlicePut", 1)
 }
 
 //getStringSlice

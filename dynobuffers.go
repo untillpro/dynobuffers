@@ -102,6 +102,10 @@ type modifiedField struct {
 }
 
 func (m *modifiedField) Release() {
+	if m.isReleased {
+		return
+	}
+
 	if buf, ok := m.value.(*Buffer); ok {
 		if buf != nil {
 			buf.Release()
@@ -757,6 +761,12 @@ func (b *Buffer) prepareModifiedFields() {
 		b.modifiedFields = make([]*modifiedField, len(b.Scheme.Fields))
 	} else {
 		b.modifiedFields = b.modifiedFields[:len(b.Scheme.Fields)]
+	}
+
+	for _, m := range b.modifiedFields {
+		if m != nil {
+			m.isReleased = false
+		}
 	}
 }
 
