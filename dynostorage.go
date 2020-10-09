@@ -10,11 +10,13 @@ package dynobuffers
 import (
 	"sync"
 
-	"github.com/francoispqt/gojay"
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/untillpro/gojay"
 )
 
 const DefaultBufferSize = 10
+
+// Begin pools
 
 var BuilderPool = sync.Pool{
 	New: func() interface{} { return flatbuffers.NewBuilder(0) },
@@ -32,6 +34,10 @@ var BufferPool = sync.Pool{
 func getBuffer() (b *Buffer) {
 	b = BufferPool.Get().(*Buffer)
 	return
+}
+
+func putBuffer(b *Buffer) {
+	BufferPool.Put(b)
 }
 
 //getUOffsetSlice
@@ -60,7 +66,6 @@ func getUOffsetSlice(l int) (c *UOffsetSlice) {
 			c.Slice[k] = 0
 		}
 	}
-
 	return
 }
 
@@ -94,7 +99,6 @@ func getOffsetSlice(l int) (c *OffsetSlice) {
 			c.Slice[k] = offset{}
 		}
 	}
-
 	return
 }
 
@@ -112,7 +116,6 @@ type BuffersSlice struct {
 }
 
 func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
-
 	buffer := NewBuffer(b.Scheme)
 	buffer.owner = b.Owner
 
@@ -121,7 +124,6 @@ func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
 	}
 
 	b.Slice = append(b.Slice, buffer)
-	//b.Slice[dec.Index()] = buffer
 
 	return nil
 }
@@ -146,7 +148,6 @@ func getBufferSlice(l int) (b *BuffersSlice) {
 			b.Slice[k] = nil
 		}
 	}
-
 	return
 }
 
@@ -172,7 +173,6 @@ var StringsPool = sync.Pool{
 }
 
 func getStringSlice(l int) (b *StringsSlice) {
-
 	b = StringsPool.Get().(*StringsSlice)
 
 	if cap(b.Slice) < l {
@@ -184,7 +184,6 @@ func getStringSlice(l int) (b *StringsSlice) {
 			b.Slice[k] = ""
 		}
 	}
-
 	return
 }
 
