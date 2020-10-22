@@ -95,8 +95,8 @@ type Field struct {
 }
 
 type modifiedField struct {
-	value    interface{}
-	isAppend bool
+	value      interface{}
+	isAppend   bool
 	isReleased bool
 }
 
@@ -229,10 +229,10 @@ func (b *Buffer) Release() {
 		if b.names != nil {
 			putStringSlice(b.names)
 			b.names = nil
-	}
+		}
 
 		putBuffer(b)
-}
+	}
 }
 
 func (b *Buffer) releaseFields() {
@@ -603,12 +603,10 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 				bNested.ApplyMap(dataNested)
 				b.set(f, bNested)
 			}
+		} else if f.IsArray {
+			b.append(f, fv)
 		} else {
-			if f.IsArray {
-				b.append(f, fv)
-			} else {
-				b.set(f, fv)
-			}
+			b.set(f, fv)
 		}
 	}
 	return nil
@@ -721,7 +719,7 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 		builder = b.builder
 	} else {
 		builder = BuilderPool.Get().(*flatbuffers.Builder)
-}
+	}
 
 	bytes, err := b.ToBytesWithBuilder(builder)
 
@@ -767,7 +765,7 @@ func (b *Buffer) prepareModifiedFields() {
 	for _, m := range b.modifiedFields {
 		if m != nil {
 			m.isReleased = false
-}
+		}
 	}
 }
 
@@ -1424,11 +1422,11 @@ func (b *Buffer) ToJSON() []byte {
 						buffers, _ := value.([]*Buffer)
 						for _, buffer := range buffers {
 							if buffer != nil {
-							buf.Write(buffer.ToJSON())
-							buf.WriteString(",")
-						}
+								buf.Write(buffer.ToJSON())
+								buf.WriteString(",")
+							}
 
-					}
+						}
 					}
 					buf.Truncate(buf.Len() - 1)
 					buf.WriteString("]")
