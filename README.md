@@ -13,10 +13,12 @@
   - `int32, int64, float32, float64, bool, string, byte`
   - nested objects
   - arrays
+- Empty nested objects and arrays are not stored
 - Scheme versioning
   - Any data written with Scheme of any version will be correctly read using Scheme of any other version
     - Written in old Scheme, read in New Scheme -> nil result on new field read, field considered as unset
     - Written in new Scheme, read in old Scheme -> no errors
+- Data could be loaded from JSON (using [gojay](https://github.com/francoispqt/gojay)) or from `map[string]interface{}`
 
 # Limitations
 - Only 2 cases of scheme modification are allowed: field rename and append fields to the end. This is necessary to have ability to read byte buffers in Scheme of any version
@@ -83,7 +85,7 @@
 	b = dynobuffers.ReadBuffer(bytes, scheme)
 	```
 	- panics if nil Scheme provided
-- Work with Buffer 
+- Work with Buffer
 	```go
 	value, ok := b.GetFloat32("price") // read typed. !ok -> field is unset or no such field in the scheme. Works faster and takes less memory allocations than Get()
 	b.Get("price") // read untyped. nil -> field is unset or no such field in the scheme
@@ -99,9 +101,27 @@
 	```
 	- value is nil and field is mandatory -> error
 	- value type and field type are incompatible (e.g. string provided for numeric field) -> error
-    - value type and field type differs but value fits into field (e.g. float64(255) fits into float, double, int, long, byte; float64(256) does not fit into byte etc) -> ok
+	- float value is provided for an integer field -> no error, integer part is considered only. E.g. 0.123 value in JSON is met -> integer field value is 0
     - no such field in the scheme -> error
     - array element value is nil -> error (not supported)
+	- values for byte arrays are expected to be base64 strings
+- Load data from `map[string]interface{}`
+	```go
+	m := map[string]interface{} {
+		"name": "str",
+		"price": 0.123,
+		"fld": nil,
+	}
+	if err := b.ApplyMap(m); err != nil {
+		panic(err)
+	}
+	bytes, err := b.ToBytes()
+	if err != nil {
+		panic(err)
+	}
+	```
+  - value type and field type differs but value fits into field (e.g. float64(255) fits into float, double, int, long, byte; float64(256) does not fit into byte etc) -> ok
+  - the rest is the same as for `ApplyJSONAndToBytes()`
 - Check if a field exists in the scheme and is set to non-nil
   ```go
   b.HasValue("name")
@@ -114,7 +134,7 @@
 	```go
 	var schemeStr = `
 	name: string
-	Nested: 
+	Nested:
 	  nes1: int
 	  Nes2: int
 	Id: long
@@ -147,7 +167,7 @@
 	```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
 	bRoot.Set("name", "str modified")
-	bNested := bRoot.Get("nested").(*Buffer)
+	bNested := bRoot.Get("nested").(*dynobuffers.Buffer)
 	bNested.Set("nes2", 3)
 	bytes, err := bRoot.ToBytes()
 	if err != nil {
@@ -156,6 +176,7 @@
 	bRoot = dynobuffers.ReadBuffer(bytes, scheme)
 	// note: bNested is obsolete here. Need to obtain it again from bRoot
 	```
+ - Empty nested objects are not stored
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Arrays
@@ -164,7 +185,7 @@
 	```go
 	var schemeStr = `
 	name: string
-	Nested..: 
+	Nested..:
 	  nes1: int
 	  Nes2: int
 	Ids..: long
@@ -215,7 +236,7 @@
     ```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
 	arr := b.Get("ids").([]int64)
-	```	
+	```
   - Read array of objects using iterator
     ```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
@@ -229,7 +250,7 @@
 	- Set
 		```go
 		bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-		
+
 		ids := []int64{5,6}
 		bRoot.Set("ids", ids)
 
@@ -246,16 +267,28 @@
 	- Append
 		```go
 		bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-		bRoot.Append("ids", []int32{7,8}) // if wasn't set then equivalent to Set()
+		// if wasn't set then equivalent to bRoot.Set()
+		bRoot.Append("ids", []int32{7, 8}) // 7 and 8 will be appended
+		bRoot.Append("ids", int32(9))      // 9 will be appended
 		bytes, err := bRoot.ToBytes()
 		if err != nil {
 			panic(err)
 		}
-		```	
+		```
  - Nils as array elements are not supported
+ - Null array element is met on `ApplyJSONAndToBytes()` or nil array element is met on `ApplyMap()` -> error, not supported
  - Byte arrays are decoded to JSON as base64 strings
  - Byte array value could be set from either byte array and base64-encoded string
- - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples	
+ - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
+ - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
+
+# TODO
+- Current `gojay` implementation is not optimal when reading JSON values which could be null: provide `**int32`, null met -> ptr is untouched, value met -> `new(int32)` is executed which means memory allocation. The better approach would be to implement methods like `Int32OrNull() (val int32, isNull bool)`. See `bufferSlice.UnmarshalJSONObject()` and `Buffer.UnmarshalJSONObject()`
+- For now there are 2 same methods: `ApplyMapBuffer()` and `ApplyJSONAndToBytes()`. Need to get rid of one of them.
+- For now `ToBytes()` result must not be stored if `Release()` is used because on next `ToBytes()` the stored previous `ToBytes()` result will be damaged. See `TestPreviousResultDamageOnReuse()`. The better soultion is to make `ToBytes()` return not `[]byte` but an `interface {Bytes() []byte; Release()}`.
+  - use [bytebufferpool](https://github.com/valyala/bytebufferpool) on `flatbuffers.Builder.Bytes`?
+- Test reusage
+- `ToJSON()`: use bytebufferpool? Impossible for now because we should not store results of `ToJSON()`
 
 # Benchmarks
 
