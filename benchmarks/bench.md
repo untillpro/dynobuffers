@@ -3,6 +3,7 @@
 
 ## Before
 
+```
 goos: windows
 goarch: amd64
 pkg: github.com/untillpro/dynobuffers/benchmarks
@@ -25,10 +26,11 @@ BenchmarkWriteSimple_Dyno-8                                      1000000        
 BenchmarkWriteSimple_Avro-8                                      2481793               665 ns/op             344 B/op          3 allocs/op
 PASS
 ok      github.com/untillpro/dynobuffers/benchmarks     28.160s
+```
 
 ## After
 
-
+```
 goos: windows
 goarch: amd64
 pkg: github.com/Yohanson555/dynobuffers/benchmarks
@@ -56,3 +58,4 @@ BenchmarkWriteSimple_Dyno-8                                      3845793        
 BenchmarkWriteSimple_Avro-8                                      2122617               762 ns/op             344 B/op          3 allocs/op
 PASS
 ok      github.com/Yohanson555/dynobuffers/benchmarks   36.061s
+```
