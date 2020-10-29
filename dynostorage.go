@@ -14,48 +14,54 @@ import (
 	"github.com/untillpro/gojay"
 )
 
-const DefaultBufferSize = 10
+const defaultBufferSize = 10
+
+type offset struct {
+	str flatbuffers.UOffsetT
+	obj flatbuffers.UOffsetT
+	arr flatbuffers.UOffsetT
+}
 
 // Begin pools
 
-var BuilderPool = sync.Pool{
+var builderPool = sync.Pool{
 	New: func() interface{} { return flatbuffers.NewBuilder(0) },
 }
 
-var BufferPool = sync.Pool{
+var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return &Buffer{
 			builder:        flatbuffers.NewBuilder(0),
-			modifiedFields: make([]*modifiedField, DefaultBufferSize),
+			modifiedFields: make([]*modifiedField, defaultBufferSize),
 		}
 	},
 }
 
 func getBuffer() (b *Buffer) {
-	b = BufferPool.Get().(*Buffer)
+	b = bufferPool.Get().(*Buffer)
 	return
 }
 
 func putBuffer(b *Buffer) {
-	BufferPool.Put(b)
+	bufferPool.Put(b)
 }
 
 //getUOffsetSlice
 
-type UOffsetSlice struct {
+type uOffsetSlice struct {
 	Slice []flatbuffers.UOffsetT
 }
 
-var UOffsetPool = sync.Pool{
+var uOffsetPool = sync.Pool{
 	New: func() interface{} {
-		return &UOffsetSlice{
-			Slice: make([]flatbuffers.UOffsetT, DefaultBufferSize),
+		return &uOffsetSlice{
+			Slice: make([]flatbuffers.UOffsetT, defaultBufferSize),
 		}
 	},
 }
 
-func getUOffsetSlice(l int) (c *UOffsetSlice) {
-	c = UOffsetPool.Get().(*UOffsetSlice)
+func getUOffsetSlice(l int) (c *uOffsetSlice) {
+	c = uOffsetPool.Get().(*uOffsetSlice)
 
 	if cap(c.Slice) < l {
 		c.Slice = make([]flatbuffers.UOffsetT, l)
@@ -69,26 +75,26 @@ func getUOffsetSlice(l int) (c *UOffsetSlice) {
 	return
 }
 
-func putUOffsetSlice(c *UOffsetSlice) {
-	UOffsetPool.Put(c)
+func putUOffsetSlice(c *uOffsetSlice) {
+	uOffsetPool.Put(c)
 }
 
 //getUOffsetSlice
 
-type OffsetSlice struct {
+type offsetSlice struct {
 	Slice []offset
 }
 
-var OffsetPool = sync.Pool{
+var offsetPool = sync.Pool{
 	New: func() interface{} {
-		return &OffsetSlice{
-			Slice: make([]offset, DefaultBufferSize),
+		return &offsetSlice{
+			Slice: make([]offset, defaultBufferSize),
 		}
 	},
 }
 
-func getOffsetSlice(l int) (c *OffsetSlice) {
-	c = OffsetPool.Get().(*OffsetSlice)
+func getOffsetSlice(l int) (c *offsetSlice) {
+	c = offsetPool.Get().(*offsetSlice)
 
 	if cap(c.Slice) < l {
 		c.Slice = make([]offset, l)
@@ -102,20 +108,20 @@ func getOffsetSlice(l int) (c *OffsetSlice) {
 	return
 }
 
-func putOffsetSlice(c *OffsetSlice) {
-	OffsetPool.Put(c)
+func putOffsetSlice(c *offsetSlice) {
+	offsetPool.Put(c)
 }
 
 //getUOffsetSlice
 
-type BuffersSlice struct {
+type buffersSlice struct {
 	Slice []*Buffer
 
 	Owner  *Buffer
 	Scheme *Scheme
 }
 
-func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
+func (b *buffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
 	buffer := NewBuffer(b.Scheme)
 	buffer.owner = b.Owner
 
@@ -128,16 +134,16 @@ func (b *BuffersSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
 	return nil
 }
 
-var BuffersPool = sync.Pool{
+var buffersPool = sync.Pool{
 	New: func() interface{} {
-		return &BuffersSlice{
-			Slice: make([]*Buffer, DefaultBufferSize),
+		return &buffersSlice{
+			Slice: make([]*Buffer, defaultBufferSize),
 		}
 	},
 }
 
-func getBufferSlice(l int) (b *BuffersSlice) {
-	b = BuffersPool.Get().(*BuffersSlice)
+func getBufferSlice(l int) (b *buffersSlice) {
+	b = buffersPool.Get().(*buffersSlice)
 
 	if cap(b.Slice) < l {
 		b.Slice = make([]*Buffer, l)
@@ -152,29 +158,29 @@ func getBufferSlice(l int) (b *BuffersSlice) {
 	return
 }
 
-func putBufferSlice(b *BuffersSlice) {
+func putBufferSlice(b *buffersSlice) {
 	b.Scheme = nil
 	b.Owner = nil
 
-	BuffersPool.Put(b)
+	buffersPool.Put(b)
 }
 
 //getStringSlice
 
-type StringsSlice struct {
+type stringsSlice struct {
 	Slice []string
 }
 
-var StringsPool = sync.Pool{
+var stringsPool = sync.Pool{
 	New: func() interface{} {
-		return &StringsSlice{
-			Slice: make([]string, DefaultBufferSize),
+		return &stringsSlice{
+			Slice: make([]string, defaultBufferSize),
 		}
 	},
 }
 
-func getStringSlice(l int) (b *StringsSlice) {
-	b = StringsPool.Get().(*StringsSlice)
+func getStringSlice(l int) (b *stringsSlice) {
+	b = stringsPool.Get().(*stringsSlice)
 
 	if cap(b.Slice) < l {
 		b.Slice = make([]string, l)
@@ -188,6 +194,6 @@ func getStringSlice(l int) (b *StringsSlice) {
 	return
 }
 
-func putStringSlice(b *StringsSlice) {
-	StringsPool.Put(b)
+func putStringSlice(b *stringsSlice) {
+	stringsPool.Put(b)
 }
