@@ -257,19 +257,26 @@
 		arr := bRoot.Get("nested").(*dynobuffers.ObjectArray)
 		arr.Next()
 		arr.Buffer.Set("nes1", -1)
+		bRoot.Set("nested", arr)
 		bytes, err := bRoot.ToBytes()
 		if err != nil {
 			panic(err)
 		}
 		bRoot = dynobuffers.ReadBuffer(bytes, scheme)
-		// note: elements of `buffers` array are obsolete here. Need to obtain the array again from bRoot
+		// note: `arr` is obsolete here. Need to obtain the array again from bRoot
 		```
 	- Append
 		```go
 		bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
 		// if wasn't set then equivalent to bRoot.Set()
 		bRoot.Append("ids", []int32{7, 8}) // 7 and 8 will be appended
-		bRoot.Append("ids", int32(9))      // 9 will be appended
+
+		buffersNested := []*Buffer{}
+		bNested = dynobuffers.NewBuffer(schemeNested)
+		bNested.Set("nes1", 5)
+		bNested.Set("nes2", 6)
+		buffersNested = append(buffersNested, bNested)
+		bRoot.Append("nested", buffersNested) // bNested will be appended
 		bytes, err := bRoot.ToBytes()
 		if err != nil {
 			panic(err)
@@ -282,13 +289,21 @@
  - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
+# New
+- ObjectArray elements should not be modified
+-
+-
+
 # TODO
-- Current `gojay` implementation is not optimal when reading JSON values which could be null: provide `**int32`, null met -> ptr is untouched, value met -> `new(int32)` is executed which means memory allocation. The better approach would be to implement methods like `Int32OrNull() (val int32, isNull bool)`. See `bufferSlice.UnmarshalJSONObject()` and `Buffer.UnmarshalJSONObject()`
+- Current `gojay` implementation is not optimal when reading JSON values which could be null: provide `**int32`, null met  -> ptr is untouched, value met -> `new(int32)` is executed which means memory allocation. Also difference between null and non-int is not tracked: no error if e.g. expecting number but string is met. The better approach would be to implement methods like `Int32OrNull() (val int32, isNull bool)`. See `bufferSlice.UnmarshalJSONObject()` and `Buffer.UnmarshalJSONObject()`
+  - Not done: detecting if object array is null in JSON provided to `ApplyJSONAndToBytes()`. See `TestApplyJSONArrays()`
 - For now there are 2 same methods: `ApplyMapBuffer()` and `ApplyJSONAndToBytes()`. Need to get rid of one of them.
 - For now `ToBytes()` result must not be stored if `Release()` is used because on next `ToBytes()` the stored previous `ToBytes()` result will be damaged. See `TestPreviousResultDamageOnReuse()`. The better soultion is to make `ToBytes()` return not `[]byte` but an `interface {Bytes() []byte; Release()}`.
   - use [bytebufferpool](https://github.com/valyala/bytebufferpool) on `flatbuffers.Builder.Bytes`?
 - Test reusage
 - `ToJSON()`: use bytebufferpool? Impossible for now because we should not store results of `ToJSON()`
+- The only way to modify an element of array of nested objects - is to read all elements to `[]*Buffer` using `GetByIndex()` (not `ObjectArray`!), modify, then `Set(name, []*Buffer))`
+
 
 # Benchmarks
 

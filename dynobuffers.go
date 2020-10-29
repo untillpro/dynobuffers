@@ -80,10 +80,6 @@ type Buffer struct {
 	names          *stringsSlice
 }
 
-// func (b *Buffer) Builder() *flatbuffers.Builder {
-// 	return b.builder
-// }
-
 // Field describes a Scheme field
 type Field struct {
 	Name        string
@@ -124,6 +120,7 @@ func (m *modifiedField) Release() {
 }
 
 // ObjectArray used to iterate over array of nested objects
+// ObjectArray.Buffer should be used for reading only
 type ObjectArray struct {
 	Buffer  *Buffer
 	Len     int
@@ -464,6 +461,7 @@ func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
 
 // Set sets field value by name.
 // Call ToBytes() to get modified byte array
+// Value for byte array field could be base64 string or []byte
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 // Rewrites previous modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 func (b *Buffer) Set(name string, value interface{}) {
@@ -503,6 +501,7 @@ func (b *Buffer) set(f *Field, value interface{}) {
 }
 
 // Append appends an array field. toAppend could be a single value or an array of values
+// Value for byte array field could be base64 string or []byte
 // Rewrites previous modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 func (b *Buffer) Append(name string, toAppend interface{}) {
@@ -538,6 +537,9 @@ func (b *Buffer) append(f *Field, toAppend interface{}) {
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 // Rewrites previous modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
+	if len(jsonMap) == 0 {
+		return nil
+	}
 	return gojay.UnmarshalJSONObjectWithPool(jsonMap, b)
 }
 
@@ -558,7 +560,7 @@ func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
 //   256 does not fit into byte
 //   math.MaxInt64 does not fit into int32
 // Unexisting field is provided -> error
-// Byte arrays are expected to be base64 strings
+// Byte arrays could be base64 strings or []byte
 // Array element is nil -> error (not supported)
 // Note: float is provided for an int field -> error, whereas no error on ApplyJSONAndToBytes() (gojay feature)
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
@@ -937,10 +939,6 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			modifiedField := b.modifiedFields[f.order]
 			if modifiedField != nil {
 				if modifiedField.value != nil {
-					val := reflect.ValueOf(modifiedField.value)
-					if isSlice(val.Kind()) && (val.IsNil() || val.Len() == 0) {
-						continue
-					}
 					var toAppendToIntf interface{} = nil
 					if modifiedField.isAppend {
 						toAppendToIntf = b.getByField(f, -1)
@@ -1215,6 +1213,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		if !ok {
 			return 0, fmt.Errorf("[]int32 required but %#v provided for field %s", value, f.QualifiedName())
 		}
+		if len(arr) == 0 {
+			return 0, nil
+		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]int32)
 			toAppendTo = append(toAppendTo, arr...)
@@ -1230,6 +1231,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		if !ok {
 			return 0, fmt.Errorf("[]bool required but %#v provided for field %s", value, f.QualifiedName())
 		}
+		if len(arr) == 0 {
+			return 0, nil
+		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]bool)
 			toAppendTo = append(toAppendTo, arr...)
@@ -1243,6 +1247,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		arr, ok := intfToInt64Arr(f, value)
 		if !ok {
 			return 0, fmt.Errorf("[]int64 required but %#v provided for field %s", value, f.QualifiedName())
+		}
+		if len(arr) == 0 {
+			return 0, nil
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]int64)
@@ -1258,6 +1265,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		if !ok {
 			return 0, fmt.Errorf("[]float32 required but %#v provided for field %s", value, f.QualifiedName())
 		}
+		if len(arr) == 0 {
+			return 0, nil
+		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]float32)
 			toAppendTo = append(toAppendTo, arr...)
@@ -1271,6 +1281,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		arr, ok := intfToFloat64Arr(f, value)
 		if !ok {
 			return 0, fmt.Errorf("[]float32 required but %#v provided for field %s", value, f.QualifiedName())
+		}
+		if len(arr) == 0 {
+			return 0, nil
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]float64)
@@ -1298,6 +1311,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			return 0, fmt.Errorf("[]byte or base64-encoded string required but %#v provided for field %s", value, f.QualifiedName())
 
 		}
+		if len(target) == 0 {
+			return 0, nil
+		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]byte)
 			toAppendTo = append(toAppendTo, target...)
@@ -1308,6 +1324,9 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		strArr, ok := intfToStringArr(f, value)
 		if !ok {
 			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
+		}
+		if len(strArr) == 0 {
+			return 0, nil
 		}
 		if toAppendToIntf != nil {
 			toAppendTo := toAppendToIntf.([]string)
@@ -1334,7 +1353,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		nestedUOffsetTs := getUOffsetSlice(0)
 		switch arr := value.(type) {
 		case *buffersSlice:
-			// explicit Set\Append("", []*Buffer) was called
+			// came on ApplyMap()
 			for i := 0; i < len(arr.Slice); i++ {
 				if arr.Slice[i] == nil {
 					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
@@ -1576,82 +1595,114 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 		}
 		if f.Ft == FieldTypeObject {
 			if f.IsArray {
-				enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-					if arr, ok := value.(*ObjectArray); ok {
-						for arr.Next() {
-							enc.AddObject(arr.Buffer)
-						}
-					} else if bs, ok := value.(*buffersSlice); ok {
-						for _, buffer := range bs.Slice {
-							if buffer != nil {
-								enc.AddObject(buffer)
+				switch arr := value.(type) {
+				case *ObjectArray:
+					if arr.Len > 0 {
+						enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for arr.Next() {
+								enc.AddObject(arr.Buffer)
 							}
-						}
-					} else {
-						buffers, _ := value.([]*Buffer)
-						for _, buffer := range buffers {
-							if buffer != nil {
-								enc.AddObject(buffer)
-							}
-						}
+						}))
 					}
-				}))
+				case *buffersSlice:
+					if len(arr.Slice) > 0 {
+						enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, buffer := range arr.Slice {
+								if buffer != nil {
+									enc.AddObject(buffer)
+								}
+							}
+						}))
+					}
+				case []*Buffer:
+					if len(arr) > 0 {
+						enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, buffer := range arr {
+								if buffer != nil {
+									enc.AddObject(buffer)
+								}
+							}
+						}))
+					}
+
+				}
 			} else {
-				enc.AddObjectKey(f.Name, value.(*Buffer))
+				b := value.(*Buffer)
+				if !b.IsNil() {
+					enc.AddObjectKey(f.Name, b)
+				}
 			}
 		} else {
 			if f.IsArray {
 				switch f.Ft {
 				case FieldTypeString:
 					arr, _ := intfToStringArr(f, value)
-					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-						for _, i := range arr {
-							enc.String(i)
-						}
-					}))
+					if len(arr) > 0 {
+						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, i := range arr {
+								enc.String(i)
+							}
+						}))
+					}
 				case FieldTypeInt:
 					arr, _ := intfToInt32Arr(f, value)
-					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-						for _, i := range arr {
-							enc.Int32(i)
-						}
-					}))
+					if len(arr) > 0 {
+						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, i := range arr {
+								enc.Int32(i)
+							}
+						}))
+					}
 				case FieldTypeBool:
 					arr, _ := intfToBoolArr(f, value)
-					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-						for _, i := range arr {
-							enc.Bool(i)
-						}
-					}))
+					if len(arr) > 0 {
+						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, i := range arr {
+								enc.Bool(i)
+							}
+						}))
+					}
 				case FieldTypeByte:
-					switch bytes := value.(type) {
+					switch val := value.(type) {
 					case []byte:
-						base64Str := base64.StdEncoding.EncodeToString(bytes)
-						enc.StringKey(f.Name, base64Str)
+						// Set(name, []byte) called
+						if len(val) > 0 {
+							base64Str := base64.StdEncoding.EncodeToString(val)
+							enc.StringKey(f.Name, base64Str)
+						}
 					case string:
-						enc.StringKey(f.Name, bytes)
+						// came from json
+						if len(val) > 0 {
+							enc.StringKey(f.Name, val)
+						}
 					}
 				case FieldTypeDouble:
 					arr, _ := intfToFloat64Arr(f, value)
-					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-						for _, i := range arr {
-							enc.Float64(i)
-						}
-					}))
+					if len(arr) > 0 {
+						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, i := range arr {
+								enc.Float64(i)
+							}
+						}))
+					}
 				case FieldTypeFloat:
 					arr, _ := intfToFloat32Arr(f, value)
-					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-						for _, i := range arr {
-							enc.Float32(i)
-						}
-					}))
+					if len(arr) > 0 {
+						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, i := range arr {
+								enc.Float32(i)
+							}
+						}))
+					}
 				case FieldTypeLong:
 					arr, _ := intfToInt64Arr(f, value)
-					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-						for _, i := range arr {
-							enc.Int64(i)
-						}
-					}))
+					if len(arr) > 0 {
+						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+							for _, i := range arr {
+								enc.Int64(i)
+							}
+						}))
+					}
 				}
 			} else {
 				enc.AddInterfaceKey(f.Name, value)
@@ -1671,7 +1722,9 @@ func (b *Buffer) ToJSON() []byte {
 
 // GetBytes returns underlying byte buffer
 func (b *Buffer) GetBytes() []byte {
-	return b.tab.Bytes
+	// return b.tab.Bytes
+	bytes, _ := b.ToBytes()
+	return bytes
 }
 
 // GetNames returns list of field names which values are non-nil in current buffer
@@ -1708,6 +1761,7 @@ func (b *Buffer) GetNames() []string {
 // result map is built using inital data + current modifications
 // numeric field types are kept (not float64 as json does)
 // nested object, array, array element is empty or nil -> skip
+// object is nothing -> empty map is returned
 func (b *Buffer) ToJSONMap() map[string]interface{} {
 	res := map[string]interface{}{}
 	for _, f := range b.Scheme.Fields {
@@ -1726,15 +1780,22 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 			if f.Ft == FieldTypeObject {
 				if f.IsArray {
 					targetArr := []interface{}{}
-					if arr, ok := storedVal.(*ObjectArray); ok {
+					switch arr := storedVal.(type) {
+					case *ObjectArray:
 						for arr.Next() {
 							if elem := arr.Buffer.ToJSONMap(); len(elem) > 0 {
 								targetArr = append(targetArr, elem)
 							}
 						}
-					} else {
+					case *buffersSlice:
 						buffers, _ := storedVal.(*buffersSlice)
 						for _, buffer := range buffers.Slice {
+							if elem := buffer.ToJSONMap(); len(elem) > 0 {
+								targetArr = append(targetArr, elem)
+							}
+						}
+					case []*Buffer:
+						for _, buffer := range arr {
 							if elem := buffer.ToJSONMap(); len(elem) > 0 {
 								targetArr = append(targetArr, elem)
 							}
@@ -1751,6 +1812,21 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 			} else {
 				if f.Ft == FieldTypeByte && storedVal == "" {
 					// empty base64 string for byte array -> no bytes
+					continue
+				}
+				if arr, ok := storedVal.([]bool); ok && len(arr) == 0 {
+					continue
+				} else if arr, ok := storedVal.([]int32); ok && len(arr) == 0 {
+					continue
+				} else if arr, ok := storedVal.([]int64); ok && len(arr) == 0 {
+					continue
+				} else if arr, ok := storedVal.([]float32); ok && len(arr) == 0 {
+					continue
+				} else if arr, ok := storedVal.([]float64); ok && len(arr) == 0 {
+					continue
+				} else if arr, ok := storedVal.([]string); ok && len(arr) == 0 {
+					continue
+				} else if arr, ok := storedVal.([]byte); ok && len(arr) == 0 {
 					continue
 				}
 				res[f.Name] = storedVal
@@ -1933,8 +2009,4 @@ func byteSliceToString(b []byte) string {
 
 func isFixedSizeField(f *Field) bool {
 	return f.Ft != FieldTypeObject && f.Ft != FieldTypeString
-}
-
-func isSlice(kind reflect.Kind) bool {
-	return kind == reflect.Array || kind == reflect.Slice
 }
