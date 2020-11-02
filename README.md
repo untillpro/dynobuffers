@@ -303,6 +303,7 @@
 - Test reusage
 - `ToJSON()`: use bytebufferpool? Impossible for now because we should not store results of `ToJSON()`
 - The only way to modify an element of array of nested objects - is to read all elements to `[]*Buffer` using `GetByIndex()` (not `ObjectArray`!), modify, then `Set(name, []*Buffer))`
+- Pooled `ObjectArray`
 
 
 # Benchmarks

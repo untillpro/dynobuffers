@@ -218,17 +218,24 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 		if f.IsArray {
 			if f.Ft == FieldTypeObject {
 				nestedArr := b.Get(f.Name).(*ObjectArray)
-				j := 0
 				valuesNesteds := values[i].([]interface{})
 				require.Equal(t, nestedArr.Len, len(valuesNesteds))
-				for nestedArr.Next() {
-					valuesNested := valuesNesteds[j].([]interface{})
-					// test using iterator
+				// test using iterator
+				elementsAmount := 0
+				for i := 0; nestedArr.Next(); i++ {
+					valuesNested := valuesNesteds[i].([]interface{})
 					testFieldValues(t, nestedArr.Buffer, valuesNested...)
-					// test by GetByIndex
-					testFieldValues(t, b.GetByIndex(f.Name, j).(*Buffer), valuesNested...)
-					j++
+					elementsAmount++
 				}
+				require.Equal(t, nestedArr.Len, elementsAmount)
+				// test by GetByIndex
+				for i := 0; i < nestedArr.Len; i++ {
+					valuesNested := valuesNesteds[i].([]interface{})
+					nestedBuf := b.GetByIndex(f.Name, i).(*Buffer)
+					testFieldValues(t, nestedBuf, valuesNested...)
+				}
+				require.Nil(t, b.GetByIndex(f.Name, nestedArr.Len))
+
 			} else {
 				require.Equal(t, values[i], b.Get(f.Name))
 			}
@@ -472,7 +479,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"strings": ["str", null]}`, shouldBeNil: true},
 		{json: `{"boolTrues": [true, null]}`, shouldBeNil: true},
 		{json: `{"intObjs": [{"int":44}, null]}`, shouldBeNil: true},
-		// mandatory field in an aray element is not set -> error
+		// mandatory field in an array element is not set -> error
 		{json: `{"intObjs": [{"int":null}]}`, shouldBeNil: true},
 	}
 	for _, wrong := range wrongs {
@@ -952,7 +959,7 @@ func TestApplyMapArrays(t *testing.T) {
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}})
 
-	// append values
+	// append values. Types of all numerics are matched to the scheme
 	m = map[string]interface{}{
 		"ints":        []int32{9, 10},
 		"longs":       []int64{11, 12},
@@ -1024,7 +1031,7 @@ func TestApplyMapArrays(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, bytes)
 
-	// load from json (float64 numerics)
+	// load from json. All numerics are float64. No errors expected despite type are not matched to the scheme
 	jsonStr = []byte(`{"ints":[1, 2],"longs":[3, 4],"floats":[0.1, 0.2],"doubles":[0.3, 0.4],"strings":["str1", "str2"],"boolTrues":[true, true],"boolFalses":[false, false],
 		"bytes":"BQY=","bytesBase64": "BQY=", "intsObj":[{"int": 5}]}`)
 	m = map[string]interface{}{}
@@ -1433,7 +1440,7 @@ func TestArrays(t *testing.T) {
 	require.Nil(t, err)
 	b := NewBuffer(s)
 
-	// empty and null arrays -> nothing
+	// empty and nil arrays -> nothing
 	tests := map[string][]interface{}{
 		"ints":      {nil, []int32{}},
 		"longs":     {nil, []int64{}},
@@ -1446,9 +1453,16 @@ func TestArrays(t *testing.T) {
 	}
 	for fn, values := range tests {
 		for _, value := range values {
+			// set
 			b = NewBuffer(s)
 			b.Set(fn, value)
 			bytes, err := b.ToBytes()
+			require.Nil(t, err, fn, value)
+			require.Nil(t, bytes, fn, value)
+			// append
+			b = NewBuffer(s)
+			b.Append(fn, value)
+			bytes, err = b.ToBytes()
 			require.Nil(t, err, fn, value)
 			require.Nil(t, bytes, fn, value)
 		}
@@ -1535,7 +1549,7 @@ func TestArrays(t *testing.T) {
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
 
-	// append with arrays
+	// append existing
 	b.Append("ints", []int32{7, 8})
 	b.Append("longs", []int64{9, 10})
 	b.Append("floats", []float32{0.5, 0.6})
@@ -1820,7 +1834,6 @@ func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
 		bf.PrependUOffsetTSlot(0, arrayOffset, 0)
 		bf.Finish(bf.EndObject())
 		_ = bf.FinishedBytes()
-
 	}
 }
 
@@ -1922,5 +1935,69 @@ func BenchmarkToJSONSimple(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.ToJSON()
+	}
+}
+
+func BenchmarkApplyJSONAndToBytesSimple(b *testing.B) {
+	s, err := YamlToScheme(schemeStr)
+	require.Nil(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf := NewBuffer(s)
+
+		_, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`))
+		if err != nil {
+			b.Fatal(err)
+		}
+		buf.Release()
+	}
+}
+
+func BenchmarkReadBuffered(bench *testing.B) {
+	// Yaml representation of scheme
+	var schemeYaml = `
+name: string
+price: float
+quantity: int
+weight: long
+`
+
+	s, err := YamlToScheme(schemeYaml)
+	require.Nil(bench, err)
+
+	var b *Buffer
+
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+
+		b = NewBuffer(s)
+		// str := "cola"
+		// b.Set("name", str) // +1 allocation
+		b.Set("name", "cola") // 0 allocations
+		b.Set("price", float32(0.123))
+		b.Set("quantity", int32(42))
+		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
+		bytes, err := b.ToBytes()
+		if err != nil {
+			bench.Fatal(err)
+		}
+		b.Release()
+
+		b = ReadBuffer(bytes, s)
+		// Now we can Get fields
+		str, _ := b.GetString("name")
+		if str != "cola" {
+			bench.Fatal()
+		}
+		float, _ := b.GetFloat("price")
+		if float != 0.123 {
+			bench.Fatal()
+		}
+		q, _ := b.GetInt("quantity")
+		if q != 42 {
+			bench.Fatal()
+		}
+		b.Release()
 	}
 }

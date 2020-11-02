@@ -27,10 +27,30 @@ func BenchmarkWriteSimple_Dyno_SameBuilder(b *testing.B) {
 		bf.Set("name", "cola")
 		bf.Set("price", float32(0.123))
 		bf.Set("quantity", int32(42))
-		_, err := bf.ToBytesWithBuilder(builder)
+		builder.Reset()
+		err := bf.ToBytesWithBuilder(builder)
 		if err != nil {
 			b.Fatal(err)
 		}
+		bf.Reset(nil)
+	}
+}
+
+func BenchmarkWriteSimple_Dyno_ToBytesBuffered(b *testing.B) {
+	s := getSimpleScheme()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bf := dynobuffers.NewBuffer(s)
+		bf.Set("name", "cola")
+		bf.Set("price", float32(0.123))
+		bf.Set("quantity", int32(42))
+		if bytes, err := bf.ToBytesBuffered(); err != nil {
+			b.Fatal(err)
+		} else {
+			_ = bytes
+		}
+		bf.Release()
 	}
 }
 
@@ -80,7 +100,7 @@ func BenchmarkWriteNestedSimple_Dyno_SameBuilder(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bf.Reset(nil)
 		bf.ApplyMap(data)
-		_, err := bf.ToBytesWithBuilder(builder)
+		err := bf.ToBytesWithBuilder(builder)
 
 		if err != nil {
 			b.Fatal(err)

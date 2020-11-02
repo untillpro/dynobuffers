@@ -348,6 +348,9 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 			// arrays with fixed-size elements are stored as byte arrays
 			arrayLen = arrayLen / elemSize
 		}
+		if index > arrayLen-1 {
+			return nil
+		}
 		if index < 0 {
 			if f.Ft == FieldTypeObject {
 				arr := &ObjectArray{Buffer: &Buffer{}}
@@ -360,9 +363,6 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 			}
 			uOffsetT = b.tab.Vector(uOffsetT - b.tab.Pos)
 			return b.getAllValues(uOffsetT, arrayLen, f)
-		}
-		if index > arrayLen-1 {
-			return nil
 		}
 		uOffsetT = b.tab.Vector(uOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(index*elemSize)
 	}
@@ -441,6 +441,7 @@ func (b *Buffer) Get(name string) interface{} {
 
 // GetByIndex returns array field element by its index
 // no such field, index out of bounds, array field is not set or unset -> nil
+// note: array element could not be nil (not supported by Flatbuffers)
 func (b *Buffer) GetByIndex(name string, index int) interface{} {
 	f, ok := b.Scheme.FieldsMap[name]
 	if !ok || index < 0 {
@@ -866,50 +867,39 @@ func (b *Buffer) NKeys() int {
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
 func (b *Buffer) ToBytes() ([]byte, error) {
-
+	if !b.isModified && len(b.tab.Bytes) > 0 {
+		return b.tab.Bytes, nil
+	}
 	var builder *flatbuffers.Builder
 
 	if b.builder != nil {
 		builder = b.builder
 	} else {
 		builder = builderPool.Get().(*flatbuffers.Builder)
+		defer builderPool.Put(builder)
+	}
+	builder.Reset()
+
+	if err := b.ToBytesWithBuilder(builder); err != nil {
+		return nil, err
 	}
 
-	bytes, err := b.ToBytesWithBuilder(builder)
-
-	if b.builder == nil {
-		builderPool.Put(builder)
+	if len(builder.Bytes) > 0 {
+		return builder.FinishedBytes(), nil
 	}
 
-	return bytes, err
-
+	return nil, nil
 }
 
 // ToBytesWithBuilder same as ToBytes but uses builder
 // builder.Reset() is invoked
-func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) ([]byte, error) {
+func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) error {
 	if !b.isModified && len(b.tab.Bytes) > 0 { // mandatory fields should be checked
-		return b.tab.Bytes, nil
+		builder.Bytes = b.tab.Bytes
+		return nil
 	}
-
-	if nil != builder {
-		builder.Reset()
-	} else {
-		builder = flatbuffers.NewBuilder(0)
-	}
-
-	objectUOffsetT, err := b.encodeBuffer(builder)
-	if err != nil {
-		return nil, err
-	}
-	if objectUOffsetT == 0 {
-		// empty object -> do not store
-		return nil, nil
-	}
-
-	buf := builder.FinishedBytes()
-
-	return buf, nil
+	_, err := b.encodeBuffer(builder)
+	return err
 }
 
 func (b *Buffer) prepareModifiedFields() {
@@ -1011,51 +1001,51 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		}
 	}
 
-	bl.StartObject(len(b.Scheme.Fields))
-	hasSomething := false
+	isStarted := false
+	beforePrepend := func() {
+		if !isStarted {
+			bl.StartObject(len(b.Scheme.Fields))
+			isStarted = true
+		}
+	}
 	for _, f := range b.Scheme.Fields {
 		isSet := false
+		offsetToWrite := flatbuffers.UOffsetT(0)
 		if f.IsArray {
-			if isSet = offsets.Slice[f.order].arr > 0; isSet {
-				bl.PrependUOffsetTSlot(f.order, offsets.Slice[f.order].arr, 0)
-			}
+			offsetToWrite = offsets.Slice[f.order].arr
 		} else {
 			switch f.Ft {
 			case FieldTypeString:
-				if isSet = offsets.Slice[f.order].str > 0; isSet {
-					bl.PrependUOffsetTSlot(f.order, offsets.Slice[f.order].str, 0)
-				}
+				offsetToWrite = offsets.Slice[f.order].str
 			case FieldTypeObject:
-				if isSet = offsets.Slice[f.order].obj > 0; isSet {
-					bl.PrependUOffsetTSlot(f.order, offsets.Slice[f.order].obj, 0)
-				}
+				offsetToWrite = offsets.Slice[f.order].obj
 			default:
 				modifiedField := b.modifiedFields[f.order]
 				if modifiedField != nil {
 					if isSet = modifiedField.value != nil; isSet {
-						if !encodeFixedSizeValue(bl, f, modifiedField.value) {
+						if !encodeFixedSizeValue(bl, f, modifiedField.value, beforePrepend) {
 							return 0, fmt.Errorf("wrong value %T(%#v) provided for field %s", modifiedField.value, modifiedField.value, f.QualifiedName())
 						}
 					}
 				} else {
-					isSet = copyFixedSizeValue(bl, b, f)
+					isSet = copyFixedSizeValue(bl, b, f, beforePrepend)
 				}
 			}
 		}
-		if f.IsMandatory && !isSet {
+		if f.IsMandatory && offsetToWrite == 0 && !isSet {
 			return 0, fmt.Errorf("Mandatory field %s is not set", f.QualifiedName())
 		}
-		if isSet {
-			hasSomething = true
+		if offsetToWrite > 0 {
+			beforePrepend()
+			bl.PrependUOffsetTSlot(f.order, offsetToWrite, 0)
 		}
 	}
 	putOffsetSlice(offsets)
-	if hasSomething {
+	if isStarted {
 		res := bl.EndObject()
 		bl.Finish(res)
 		return res, nil
 	}
-	bl.Reset()
 	return 0, nil
 }
 
@@ -1067,11 +1057,11 @@ func (b *Buffer) HasValue(name string) bool {
 // Reset sets current underlying byte array and clears modified fields. Useful for *Buffer instance reuse
 // Note: bytes must match the Buffer's scheme
 func (b *Buffer) Reset(bytes []byte) {
-	b.tab.Bytes = append(b.tab.Bytes[:0], bytes...)
-	if len(bytes) == 0 {
+	b.tab.Bytes = bytes
+	if len(b.tab.Bytes) == 0 {
 		b.tab.Pos = 0
 	} else {
-		b.tab.Pos = flatbuffers.GetUOffsetT(bytes)
+		b.tab.Pos = flatbuffers.GetUOffsetT(b.tab.Bytes)
 	}
 
 	if b.names != nil {
@@ -1353,7 +1343,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		nestedUOffsetTs := getUOffsetSlice(0)
 		switch arr := value.(type) {
 		case *buffersSlice:
-			// came on ApplyMap()
+			// came on ApplyMap() or UnmarshalJSONObjectWithPool()
 			for i := 0; i < len(arr.Slice); i++ {
 				if arr.Slice[i] == nil {
 					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
@@ -1444,23 +1434,29 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	}
 }
 
-func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field) bool {
+func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, beforePrepend func()) bool {
 	offset := src.getFieldUOffsetTByOrder(f.order)
 	if offset == 0 {
 		return false
 	}
 	switch f.Ft {
 	case FieldTypeInt:
+		beforePrepend()
 		dest.PrependInt32(src.tab.GetInt32(offset))
 	case FieldTypeLong:
+		beforePrepend()
 		dest.PrependInt64(src.tab.GetInt64(offset))
 	case FieldTypeFloat:
+		beforePrepend()
 		dest.PrependFloat32(src.tab.GetFloat32(offset))
 	case FieldTypeDouble:
+		beforePrepend()
 		dest.PrependFloat64(src.tab.GetFloat64(offset))
 	case FieldTypeByte:
+		beforePrepend()
 		dest.PrependByte(src.tab.GetByte(offset))
 	case FieldTypeBool:
+		beforePrepend()
 		dest.PrependBool(src.tab.GetBool(offset))
 	}
 	dest.Slot(f.order)
@@ -1484,12 +1480,13 @@ func isFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 	}
 }
 
-func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}) bool {
+func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, beforePrepend func()) bool {
 	switch value.(type) {
 	case bool:
 		if f.Ft != FieldTypeBool {
 			return false
 		}
+		beforePrepend()
 		bl.PrependBool(value.(bool))
 	case float64:
 		float64Src := value.(float64)
@@ -1498,35 +1495,44 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}) 
 		}
 		switch f.Ft {
 		case FieldTypeInt:
+			beforePrepend()
 			bl.PrependInt32(int32(float64Src))
 		case FieldTypeLong:
+			beforePrepend()
 			bl.PrependInt64(int64(float64Src))
 		case FieldTypeFloat:
+			beforePrepend()
 			bl.PrependFloat32(float32(float64Src))
 		case FieldTypeDouble:
+			beforePrepend()
 			bl.PrependFloat64(float64Src)
 		default:
+			beforePrepend()
 			bl.PrependByte(byte(float64Src))
 		}
 	case float32:
 		if f.Ft != FieldTypeFloat {
 			return false
 		}
+		beforePrepend()
 		bl.PrependFloat32(value.(float32))
 	case int64:
 		if f.Ft != FieldTypeLong {
 			return false
 		}
+		beforePrepend()
 		bl.PrependInt64(value.(int64))
 	case int32:
 		if f.Ft != FieldTypeInt {
 			return false
 		}
+		beforePrepend()
 		bl.PrependInt32(value.(int32))
 	case byte:
 		if f.Ft != FieldTypeByte {
 			return false
 		}
+		beforePrepend()
 		bl.PrependByte(value.(byte))
 	case int:
 		intVal := value.(int)
@@ -1535,16 +1541,19 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}) 
 			if math.Abs(float64(intVal)) > math.MaxInt32 {
 				return false
 			}
+			beforePrepend()
 			bl.PrependInt32(int32(intVal))
 		case FieldTypeLong:
 			if math.Abs(float64(intVal)) > math.MaxInt64 {
 				return false
 			}
+			beforePrepend()
 			bl.PrependInt64(int64(intVal))
 		default:
 			if math.Abs(float64(intVal)) > 255 {
 				return false
 			}
+			beforePrepend()
 			bl.PrependByte(byte(intVal))
 		}
 	default:
@@ -1712,6 +1721,7 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 }
 
 // ToJSON returns JSON key->value string
+// empty buffer -> "{}"
 func (b *Buffer) ToJSON() []byte {
 	buf := bytes.NewBufferString("")
 	enc := gojay.BorrowEncoder(buf)
@@ -1759,9 +1769,9 @@ func (b *Buffer) GetNames() []string {
 
 // ToJSONMap returns map[string]interface{} representation of the buffer compatible to json
 // result map is built using inital data + current modifications
-// numeric field types are kept (not float64 as json does)
+// numeric field types are kept (not float64 as json.Unmarshal() does)
 // nested object, array, array element is empty or nil -> skip
-// object is nothing -> empty map is returned
+// empty buffer -> empty map is returned
 func (b *Buffer) ToJSONMap() map[string]interface{} {
 	res := map[string]interface{}{}
 	for _, f := range b.Scheme.Fields {
@@ -1788,6 +1798,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 							}
 						}
 					case *buffersSlice:
+						// came on ApplyMap()
 						buffers, _ := storedVal.(*buffersSlice)
 						for _, buffer := range buffers.Slice {
 							if elem := buffer.ToJSONMap(); len(elem) > 0 {
@@ -1795,6 +1806,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 							}
 						}
 					case []*Buffer:
+						// explicit Set() was called
 						for _, buffer := range arr {
 							if elem := buffer.ToJSONMap(); len(elem) > 0 {
 								targetArr = append(targetArr, elem)
