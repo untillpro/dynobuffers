@@ -17,7 +17,7 @@ import (
 	"github.com/untillpro/dynobuffers"
 )
 
-func BenchmarkWriteSimple_Dyno_SameBuilder(b *testing.B) {
+func Benchmark_Fill_ToBytes_Simple_Dyno_SameBuilder(b *testing.B) {
 	s := getSimpleScheme()
 
 	b.RunParallel(func(p *testing.PB) {
@@ -36,7 +36,7 @@ func BenchmarkWriteSimple_Dyno_SameBuilder(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteSimple_Dyno(b *testing.B) {
+func Benchmark_Fill_ToBytes_Simple_Dyno(b *testing.B) {
 	s := getSimpleScheme()
 
 	b.RunParallel(func(p *testing.PB) {
@@ -53,7 +53,7 @@ func BenchmarkWriteSimple_Dyno(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteNestedSimple_Dyno(b *testing.B) {
+func Benchmark_MapToBytes_Nested_Dyno(b *testing.B) {
 	s := getNestedScheme()
 	data := getNestedData()
 
@@ -71,7 +71,7 @@ func BenchmarkWriteNestedSimple_Dyno(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteNestedSimple_Dyno_SameBuilder(b *testing.B) {
+func Benchmark_MapToBytes_Nested_Dyno_SameBuilder(b *testing.B) {
 	s := getNestedScheme()
 	data := getNestedData()
 
@@ -89,7 +89,7 @@ func BenchmarkWriteNestedSimple_Dyno_SameBuilder(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteNestedSimple_ApplyMap_Test(b *testing.B) {
+func Benchmark_ApplyMap_Nested_Dyno(b *testing.B) {
 	s := getNestedScheme()
 	data := getNestedData()
 
@@ -102,24 +102,7 @@ func BenchmarkWriteNestedSimple_ApplyMap_Test(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteNested_ToBytes_Test(b *testing.B) {
-	s := getNestedScheme()
-	data := getNestedData()
-
-	b.ResetTimer()
-	b.RunParallel(func(p *testing.PB) {
-		bf := dynobuffers.NewBuffer(s)
-		bf.ApplyMap(data)
-		for p.Next() {
-			if _, err := bf.ToBytes(); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-}
-
-func BenchmarkWriteSimple_Avro(b *testing.B) {
+func Benchmark_MapToBytes_Simple_Avro(b *testing.B) {
 	codec, err := goavro.NewCodec(`
 		{"namespace": "unTill",
 		"type": "record",
@@ -147,38 +130,7 @@ func BenchmarkWriteSimple_Avro(b *testing.B) {
 	})
 }
 
-/*
-{"viewMods": [{"viewType": "usertable","partitionKey":{"value": "user40"},"clusterKey":{"value": "52466453699787802"},"values":{"field0":0[u+S=3P#)&v3Uc\"/60'z&^{17>9Po%Z%1C-06d>C-&D+0Rm0^)5!d3::570;Ri7Y'5Ow*&|.%h?=l:A#<Jk ^7!$p:6v6Ww:Gm;","field1": ")\"60A?+Wg\"Ew;Tk:<v7D5$Oc*@u:-p\"T/%E/'K75_-0_%9Jc8L}\"P58Xi6N2Uo;^q(]')D%1b;W7.S;89n/; ) ~4H10[=.#b:","field2": ";P9 !>-)0!; # $(+>8Wm3Cs<#h*Q/5N18A;$9v7D-19($H/$$d*I{>T5):f?@5=Aw$ :49n68\"1&65Uc;+x3Ay+[o?])(((;2b>","field3": ";P3 ]7 >v/P1 Q55J'9Mq6O} &\"$P{/+|2R}#6v/4~6R9)Ky.Zw/:*3A/<Y},Yk/(>?V3%8|5:b.J{#3x+^+03 4Vg#Og?/p&W=<","field4": "9Hq?B{\"- <Qa4Y-(Ku$<60#d##p*?6&+x/..&5l:0v'T3-Cw:., '(( :4Zw9; 8Um 80=<>7L%9+l6R?1(z??x;.4$Bu2W5%Mw7","field5": "$Q3$22;=t:@k#U),5z%Yy'Ke(5r:S%?G!<Hg1Ii2Fi26p*E?8<j2\"8W-126.D%)&v1!v:]w , $Bq/04 Wk%+$5Ia,$$)3x4^#4","field6": "<M#)*b'U!4L?;>x#.l766,^a*@;9Qa%*+;n(C7$\\q9=3&|9I5$/f,S5(/f7T38]31Wg;:,(&:)(r%#|'=f3Sw#M1/G+0V7.$n>","field7": "35\"-H'1]};..1[!5Q7$$( Fk5C5!?.\"1>)/$%Tw\"E}$Mq\"\"r2Ia?Ni$\",<Xi#9\"5!t\"Be:U+#/f+-~51.,N{8\\{:I%5Fc*Hi1=,%","field8": ";5$<Ce4O%1:<.=:,8~:-|++()Ie65b4-t6Mw#2b\"6r9M5(\"h756,\\y8^k>\"~<M)(V1$Ig:. 5;44Rg6@50 $890<.d(+*8>t*Z+-","field9": "&Co3^g.+ ,.\"-Mc;,d!/z\"(48[u+_!=b\"Fu4#8-/z0Wg&W-%.r3+l'/r3/4'^3%(()Z%)2.%\"|#Bw6Y)5!*1'V9!J#93*9Ea7"}}]}
-*/
-
-// apply map
-var testData = []byte(`
-{
-	"viewMods": [{
-		"viewType": "usertable",
-		"partitionKey": {
-			"value": "user40"
-		},
-		"clusterKey": {
-			"value": "52466453699787802"
-		},
-		"values": {
-			"field0": "0[u+S=3P#)&v3Uc\"/60'z&^{17>9Po%Z%1C-06d>C-&D+0Rm0^)5!d3::570;Ri7Y'5Ow*&|.%h?=l:A#<Jk ^7!$p:6v6Ww:Gm;",
-			"field1": ")\"60A?+Wg\"Ew;Tk:<v7D5$Oc*@u:-p\"T/%E/'K75_-0_%9Jc8L}\"P58Xi6N2Uo;^q(]')D%1b;W7.S;89n/; ) ~4H10[=.#b:",
-			"field2": ";P9 !>-)0!; # $(+>8Wm3Cs<#h*Q/5N18A;$9v7D-19($H/$$d*I{>T5):f?@5=Aw$ :49n68\"1&65Uc;+x3Ay+[o?])(((;2b>",
-			"field3": ";P3 ]7 >v/P1 Q55J'9Mq6O} &\"$P{/+|2R}#6v/4~6R9)Ky.Zw/:*3A/<Y},Yk/(>?V3%8|5:b.J{#3x+^+03 4Vg#Og?/p&W=<",
-			"field4": "9Hq?B{\"- <Qa4Y-(Ku$<60#d##p*?6&+x/..&5l:0v'T3-Cw:., '(( :4Zw9; 8Um 80=<>7L%9+l6R?1(z??x;.4$Bu2W5%Mw7",
-			"field5": "$Q3$22;=t:@k#U),5z%Yy'Ke(5r:S%?G!<Hg1Ii2Fi26p*E?8<j2\"8W-126.D%)&v1!v:]w , $Bq/04 Wk%+$5Ia,$$)3x4^#4",
-			"field6": "<M#)*b'U!4L?;>x#.l766,^a*@;9Qa%*+;n(C7$\\q9=3&|9I5$/f,S5(/f7T38]31Wg;:,(&:)(r%#|'=f3Sw#M1/G+0V7.$n>",
-			"field7": "35\"-H'1]};..1[!5Q7$$( Fk5C5!?.\"1>)/$%Tw\"E}$Mq\"\"r2Ia?Ni$\",<Xi#9\"5!t\"Be:U+#/f+-~51.,N{8\\{:I%5Fc*Hi1=,%",
-			"field8": ";5$<Ce4O%1:<.=:,8~:-|++()Ie65b4-t6Mw#2b\"6r9M5(\"h756,\\y8^k>\"~<M)(V1$Ig:. 5;44Rg6@50 $890<.d(+*8>t*Z+-",
-			"field9": "&Co3^g.+ ,.\"-Mc;,d!/z\"(48[u+_!=b\"Fu4#8-/z0Wg&W-%.r3+l'/r3/4'^3%(()Z%)2.%\"|#Bw6Y)5!*1'V9!J#93*9Ea7"
-		}
-	}]
-}
-`)
-
-func BenchmarkWriteNestedSimple_ApplyMap_withJSONUnmarshal(b *testing.B) {
+func Benchmark_JSONUnmarshal_MapToBytes_Nested_Dyno(b *testing.B) {
 	s := getNestedScheme()
 
 	b.ResetTimer()
@@ -200,7 +152,7 @@ func BenchmarkWriteNestedSimple_ApplyMap_withJSONUnmarshal(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteNestedSimple_ApplyMapBuffer(b *testing.B) {
+func Benchmark_JSONToBytes_Nested_Dyno(b *testing.B) {
 	s := getNestedScheme()
 
 	b.ResetTimer()
@@ -217,3 +169,102 @@ func BenchmarkWriteNestedSimple_ApplyMapBuffer(b *testing.B) {
 		}
 	})
 }
+
+func Benchmark_JSONToBytes_Simple_Dyno(b *testing.B) {
+	s := getSimpleScheme()
+
+	b.ResetTimer()
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := dynobuffers.NewBuffer(s)
+			if _, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`)); err != nil {
+				b.Fatal(err)
+			}
+			buf.Release()
+		}
+	})
+}
+func Benchmark_JSONToBytes_Simple_Avro(b *testing.B) {
+	codec, err := goavro.NewCodec(`
+		{"namespace": "unTill",
+		"type": "record",
+		"name": "OrderItem",
+		"fields": [
+			{"name": "name", "type": "string"},
+			{"name": "price", "type": "float"},
+			{"name": "quantity", "type": "int"}
+		]}
+	`)
+	require.Nil(b, err)
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			native, _, err := codec.NativeFromTextual([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`))
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if _, err := codec.BinaryFromNative(nil, native); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func Benchmark_Fill_ToBytes_Read_Simple_Dyno(bench *testing.B) {
+	s := getSimpleScheme()
+
+	bench.ResetTimer()
+	bench.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			b := dynobuffers.NewBuffer(s)
+			// str := "cola"
+			// b.Set("name", str) // +1 allocation
+			b.Set("name", "cola") // 0 allocations
+			b.Set("price", float32(0.123))
+			b.Set("quantity", int32(42))
+			b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
+			bytes, err := b.ToBytes()
+			if err != nil {
+				bench.Fatal(err)
+			}
+			b.Reset(bytes)
+
+			// Now we can Get fields
+			str, _ := b.GetString("name")
+			if str != "cola" {
+				bench.Fatal()
+			}
+			float, _ := b.GetFloat("price")
+			if float != 0.123 {
+				bench.Fatal()
+			}
+			q, _ := b.GetInt("quantity")
+			if q != 42 {
+				bench.Fatal()
+			}
+			b.Release()
+		}
+	})
+}
+
+func Benchmark_ToJSON_Simple_Dyno(b *testing.B) {
+	scheme := getSimpleScheme()
+
+	buf := dynobuffers.NewBuffer(scheme)
+	actual := map[string]interface{}{}
+	jsonBytes := buf.ToJSON()
+	json.Unmarshal(jsonBytes, &actual)
+	require.True(b, len(actual) == 0)
+	buf.Set("name", "cola")
+	buf.Set("price", float32(0.123))
+	buf.Set("quantity", int32(42))
+
+	b.ResetTimer()
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf.ToJSON()
+		}
+	})
+}
+
