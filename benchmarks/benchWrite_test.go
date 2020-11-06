@@ -89,19 +89,6 @@ func Benchmark_MapToBytes_Nested_Dyno_SameBuilder(b *testing.B) {
 	})
 }
 
-func Benchmark_ApplyMap_Nested_Dyno(b *testing.B) {
-	s := getNestedScheme()
-	data := getNestedData()
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			bf := dynobuffers.NewBuffer(s)
-			bf.ApplyMap(data)
-			bf.Release()
-		}
-	})
-}
-
 func Benchmark_MapToBytes_Simple_Avro(b *testing.B) {
 	codec, err := goavro.NewCodec(`
 		{"namespace": "unTill",
@@ -126,28 +113,6 @@ func Benchmark_MapToBytes_Simple_Avro(b *testing.B) {
 			if buf, err = codec.BinaryFromNative(buf[:0], data); err != nil {
 				b.Fatal(err)
 			}
-		}
-	})
-}
-
-func Benchmark_JSONUnmarshal_MapToBytes_Nested_Dyno(b *testing.B) {
-	s := getNestedScheme()
-
-	b.ResetTimer()
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			d := map[string]interface{}{}
-			if err := json.Unmarshal(testData, &d); err != nil {
-				b.Fatal(err)
-			}
-			bf := dynobuffers.NewBuffer(s)
-			if err := bf.ApplyMap(d); err != nil {
-				b.Fatal(err)
-			}
-			if _, err := bf.ToBytes(); err != nil {
-				b.Fatal(err)
-			}
-			bf.Release()
 		}
 	})
 }
