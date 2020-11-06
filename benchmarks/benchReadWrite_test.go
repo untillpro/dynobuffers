@@ -19,7 +19,7 @@ import (
 	"github.com/linkedin/goavro"
 )
 
-func BenchmarkWriteDynoBuffersSimpleTyped(b *testing.B) {
+func Benchmark_RW_Simple_Dyno_Typed(b *testing.B) {
 	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
@@ -46,7 +46,7 @@ func BenchmarkWriteDynoBuffersSimpleTyped(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteDynoBuffersSimpleTypedReadWriteString(b *testing.B) {
+func Benchmark_RW_Simple_Dyno_Typed_String(b *testing.B) {
 	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
@@ -68,12 +68,13 @@ func BenchmarkWriteDynoBuffersSimpleTypedReadWriteString(b *testing.B) {
 			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
+
 			bf.Release()
 		}
 	})
 }
 
-func BenchmarkWriteDynoBuffersSimpleUntyped(b *testing.B) {
+func Benchmark_RW_Simple_Dyno_Untyped(b *testing.B) {
 	s := getSimpleScheme()
 	bf := dynobuffers.NewBuffer(s)
 	bf.Set("name", "cola")
@@ -99,7 +100,7 @@ func BenchmarkWriteDynoBuffersSimpleUntyped(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteFlatBuffersSimple(b *testing.B) {
+func Benchmark_RW_Simple_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
 	colaName := bl.CreateString("cola")
 	SaleStart(bl)
@@ -130,7 +131,7 @@ func BenchmarkWriteFlatBuffersSimple(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteJsonSimple(b *testing.B) {
+func Benchmark_RW_Simple_Json(b *testing.B) {
 	data := map[string]interface{}{
 		"name":     "cola",
 		"price":    0.123,
@@ -157,21 +158,21 @@ func BenchmarkWriteJsonSimple(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteLinkedInAvroSimple(b *testing.B) {
+func Benchmark_RW_Simple_Avro(b *testing.B) {
 	codec, err := goavro.NewCodec(`
 		{"namespace": "unTill",
 		"type": "record",
 		"name": "OrderItem",
 		"fields": [
 			{"name": "name", "type": "string"},
-			{"name": "price", "type": ["float", "null"]},
-			{"name": "quantity", "type": "int", "default": 0}
+			{"name": "price", "type": "float"},
+			{"name": "quantity", "type": "int"}
 		]}
 	`)
 	require.Nil(b, err)
 	data := map[string]interface{}{
 		"name":     string("cola"),
-		"price":    goavro.Union("float", float32(0.123)),
+		"price":    float32(0.123),
 		"quantity": 1,
 	}
 	bytes, err := codec.BinaryFromNative(nil, data)
@@ -186,7 +187,7 @@ func BenchmarkWriteLinkedInAvroSimple(b *testing.B) {
 				b.Fatal(err)
 			}
 			decoded := native.(map[string]interface{})
-			price := decoded["price"].(map[string]interface{})["float"].(float32)
+			price := decoded["price"].(float32)
 			sum += price * float32(decoded["quantity"].(int32))
 			decoded["quantity"] = 123
 			if _, err = codec.BinaryFromNative(nil, decoded); err != nil {
@@ -196,7 +197,7 @@ func BenchmarkWriteLinkedInAvroSimple(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
+func Benchmark_RW_Article_FewFields_Dyno_Typed(b *testing.B) {
 	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
@@ -211,7 +212,7 @@ func BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
 			q, _ := bf.GetInt("quantity")
 			price, _ := bf.GetFloat("purchase_price")
 			sum += float64(float32(q) * price)
-			bf.Set("qauntity", int32(123))
+			bf.Set("quantity", int32(123))
 			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(b, err)
 			}
@@ -219,7 +220,7 @@ func BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped(b *testing.B) {
 		}
 	})
 }
-func BenchmarkWriteFlatBuffersArticleReadFewFields(b *testing.B) {
+func Benchmark_RW_Article_FewFields_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
 	a := fillArticleFlatBuffers(bl)
 	bl.Finish(a)
@@ -228,18 +229,19 @@ func BenchmarkWriteFlatBuffersArticleReadFewFields(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		sum := float32(0)
+		bl := flatbuffers.NewBuilder(0)
 		for p.Next() {
 			ar := GetRootAsArticle(bytes, 0)
 			sum += ar.PurchasePrice() * float32(ar.Quantity())
-			bl := flatbuffers.NewBuilder(0)
 			a := fillArticleFlatBuffers(bl)
 			bl.Finish(a)
 			_ = bl.FinishedBytes()
+			bl.Reset()
 		}
 	})
 }
 
-func BenchmarkWriteJsonArticleReadFewFields(b *testing.B) {
+func Benchmark_RW_Article_FewFields_Json(b *testing.B) {
 	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
@@ -265,7 +267,7 @@ func BenchmarkWriteJsonArticleReadFewFields(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteLinkedInAvroArticleReadFewFields(b *testing.B) {
+func Benchmark_RW_Article_FewFields_Avro(b *testing.B) {
 	schemaStr, err := ioutil.ReadFile("article.avsc")
 	require.Nil(b, err)
 
@@ -298,10 +300,9 @@ func BenchmarkWriteLinkedInAvroArticleReadFewFields(b *testing.B) {
 			}
 		}
 	})
-
 }
 
-func BenchmarkWriteFlatBuffersArticleReadAllFields(b *testing.B) {
+func Benchmark_RW_Article_AllFields_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
 	a := fillArticleFlatBuffers(bl)
 	bl.Finish(a)
@@ -309,6 +310,7 @@ func BenchmarkWriteFlatBuffersArticleReadAllFields(b *testing.B) {
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
+		bl := flatbuffers.NewBuilder(0)
 		for p.Next() {
 			a := GetRootAsArticle(bytes, 0)
 			a.Id()
@@ -430,15 +432,16 @@ func BenchmarkWriteFlatBuffersArticleReadAllFields(b *testing.B) {
 			a.AutoResetcourse()
 			a.BlockTransfer()
 			a.IdSizeModifier()
-			bl := flatbuffers.NewBuilder(0)
+
 			ar := fillArticleFlatBuffers(bl)
 			bl.Finish(ar)
 			_ = bl.FinishedBytes()
+			bl.Reset()
 		}
 	})
 }
 
-func BenchmarkWriteJsonArticleReadAllFields(b *testing.B) {
+func Benchmark_RW_Article_AllFields_Json(b *testing.B) {
 	data, err := ioutil.ReadFile("articleData.json")
 	require.Nil(b, err)
 
@@ -578,12 +581,13 @@ func BenchmarkWriteJsonArticleReadAllFields(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
+func Benchmark_RW_Article_AllFields_Dyno_Untyped(b *testing.B) {
 	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -711,7 +715,7 @@ func BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
 			bf.Get("auto_resetcourse")
 			bf.Get("block_transfer")
 			bf.Get("id_size_modifier")
-			bf.Set("quantity", int32(123))
+			bf.Set("quantity", int32(123)) // to force re-encode
 			if _, err = bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
@@ -720,12 +724,13 @@ func BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped(b *testing.B) {
 	})
 }
 
-func BenchmarkWriteDynoBufferArticleReadAllFieldsTyped(b *testing.B) {
+func Benchmark_RW_Article_AllFields_Dyno_Typed(b *testing.B) {
 	s := getArticleSchemeDynoBuffer()
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -854,11 +859,10 @@ func BenchmarkWriteDynoBufferArticleReadAllFieldsTyped(b *testing.B) {
 			bf.GetInt("auto_resetcourse")
 			bf.GetInt("block_transfer")
 			bf.GetLong("id_size_modifier")
-			bf.Set("quantity", int32(123))
+			bf.Set("quantity", int32(123)) // to force re-encode
 			if _, err = bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
-
 			bf.Release()
 		}
 	})

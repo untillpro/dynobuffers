@@ -66,29 +66,54 @@ ok      github.com/Yohanson555/dynobuffers/benchmarks   36.061s
 goos: windows
 goarch: amd64
 pkg: github.com/untillpro/dynobuffers/benchmarks
-BenchmarkWriteDynoBuffersSimpleTyped-4                          10208407               126 ns/op               0 B/op          0 allocs/op
-BenchmarkWriteDynoBuffersSimpleTypedReadWriteString-4            9448275               160 ns/op               0 B/op          0 allocs/op
-BenchmarkWriteDynoBuffersSimpleUntyped-4                         8572695               135 ns/op               4 B/op          1 allocs/op
-BenchmarkWriteFlatBuffersSimple-4                               19998866                50.2 ns/op             0 B/op          0 allocs/op
-BenchmarkWriteJsonSimple-4                                        619281              2049 ns/op            1360 B/op         35 allocs/op
-BenchmarkWriteLinkedInAvroSimple-4                               1804407               754 ns/op             752 B/op         10 allocs/op
-BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped-4            21427346                47.0 ns/op             0 B/op          0 allocs/op
-BenchmarkWriteFlatBuffersArticleReadFewFields-4                   333314              3939 ns/op            3640 B/op         18 allocs/op
-BenchmarkWriteJsonArticleReadFewFields-4                           12564             96710 ns/op           46670 B/op        870 allocs/op
-BenchmarkWriteLinkedInAvroArticleReadFewFields-4                   94482             14088 ns/op           11154 B/op         76 allocs/op
-BenchmarkWriteFlatBuffersArticleReadAllFields-4                   461511              4260 ns/op            3640 B/op         18 allocs/op
-BenchmarkWriteJsonArticleReadAllFields-4                           12034            105042 ns/op           46599 B/op        869 allocs/op
-BenchmarkWriteNestedSimple_Dyno-4                                 521707              2404 ns/op            1121 B/op         10 allocs/op
-BenchmarkWriteNestedSimple_Dyno_SameBuilder-4                     521709              2360 ns/op            1121 B/op         10 allocs/op
-BenchmarkWriteNestedSimple_ApplyMap_Test-4                       2289945               509 ns/op               0 B/op          0 allocs/op
-BenchmarkWriteNested_ToBytes_Test-4                               999940              1595 ns/op            1120 B/op         10 allocs/op
-BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped-4             331902              3595 ns/op             352 B/op         25 allocs/op
-BenchmarkWriteDynoBufferArticleReadAllFieldsTyped-4               410910              2957 ns/op               0 B/op          0 allocs/op
-BenchmarkWriteSimple_Dyno_SameBuilder-4                          9022040               123 ns/op               0 B/op          0 allocs/op
-BenchmarkWriteSimple_Dyno-4                                     10618857               116 ns/op               0 B/op          0 allocs/op
-BenchmarkWriteSimple_Avro-4                                      3895880               277 ns/op             336 B/op          2 allocs/op
-BenchmarkWriteNestedSimple_ApplyMap_withJSONUnmarshal-4           111104             11602 ns/op            6423 B/op         84 allocs/op
-BenchmarkWriteNestedSimple_ApplyMapBuffer-4                       479971              2402 ns/op             416 B/op         13 allocs/op
-PASS
-ok      github.com/untillpro/dynobuffers/benchmarks     38.673s
+
+Benchmark_RW_Pbill_Json-4                          	    4285	    259992 ns/op	  110828 B/op	    2258 allocs/op
+Benchmark_RW_Simple_Dyno_Typed-4                   	12120525	       146 ns/op	       0 B/op	       0 allocs/op
+Benchmark_RW_Simple_Dyno_Typed_String-4            	 9301798	       120 ns/op	       0 B/op	       0 allocs/op
+Benchmark_RW_Simple_Dyno_Untyped-4                 	 9835501	       143 ns/op	       4 B/op	       1 allocs/op
+Benchmark_RW_Simple_Flat-4                         	22640227	        46.7 ns/op	       0 B/op	       0 allocs/op
+Benchmark_RW_Simple_Json-4                         	  599964	      2239 ns/op	    1360 B/op	      35 allocs/op
+Benchmark_RW_Simple_Avro-4                         	 2708648	       474 ns/op	     416 B/op	       8 allocs/op
+Benchmark_RW_Article_FewFields_Dyno_Typed-4        	  749956	      1610 ns/op	       0 B/op	       0 allocs/op
+Benchmark_RW_Article_FewFields_Flat-4              	 1411683	       853 ns/op	       0 B/op	       0 allocs/op
+Benchmark_RW_Article_FewFields_Json-4              	    9998	    100026 ns/op	   46663 B/op	     870 allocs/op
+Benchmark_RW_Article_FewFields_Avro-4              	   80532	     13921 ns/op	   11154 B/op	      76 allocs/op
+Benchmark_RW_Article_AllFields_Flat-4              	  999940	      1193 ns/op	       0 B/op	       0 allocs/op
+Benchmark_RW_Article_AllFields_Json-4              	   12446	     96261 ns/op	   46597 B/op	     868 allocs/op
+Benchmark_RW_Article_AllFields_Dyno_Untyped-4      	  352921	      3426 ns/op	     352 B/op	      25 allocs/op
+Benchmark_RW_Article_AllFields_Dyno_Typed-4        	  461512	      3155 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_PbillItem_ByIndex-4                    	 2334496	       551 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_PBillItem_Iter-4                       	 3680769	       305 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Simple_Dyno_Typed_String-4             	22472500	        58.7 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Simple_Dyno_Untyped-4                  	20688477	        61.7 ns/op	       4 B/op	       1 allocs/op
+Benchmark_R_Simple_Avro-4                          	 1951107	       703 ns/op	     728 B/op	       8 allocs/op
+Benchmark_R_Simple_Dyno_Typed-4                    	41377027	        44.0 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Simple_Flat-4                          	116488400	        11.0 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Simple_Flat_String-4                   	89762998	        18.4 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Simple_Json-4                          	 1077320	      1174 ns/op	     440 B/op	      19 allocs/op
+Benchmark_R_Article_FewFields_Avro-4               	  101688	     10189 ns/op	   10650 B/op	      70 allocs/op
+Benchmark_R_Article_FewFields_Dyno_Typed-4         	37497890	        39.0 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Article_FewFields_Flat-4               	88333203	        12.9 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Article_FewFields_Json-4               	   31166	     34142 ns/op	   11074 B/op	     603 allocs/op
+Benchmark_R_Article_AllFields_Avro-4               	   99166	     11880 ns/op	   10650 B/op	      70 allocs/op
+Benchmark_R_Article_AllFields_Dyno_Untyped-4       	  666625	      1956 ns/op	     352 B/op	      25 allocs/op
+Benchmark_R_Article_AllFields_Dyno_Typed-4         	  923019	      1204 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Article_AllFields_Flat-4               	 3508570	       337 ns/op	       0 B/op	       0 allocs/op
+Benchmark_R_Article_AllFields_Json-4               	   32964	     38984 ns/op	   14146 B/op	     603 allocs/op
+Benchmark_Fill_ToBytes_Simple_Dyno_SameBuilder-4   	10525714	       119 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Fill_ToBytes_Simple_Dyno-4               	 6976341	       147 ns/op	       0 B/op	       0 allocs/op
+Benchmark_ApplyMap_Nested_Dyno-4                   	 2185666	       551 ns/op	       0 B/op	       0 allocs/op
+Benchmark_MapToBytes_Nested_Dyno-4                 	  666628	      2175 ns/op	    1121 B/op	      10 allocs/op
+Benchmark_MapToBytes_Nested_Dyno_SameBuilder-4     	  631545	      2193 ns/op	    1121 B/op	      10 allocs/op
+Benchmark_MapToBytes_Pbill-4                       	   56178	     21754 ns/op	      49 B/op	       9 allocs/op
+Benchmark_MapToBytes_PBill_Append-4                	    9229	    136967 ns/op	   70469 B/op	     451 allocs/op
+Benchmark_MapToBytes_Simple_Avro-4                 	 4444189	       271 ns/op	     336 B/op	       2 allocs/op
+Benchmark_MapToBytes_ArraysAppend_Dyno-4           	  799951	      1963 ns/op	     616 B/op	      30 allocs/op
+Benchmark_MapToBytes_ArraysAppendNested_Dyno-4     	  517329	      3534 ns/op	    1014 B/op	      35 allocs/op
+Benchmark_JSONUnmarshal_MapToBytes_Nested_Dyno-4   	  110084	     10329 ns/op	    6427 B/op	      84 allocs/op
+Benchmark_JSONToBytes_Nested_Dyno-4                	  499970	      2622 ns/op	     416 B/op	      13 allocs/op
+Benchmark_JSONToBytes_Simple_Dyno-4                	 4528042	       295 ns/op	      48 B/op	       3 allocs/op
+Benchmark_JSONToBytes_Simple_Avro-4                	 1597777	       924 ns/op	     552 B/op	      19 allocs/op
+Benchmark_Fill_ToBytes_Read_Simple_Dyno-4          	 4724139	       235 ns/op	       0 B/op	       0 allocs/op
+Benchmark_ToJSON_Simple_Dyno-4                     	 5172006	       225 ns/op	     112 B/op	       2 allocs/op
 ```

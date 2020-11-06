@@ -17,7 +17,7 @@ import (
 	"github.com/untillpro/dynobuffers"
 )
 
-func BenchmarkPBill_ApplyMap(b *testing.B) {
+func Benchmark_MapToBytes_Pbill(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	bb := dynobuffers.NewBuffer(s)
@@ -41,7 +41,7 @@ func BenchmarkPBill_ApplyMap(b *testing.B) {
 	})
 }
 
-func BenchmarkPBill_ApplyMap_Append(b *testing.B) {
+func Benchmark_MapToBytes_PBill_Append(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -69,7 +69,7 @@ func BenchmarkPBill_ApplyMap_Append(b *testing.B) {
 	})
 }
 
-func BenchmarkPBill_ItemRead_ByIndex(b *testing.B) {
+func Benchmark_R_PbillItem_ByIndex(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -106,7 +106,7 @@ func BenchmarkPBill_ItemRead_ByIndex(b *testing.B) {
 	_ = sum
 }
 
-func BenchmarkPBill_ItemRead_Iter(b *testing.B) {
+func Benchmark_R_PBillItem_Iter(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -144,49 +144,7 @@ func BenchmarkPBill_ItemRead_Iter(b *testing.B) {
 	_ = sum
 }
 
-func BenchmarkPBillItem_Read_NoAlloc(b *testing.B) {
-	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
-
-	pb := dynobuffers.NewBuffer(s)
-
-	fillBuffer(pb)
-	bytes, err := pb.ToBytes()
-	require.Nil(b, err)
-
-	pb = dynobuffers.ReadBuffer(bytes, s)
-	pbillItem := pb.GetByIndex("pbill_item", 0).(*dynobuffers.Buffer)
-	pbillItems := []*dynobuffers.Buffer{}
-	for i := 0; i < 9; i++ {
-		pbillItems = append(pbillItems, pbillItem)
-	}
-	pb.Append("pbill_item", pbillItems)
-
-	bytes, err = pb.ToBytes()
-	require.Nil(b, err)
-
-	pb = dynobuffers.ReadBuffer(bytes, s)
-	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.ObjectArray).Len)
-
-	sum := float32(0)
-
-	b.ResetTimer()
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			pb := dynobuffers.ReadBuffer(bytes, s)
-			arr := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
-			for arr.Next() {
-				s, _ := arr.Buffer.GetFloat("price")
-				sum += s
-			}
-			arr.Release()
-			pb.Release()
-		}
-	})
-	_ = sum
-}
-
-func BenchmarkPbill_Json_ReadWrite(b *testing.B) {
+func Benchmark_RW_Pbill_Json(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 

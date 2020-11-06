@@ -1864,7 +1864,7 @@ func TestReuse(t *testing.T) {
 	require.Equal(t, int32(42), b.Get("quantity"))
 	b.Release()
 }
-func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
+func Benchmark_ArrayOfObjectsSet_Dyno(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
 	sNested.AddField("int", FieldTypeInt, false)
@@ -1872,17 +1872,22 @@ func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
 
 	bfNested := NewBuffer(sNested)
 	bfNested.Set("int", 42)
-	bf := NewBuffer(s)
 	bufs := []*Buffer{bfNested}
 
-	bf.Set("ints", bufs)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = bf.ToBytes()
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			bf := NewBuffer(s)
+			bf.Set("ints", bufs)
+			if _, err := bf.ToBytes(); err != nil {
+				b.Fatal(err)
+			}
+			bf.Release()
+		}
+	})
 }
 
-func BenchmarkSimpleDynobuffersArrayOfObjectsAppend(b *testing.B) {
+func BenchmarkS_ArrayOfObjectsAppend_ToBytes_Dyno(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
 	sNested.AddField("int", FieldTypeInt, false)
@@ -1898,16 +1903,21 @@ func BenchmarkSimpleDynobuffersArrayOfObjectsAppend(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	bf = ReadBuffer(bytes, s)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		bf.Append("ints", bufs)
-		_, _ = bf.ToBytes()
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			bf := ReadBuffer(bytes, s)
+			bf.Append("ints", bufs)
+			if _, err = bf.ToBytes(); err != nil {
+				b.Fatal(err)
+			}
+			bf.Release()
+		}
+	})
 }
 
-func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
+func Benchmark_ArrayOfObjectsAppend_ToBytes_Flat(b *testing.B) {
 	bf := flatbuffers.NewBuilder(0)
 	bf.StartObject(1)
 	bf.PrependInt32(42)
@@ -1928,78 +1938,71 @@ func BenchmarkSimpleFlatbuffersArrayOfObjectsAppend(b *testing.B) {
 	tab.Bytes = bytes
 	tab.Pos = flatbuffers.GetUOffsetT(bytes)
 
-	for i := 0; i < b.N; i++ {
-		bf := flatbuffers.NewBuilder(0)
-		// read existing
-		existingArrayOffset := flatbuffers.UOffsetT(tab.Offset(flatbuffers.VOffsetT((0+2)*2))) + tab.Pos
-		_ = tab.Vector(existingArrayOffset - tab.Pos)
-		// elemSize := 4
-		existingArrayVectorOffset := tab.Vector(existingArrayOffset - tab.Pos)
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			bf := flatbuffers.NewBuilder(0)
 
-		// read previous
-		elemOffset := existingArrayVectorOffset + flatbuffers.UOffsetT(0)
-		elem := &flatbuffers.Table{}
-		elem.Bytes = bytes
-		elem.Pos = tab.Indirect(elemOffset)
-		elemNestedValueOffset := flatbuffers.UOffsetT(elem.Offset(flatbuffers.VOffsetT((0+2)*2))) + elem.Pos
+			// read existing
+			existingArrayOffset := flatbuffers.UOffsetT(tab.Offset(flatbuffers.VOffsetT((0+2)*2))) + tab.Pos
+			existingArrayVectorOffset := tab.Vector(existingArrayOffset - tab.Pos)
 
-		// encodeArray
-		// write previous
-		bf.StartObject(1)
-		bf.PrependInt32(elem.GetInt32(elemNestedValueOffset))
-		bf.Slot(0)
-		arrayElemObjectPrev := bf.EndObject()
-		bf.Finish(arrayElemObjectPrev)
+			// read previous
+			elemOffset := existingArrayVectorOffset + flatbuffers.UOffsetT(0)
+			elem := &flatbuffers.Table{}
+			elem.Bytes = bytes
+			elem.Pos = tab.Indirect(elemOffset)
+			elemNestedValueOffset := flatbuffers.UOffsetT(elem.Offset(flatbuffers.VOffsetT((0+2)*2))) + elem.Pos
 
-		// write new
-		bf.StartObject(1)
-		bf.PrependInt32(43)
-		bf.Slot(0)
-		arrayElemObjectNew := bf.EndObject()
-		bf.Finish(arrayElemObjectNew)
+			// encodeArray
+			// write previous
+			bf.StartObject(1)
+			bf.PrependInt32(elem.GetInt32(elemNestedValueOffset))
+			bf.Slot(0)
+			arrayElemObjectPrev := bf.EndObject()
+			bf.Finish(arrayElemObjectPrev)
 
-		// write array
-		bf.StartVector(4, 2, 4)
-		bf.PrependUOffsetT(arrayElemObjectPrev)
-		bf.PrependUOffsetT(arrayElemObjectNew)
-		arrayOffset := bf.EndVector(2)
+			// write new
+			bf.StartObject(1)
+			bf.PrependInt32(43)
+			bf.Slot(0)
+			arrayElemObjectNew := bf.EndObject()
+			bf.Finish(arrayElemObjectNew)
 
-		// write object with array
-		bf.StartObject(1)
-		bf.PrependUOffsetTSlot(0, arrayOffset, 0)
-		bf.Finish(bf.EndObject())
-		_ = bf.FinishedBytes()
-	}
+			// write array
+			bf.StartVector(4, 2, 4)
+			bf.PrependUOffsetT(arrayElemObjectPrev)
+			bf.PrependUOffsetT(arrayElemObjectNew)
+			arrayOffset := bf.EndVector(2)
+
+			// write object with array
+			bf.StartObject(1)
+			bf.PrependUOffsetTSlot(0, arrayOffset, 0)
+			bf.Finish(bf.EndObject())
+			_ = bf.FinishedBytes()
+		}
+	})
 }
 
-func BenchmarkSimpleFlatbuffersArrayOfObjectsSet(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		bf := flatbuffers.NewBuilder(0)
-		bf.StartObject(1)
-		bf.PrependInt32(42)
-		nestedOffset := bf.EndObject()
-		bf.Finish(nestedOffset)
+func Benchmark_Fill_ToBytes_NestedArray_Flat(b *testing.B) {
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			bf := flatbuffers.NewBuilder(0)
+			bf.StartObject(1)
+			bf.PrependInt32(42)
+			nestedOffset := bf.EndObject()
+			bf.Finish(nestedOffset)
 
-		bf.StartVector(4, 1, 4)
-		bf.PrependUOffsetT(nestedOffset)
-		vectorOffset := bf.EndVector(1)
+			bf.StartVector(4, 1, 4)
+			bf.PrependUOffsetT(nestedOffset)
+			vectorOffset := bf.EndVector(1)
 
-		bf.StartObject(1)
-		bf.PrependUOffsetTSlot(0, vectorOffset, 0)
+			bf.StartObject(1)
+			bf.PrependUOffsetTSlot(0, vectorOffset, 0)
 
-		bf.Finish(bf.EndObject())
-		_ = bf.FinishedBytes()
-	}
-}
-
-func BenchmarkJSON(b *testing.B) {
-	dest := map[string]interface{}{
-		"ints": []int{42},
-	}
-
-	for i := 0; i < b.N; i++ {
-		json.Marshal(dest)
-	}
+			bf.Finish(bf.EndObject())
+			_ = bf.FinishedBytes()
+		}
+	})
 }
 
 func TestReset(t *testing.T) {
@@ -2053,87 +2056,4 @@ func TestReset(t *testing.T) {
 	require.Nil(t, err)
 	b = ReadBuffer(bytes1, s)
 	require.Equal(t, int32(5), b.Get("quantity"))
-}
-
-func BenchmarkToJSONSimple(b *testing.B) {
-	scheme, err := YamlToScheme(schemeStr)
-	require.Nil(b, err)
-
-	buf := NewBuffer(scheme)
-	actual := map[string]interface{}{}
-	jsonBytes := buf.ToJSON()
-	json.Unmarshal(jsonBytes, &actual)
-	require.True(b, len(actual) == 0)
-	buf.Set("name", "cola")
-	buf.Set("price", float32(0.123))
-	buf.Set("quantity", int32(42))
-
-	b.ResetTimer()
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			buf.ToJSON()
-		}
-	})
-}
-
-func BenchmarkApplyJSONAndToBytesSimple(b *testing.B) {
-	s, err := YamlToScheme(schemeStr)
-	require.Nil(b, err)
-
-	b.ResetTimer()
-	b.RunParallel(func(p *testing.PB) {
-		buf := NewBuffer(s)
-		for p.Next() {
-			_, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`))
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-}
-
-func BenchmarkWriteReadWithReuse(bench *testing.B) {
-	// Yaml representation of scheme
-	var schemeYaml = `
-name: string
-price: float
-quantity: int
-weight: long
-`
-
-	s, err := YamlToScheme(schemeYaml)
-	require.Nil(bench, err)
-
-	bench.ResetTimer()
-	bench.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			b := NewBuffer(s)
-			// str := "cola"
-			// b.Set("name", str) // +1 allocation
-			b.Set("name", "cola") // 0 allocations
-			b.Set("price", float32(0.123))
-			b.Set("quantity", int32(42))
-			b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
-			bytes, err := b.ToBytes()
-			if err != nil {
-				bench.Fatal(err)
-			}
-			b.Reset(bytes)
-
-			// Now we can Get fields
-			str, _ := b.GetString("name")
-			if str != "cola" {
-				bench.Fatal()
-			}
-			float, _ := b.GetFloat("price")
-			if float != 0.123 {
-				bench.Fatal()
-			}
-			q, _ := b.GetInt("quantity")
-			if q != 42 {
-				bench.Fatal()
-			}
-			b.Release()
-		}
-	})
 }
