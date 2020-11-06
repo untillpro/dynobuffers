@@ -59,3 +59,36 @@ BenchmarkWriteSimple_Avro-8                                      2122617        
 PASS
 ok      github.com/Yohanson555/dynobuffers/benchmarks   36.061s
 ```
+
+## After fix + parallel
+
+```
+goos: windows
+goarch: amd64
+pkg: github.com/untillpro/dynobuffers/benchmarks
+BenchmarkWriteDynoBuffersSimpleTyped-4                          10208407               126 ns/op               0 B/op          0 allocs/op
+BenchmarkWriteDynoBuffersSimpleTypedReadWriteString-4            9448275               160 ns/op               0 B/op          0 allocs/op
+BenchmarkWriteDynoBuffersSimpleUntyped-4                         8572695               135 ns/op               4 B/op          1 allocs/op
+BenchmarkWriteFlatBuffersSimple-4                               19998866                50.2 ns/op             0 B/op          0 allocs/op
+BenchmarkWriteJsonSimple-4                                        619281              2049 ns/op            1360 B/op         35 allocs/op
+BenchmarkWriteLinkedInAvroSimple-4                               1804407               754 ns/op             752 B/op         10 allocs/op
+BenchmarkWriteDynoBuffersArticleReadFewFieldsTyped-4            21427346                47.0 ns/op             0 B/op          0 allocs/op
+BenchmarkWriteFlatBuffersArticleReadFewFields-4                   333314              3939 ns/op            3640 B/op         18 allocs/op
+BenchmarkWriteJsonArticleReadFewFields-4                           12564             96710 ns/op           46670 B/op        870 allocs/op
+BenchmarkWriteLinkedInAvroArticleReadFewFields-4                   94482             14088 ns/op           11154 B/op         76 allocs/op
+BenchmarkWriteFlatBuffersArticleReadAllFields-4                   461511              4260 ns/op            3640 B/op         18 allocs/op
+BenchmarkWriteJsonArticleReadAllFields-4                           12034            105042 ns/op           46599 B/op        869 allocs/op
+BenchmarkWriteNestedSimple_Dyno-4                                 521707              2404 ns/op            1121 B/op         10 allocs/op
+BenchmarkWriteNestedSimple_Dyno_SameBuilder-4                     521709              2360 ns/op            1121 B/op         10 allocs/op
+BenchmarkWriteNestedSimple_ApplyMap_Test-4                       2289945               509 ns/op               0 B/op          0 allocs/op
+BenchmarkWriteNested_ToBytes_Test-4                               999940              1595 ns/op            1120 B/op         10 allocs/op
+BenchmarkWriteDynoBufferArticleReadAllFieldsUntyped-4             331902              3595 ns/op             352 B/op         25 allocs/op
+BenchmarkWriteDynoBufferArticleReadAllFieldsTyped-4               410910              2957 ns/op               0 B/op          0 allocs/op
+BenchmarkWriteSimple_Dyno_SameBuilder-4                          9022040               123 ns/op               0 B/op          0 allocs/op
+BenchmarkWriteSimple_Dyno-4                                     10618857               116 ns/op               0 B/op          0 allocs/op
+BenchmarkWriteSimple_Avro-4                                      3895880               277 ns/op             336 B/op          2 allocs/op
+BenchmarkWriteNestedSimple_ApplyMap_withJSONUnmarshal-4           111104             11602 ns/op            6423 B/op         84 allocs/op
+BenchmarkWriteNestedSimple_ApplyMapBuffer-4                       479971              2402 ns/op             416 B/op         13 allocs/op
+PASS
+ok      github.com/untillpro/dynobuffers/benchmarks     38.673s
+```

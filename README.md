@@ -13,7 +13,8 @@
   - `int32, int64, float32, float64, bool, string, byte`
   - nested objects
   - arrays
-- Empty nested objects and arrays are not stored
+- Empty strings, nested objects and arrays are not stored (`Get()` returns nil)
+- Strings could be set as both `string` and `[]byte`, string arrays - as both `[]string` and `[][]byte`. `Get()`, `ToJSON()` and `ToJSONMap()` returns string or array of strings
 - Scheme versioning
   - Any data written with Scheme of any version will be correctly read using Scheme of any other version
     - Written in old Scheme, read in New Scheme -> nil result on new field read, field considered as unset
@@ -289,22 +290,12 @@
  - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
-# New
-- ObjectArray elements should not be modified
--
--
-
 # TODO
-- Current `gojay` implementation is not optimal when reading JSON values which could be null: provide `**int32`, null met  -> ptr is untouched, value met -> `new(int32)` is executed which means memory allocation. Also difference between null and non-int is not tracked: no error if e.g. expecting number but string is met. The better approach would be to implement methods like `Int32OrNull() (val int32, isNull bool)`. See `bufferSlice.UnmarshalJSONObject()` and `Buffer.UnmarshalJSONObject()`
-  - Not done: detecting if object array is null in JSON provided to `ApplyJSONAndToBytes()`. See `TestApplyJSONArrays()`
 - For now there are 2 same methods: `ApplyMapBuffer()` and `ApplyJSONAndToBytes()`. Need to get rid of one of them.
 - For now `ToBytes()` result must not be stored if `Release()` is used because on next `ToBytes()` the stored previous `ToBytes()` result will be damaged. See `TestPreviousResultDamageOnReuse()`. The better soultion is to make `ToBytes()` return not `[]byte` but an `interface {Bytes() []byte; Release()}`.
   - use [bytebufferpool](https://github.com/valyala/bytebufferpool) on `flatbuffers.Builder.Bytes`?
-- Test reusage
-- `ToJSON()`: use bytebufferpool? Impossible for now because we should not store results of `ToJSON()`
+- `ToJSON()`: use bytebufferpool? 
 - The only way to modify an element of array of nested objects - is to read all elements to `[]*Buffer` using `GetByIndex()` (not `ObjectArray`!), modify, then `Set(name, []*Buffer))`
-- Pooled `ObjectArray`
-
 
 # Benchmarks
 

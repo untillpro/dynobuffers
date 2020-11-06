@@ -205,14 +205,26 @@ func TestWriteOldReadNew(t *testing.T) {
 	require.Nil(t, b.Get("newField"))
 }
 
+func stringArrayContains(arr []string, str string) bool {
+	for _, s := range arr {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
 func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
+	names := b.GetNames()
 	for i, f := range b.Scheme.Fields {
 		if f.Ft != FieldTypeObject {
 			require.Equal(t, values[i], b.Get(f.Name), f.Name)
 		}
 		if values[i] != nil {
+			require.True(t, stringArrayContains(names, f.Name), f.Name)
 			require.True(t, b.HasValue(f.Name), f.Name)
 		} else {
+			require.False(t, stringArrayContains(names, f.Name), f.Name)
 			require.False(t, b.HasValue(f.Name), f.Name)
 		}
 		if f.IsArray {
@@ -220,10 +232,11 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 				nestedArr := b.Get(f.Name).(*ObjectArray)
 				valuesNesteds := values[i].([]interface{})
 				require.Equal(t, nestedArr.Len, len(valuesNesteds))
-				// test using iterator
+				require.Equal(t, nestedArr.Buffer, nestedArr.Value()) // cover
 				elementsAmount := 0
-				for i := 0; nestedArr.Next(); i++ {
-					valuesNested := valuesNesteds[i].([]interface{})
+				// test using iterator
+				for nestedArr.Next() {
+					valuesNested := valuesNesteds[elementsAmount].([]interface{})
 					testFieldValues(t, nestedArr.Buffer, valuesNested...)
 					elementsAmount++
 				}
@@ -235,7 +248,7 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 					testFieldValues(t, nestedBuf, valuesNested...)
 				}
 				require.Nil(t, b.GetByIndex(f.Name, nestedArr.Len))
-
+				nestedArr.Release()
 			} else {
 				require.Equal(t, values[i], b.Get(f.Name))
 			}
@@ -446,7 +459,6 @@ func TestApplyJSONArrays(t *testing.T) {
 		json        string
 		shouldBeNil bool
 	}{
-		// TODO: current gojay implementation fails to differ non-array and null on expecting an array
 		// wrong types -> error (arrays expected)
 		{json: `{"strings": 42}`},
 		{json: `{"longs": "str"}`},
@@ -457,7 +469,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"boolTrues": "str"}`},
 		{json: `{"intsObj": 42}`},
 		{json: `{"unknown": 42}`, shouldBeNil: true},
-		{json: `{"strings": wrong}`, shouldBeNil: true}, // here and further: wrong json -> no error -> array is considered as empty
+		{json: `{"strings": wrong}`, shouldBeNil: true},
 		{json: `{"longs": wrong}`, shouldBeNil: true},
 		{json: `{"ints": wrong}`, shouldBeNil: true},
 		{json: `{"floats": wrong}`, shouldBeNil: true},
@@ -465,9 +477,16 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"bytes": wrong}`, shouldBeNil: true},
 		{json: `{"boolTrues": wrong}`, shouldBeNil: true},
 		{json: `{"intsObj": wrong}`, shouldBeNil: true},
+		{json: `{"ints": [wrong]}`, shouldBeNil: true},
+		{json: `{"longs": [wrong]}`, shouldBeNil: true},
+		{json: `{"floats": [wrong]}`, shouldBeNil: true},
+		{json: `{"doubles": [wrong]}`, shouldBeNil: true},
+		{json: `{"strings": [wrong]}`, shouldBeNil: true},
+		{json: `{"boolTrues": [wrong]}`, shouldBeNil: true},
+		{json: `{"intObjs": [wrong]}`, shouldBeNil: true},
 		// non-base64 is provided for byte array -> error
 		{json: `{"bytes": "wrong base64"}`, shouldBeNil: true},
-		{json: `{"bytes": [1]}`},
+		{json: `{"bytes": [1]}`, shouldBeNil: true},
 		// failed to decode nested array -> error
 		{json: `{"intObjs": [{"int":wrong}]}`, shouldBeNil: true},
 		{json: `{"intObjs": [{"int":"str"}]}`, shouldBeNil: true},
@@ -479,7 +498,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"strings": ["str", null]}`, shouldBeNil: true},
 		{json: `{"boolTrues": [true, null]}`, shouldBeNil: true},
 		{json: `{"intObjs": [{"int":44}, null]}`, shouldBeNil: true},
-		// mandatory field in an array element is not set -> error
+		// failed to encode nested object (mandatory field is not set) -> error
 		{json: `{"intObjs": [{"int":null}]}`, shouldBeNil: true},
 	}
 	for _, wrong := range wrongs {
@@ -514,14 +533,10 @@ func TestApplyJSONArrays(t *testing.T) {
 		[]string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false}, []bool{false, false, true, true}, []byte{5, 6, 5, 6}, []byte{5, 6, 5, 6},
 		[]interface{}{[]interface{}{int32(42)}, []interface{}{int32(43)}, []interface{}{int32(50)}, []interface{}{int32(51)}})
 
-	// unset all using nulls
+	// unset all using nulls and empty arrays
 	jsons := [][]byte{
-		[]byte(`{"ints": null, "longs": null, "floats": null,
-			"doubles": null, "strings": null, "boolTrues": null, "boolFalses": null,
-			"bytes": null, "bytesBase64":null, "intsObj":[]}`), // FIXME: intsObj sould be null here but for now it is not tracked if null is provided as object array. See Buffer.UnmarshalJSONObject()
-		[]byte(`{"ints": [], "longs": [], "floats": [],
-			"doubles": [], "strings": [], "boolTrues": [], "boolFalses": [],
-			"bytes": "", "bytesBase64":"", "intsObj":[]}`),
+		[]byte(`{"ints": null, "longs": null, "floats": null, "doubles": null, "strings": null, "boolTrues": null, "boolFalses": null,"bytes": null, "bytesBase64":null, "intsObj":null}`),
+		[]byte(`{"ints": [], "longs": [], "floats": [],"doubles": [], "strings": [], "boolTrues": [], "boolFalses": [],"bytes": "", "bytesBase64":"", "intsObj":[]}`),
 	}
 	for _, json := range jsons {
 		// unset all on existing -> nothing to store
@@ -567,7 +582,7 @@ func TestApplyJSON(t *testing.T) {
 		json        string
 		shouldBeNil bool
 	}{
-		{json: `{"string": 42}`},
+		{json: `{"string": 42}`, shouldBeNil: true},
 		{json: `{"long": "str"}`},
 		{json: `{"int": "str"}`},
 		{json: `{"float": "str"}`},
@@ -576,13 +591,13 @@ func TestApplyJSON(t *testing.T) {
 		{json: `{"boolTrue": "str"}`},
 		{json: `{"nested1": 42}`},
 		{json: `{"nested1": []}`},
-		{json: `{"string": wrong}`},
-		{json: `{"long": wrong}`},
-		{json: `{"int": wrong}`},
-		{json: `{"float": wrong}`},
-		{json: `{"double": wrong}`},
-		{json: `{"byte": wrong}`},
-		{json: `{"boolTrue": wrong}`},
+		{json: `{"string": wrong}`, shouldBeNil: true},
+		{json: `{"long": wrong}`, shouldBeNil: true},
+		{json: `{"int": wrong}`, shouldBeNil: true},
+		{json: `{"float": wrong}`, shouldBeNil: true},
+		{json: `{"double": wrong}`, shouldBeNil: true},
+		{json: `{"byte": wrong}`, shouldBeNil: true},
+		{json: `{"boolTrue": wrong}`, shouldBeNil: true},
 		{json: `{"nested1": wrong}`, shouldBeNil: true},
 		{json: `{"unknown": 42}`, shouldBeNil: true},
 		{json: `{wrong}`, shouldBeNil: true},
@@ -630,6 +645,7 @@ func TestAllValues(t *testing.T) {
 	s.AddNested("nes", sNested, false)
 
 	b := NewBuffer(s)
+	testEmpty(t, b)
 
 	// no data -> nothing
 	bytes, err := b.ToBytes()
@@ -665,8 +681,6 @@ func TestAllValues(t *testing.T) {
 	}
 
 	// fill values
-	bNested := NewBuffer(sNested)
-	bNested.Set("int", 4)
 	b.Set("int", int32(1))
 	b.Set("long", int64(2))
 	b.Set("float", float32(0.1))
@@ -675,6 +689,8 @@ func TestAllValues(t *testing.T) {
 	b.Set("boolTrue", true)
 	b.Set("boolFalse", false)
 	b.Set("byte", byte(3))
+	bNested := NewBuffer(sNested)
+	bNested.Set("int", 4)
 	b.Set("nes", bNested)
 	bytesFilled, err := b.ToBytes()
 	require.Nil(t, err)
@@ -682,7 +698,18 @@ func TestAllValues(t *testing.T) {
 	expectedValues := []interface{}{int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)}}
 	testFieldValues(t, b, expectedValues...)
 
-	// ToBytes() on unmodified Buffer -> re-encode existing
+	// ToBytesWithBuilder on unmodified Buffer -> return underlying byte array
+	b.Reset(bytesFilled)
+	bl := flatbuffers.NewBuilder(0)
+	require.Nil(t, b.ToBytesWithBuilder(bl))
+	b = ReadBuffer(bl.Bytes, s)
+	testFieldValues(t, b, expectedValues...)
+
+	// GetBytes will return ToBytes() which will return the underlying byte array here
+	b.Reset(b.GetBytes())
+	testFieldValues(t, b, expectedValues...)
+
+	// ToBytes() on modified Buffer -> re-encode existing + modifications
 	// modify the buffer to force re-encode, otherwise underlying byte array will be returned
 	b.Set("int", b.Get("int"))
 	bytesFilled, err = b.ToBytes()
@@ -719,6 +746,26 @@ func TestAllValues(t *testing.T) {
 	bytes, err = b.ToBytes()
 	require.Nil(t, bytes)
 	require.Nil(t, err)
+}
+
+func testEmpty(t *testing.T, b *Buffer) {
+	for _, f := range b.Scheme.Fields {
+		require.Nil(t, b.Get(f.Name), f.Name)
+		_, ok := b.GetString(f.Name)
+		require.False(t, ok, f.Name)
+		_, ok = b.GetBool(f.Name)
+		require.False(t, ok, f.Name)
+		_, ok = b.GetByte(f.Name)
+		require.False(t, ok, f.Name)
+		_, ok = b.GetInt(f.Name)
+		require.False(t, ok, f.Name)
+		_, ok = b.GetLong(f.Name)
+		require.False(t, ok, f.Name)
+		_, ok = b.GetFloat(f.Name)
+		require.False(t, ok, f.Name)
+		_, ok = b.GetDouble(f.Name)
+		require.False(t, ok, f.Name)
+	}
 }
 
 func TestApplyMap(t *testing.T) {
@@ -823,7 +870,7 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 
-	// load from json
+	// apply json map
 	b = NewBuffer(s)
 	jsonStr := []byte(`{"int": 1, "long": 2, "float": 0.1, "double": 0.2, "string": "str", "boolTrue": true, "boolFalse": false, "byte": 3, "nes": {"int": 4}}`)
 	m := map[string]interface{}{}
@@ -889,8 +936,7 @@ func TestApplyMapArrays(t *testing.T) {
 		m            map[string]interface{}
 		errorOnApply bool
 	}{
-		// TODO: current gojay implementation fails to differ non-array and null on expecting an array
-		// wrong types -> error (arrays expected)
+		// wrong types -> error: non-array provided
 		{m: map[string]interface{}{"strings": 42}},
 		{m: map[string]interface{}{"longs": "str"}},
 		{m: map[string]interface{}{"ints": "str"}},
@@ -900,6 +946,15 @@ func TestApplyMapArrays(t *testing.T) {
 		{m: map[string]interface{}{"boolTrues": "str"}},
 		{m: map[string]interface{}{"intsObj": 42}, errorOnApply: true},
 		{m: map[string]interface{}{"unknown": 42}, errorOnApply: true},
+		// wrong types -> error: array of wrong type provided
+		{m: map[string]interface{}{"strings": []int16{42}}},
+		{m: map[string]interface{}{"longs": []int16{42}}},
+		{m: map[string]interface{}{"ints": []int16{42}}},
+		{m: map[string]interface{}{"floats": []int16{42}}},
+		{m: map[string]interface{}{"doubles": []int16{42}}},
+		{m: map[string]interface{}{"bytes": []int16{42}}},
+		{m: map[string]interface{}{"boolTrues": []int16{42}}},
+		{m: map[string]interface{}{"intsObj": []int16{42}}, errorOnApply: true},
 		// non-base64 is provided for byte array -> error
 		{m: map[string]interface{}{"bytes": "wrong base64"}},
 		{m: map[string]interface{}{"bytes": []int32{1}}},
@@ -915,7 +970,7 @@ func TestApplyMapArrays(t *testing.T) {
 		{m: map[string]interface{}{"strings": []interface{}{44, nil}}},
 		{m: map[string]interface{}{"boolTrues": []interface{}{44, nil}}},
 		{m: map[string]interface{}{"intsObj": []interface{}{map[string]interface{}{"int": 44}, nil}}, errorOnApply: true},
-		// mandatory field in an aray element is not set -> error
+		// failed to encode an array element (required field notset) -> error
 		{m: map[string]interface{}{"intsObj": []interface{}{map[string]interface{}{"int": nil}}}},
 	}
 	for _, wrong := range wrongs {
@@ -1043,6 +1098,17 @@ func TestApplyMapArrays(t *testing.T) {
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{5, 6}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}})
+
+	// unset all by nulls from json
+	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
+	jsonStr = []byte(`{"ints":null,"longs":null,"floats":null,"doubles":null,"strings":null,"boolTrues":null,"boolFalses":null,"bytes":null,"bytesBase64": null, "intsObj":null}`)
+	m = map[string]interface{}{}
+	require.Nil(t, json.Unmarshal(jsonStr, &m))
+	b = ReadBuffer(bytesFilled, s)
+	require.Nil(t, b.ApplyMap(m))
+	bytes, err = b.ToBytes()
+	require.Nil(t, err)
+	require.Nil(t, bytes)
 }
 
 func TestToJSONAndToJSONMap(t *testing.T) {
@@ -1053,6 +1119,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 
 	// empty -> empty json and map
 	empties := []map[string]interface{}{
+		nil,
 		{
 			"ints":        []int32{},
 			"longs":       []int64{},
@@ -1448,7 +1515,7 @@ func TestArrays(t *testing.T) {
 		"doubles":   {nil, []float64{}},
 		"boolTrues": {nil, []bool{}},
 		"bytes":     {nil, "", []byte{}},
-		"strings":   {nil, []string{}},
+		"strings":   {nil, []string{}, [][]byte{}},
 		"intsObj":   {nil, []*Buffer{}, &buffersSlice{}},
 	}
 	for fn, values := range tests {
@@ -1468,24 +1535,73 @@ func TestArrays(t *testing.T) {
 		}
 	}
 
-	// wrong types -> error
-	tests = map[string][]interface{}{
-		"ints":      {42, []int16{}},
-		"longs":     {42, []int16{}},
-		"floats":    {42, []int16{}},
-		"doubles":   {42, []int16{}},
-		"boolTrues": {42, []int16{}},
-		"bytes":     {42, []int16{}, "wrong base64"},
-		"strings":   {42, []int16{}},
-		"intsObj":   {42, []int16{}},
+	testsErrors := map[string][]func(b *Buffer){
+		"ints": {
+			func(b *Buffer) { b.Set("ints", 42) },
+			func(b *Buffer) { b.Set("ints", []int16{}) },
+		},
+		"longs": {
+			func(b *Buffer) { b.Set("longs", 42) },
+			func(b *Buffer) { b.Set("longs", []int16{}) },
+		},
+		"floats": {
+			func(b *Buffer) { b.Set("floats", 42) },
+			func(b *Buffer) { b.Set("floats", []int16{}) },
+		},
+		"doubles": {
+			func(b *Buffer) { b.Set("doubles", 42) },
+			func(b *Buffer) { b.Set("doubles", []int16{}) },
+		},
+		"boolTrues": {
+			func(b *Buffer) { b.Set("boolTrues", 42) },
+			func(b *Buffer) { b.Set("boolTrues", []int16{}) },
+		},
+		"bytes": {
+			func(b *Buffer) { b.Set("bytes", 42) },
+			func(b *Buffer) { b.Set("bytes", []int16{}) },
+			func(b *Buffer) { b.Set("bytes", "wrong base64") },
+		},
+		"strings": {
+			func(b *Buffer) { b.Set("strings", 42) },
+			func(b *Buffer) { b.Set("strings", []int16{}) },
+		},
+		"intsObj": {
+			func(b *Buffer) { b.Set("intsObj", 42) },
+			func(b *Buffer) { b.Set("intsObj", []int16{}) },
+			func(b *Buffer) {
+				// nil element is met in []*Buffer -> error
+				nested := NewBuffer(s.GetNestedScheme("intsObj"))
+				nested.Set("int", 42)
+				b.Set("intsObj", []*Buffer{nested, nil})
+			},
+
+			func(b *Buffer) {
+				// nil element is met in *bufferSlice -> error. Impossible to test this on ToBytes() after ApplyMap()
+				// because ApplyMap() itselffails if nil is met
+				nested := NewBuffer(s.GetNestedScheme("intsObj"))
+				nested.Set("int", 42)
+				bs := getBufferSlice(0)
+				bs.Scheme = nested.Scheme
+				bs.Owner = b
+				bs.Slice = append(bs.Slice, nested)
+				bs.Slice = append(bs.Slice, nil)
+				b.Set("intsObj", bs)
+			},
+			func(b *Buffer) {
+				// failed to encode an element (required field is not set) -> error
+				nested := NewBuffer(s.GetNestedScheme("intsObj"))
+				b.Set("intsObj", []*Buffer{nested, nil})
+			},
+		},
 	}
-	for fn, values := range tests {
-		for _, value := range values {
+
+	for fn, tests := range testsErrors {
+		for _, test := range tests {
 			b = NewBuffer(s)
-			b.Set(fn, value)
+			test(b)
 			bytes, err := b.ToBytes()
-			require.NotNil(t, err, fn, value)
-			require.Nil(t, bytes, fn, value)
+			require.NotNil(t, err, fn)
+			require.Nil(t, bytes, fn)
 		}
 	}
 
@@ -1574,19 +1690,6 @@ func TestArrays(t *testing.T) {
 		[]bool{true, true, false, false}, []bool{false, false, true, true}, []byte{1, 2, 11, 12}, []byte{5, 6, 5, 6},
 		[]interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}, []interface{}{int32(11)}, []interface{}{int32(12)}})
 
-}
-
-func TestNilArrayOfBytes(t *testing.T) {
-	s := NewScheme()
-	s.AddArray("bytes", FieldTypeByte, false)
-	b := NewBuffer(s)
-	var x []byte
-	x = nil
-	b.Set("bytes", x)
-	bytes, err := b.ToBytes()
-	require.Nil(t, err)
-	b = ReadBuffer(bytes, s)
-	require.Nil(t, b.Get("bytes"))
 }
 
 func TestCopyBytes(t *testing.T) {
@@ -1689,6 +1792,25 @@ func TestGetNames(t *testing.T) {
 	require.Nil(t, err, err)
 	b = ReadBuffer(bytes, s)
 	require.Equal(t, []string{"price", "quantity"}, b.GetNames())
+
+	// test b.names reuse
+	b.Release()
+	b = NewBuffer(s)
+	b.Set("price", 0.123)
+	b.Set("quantity", 42)
+	bytes, err = b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s)
+	require.Equal(t, []string{"price", "quantity"}, b.GetNames())
+
+	// Reset
+	b.Reset(nil)
+	b.Set("price", 0.123)
+	b.Set("quantity", 42)
+	bytes, err = b.ToBytes()
+	require.Nil(t, err, err)
+	b = ReadBuffer(bytes, s)
+	require.Equal(t, []string{"price", "quantity"}, b.GetNames())
 }
 
 func TestGetNestedScheme(t *testing.T) {
@@ -1698,17 +1820,6 @@ func TestGetNestedScheme(t *testing.T) {
 
 	require.Equal(t, bNested, bRoot.GetNestedScheme("nes"))
 	require.Nil(t, bRoot.GetNestedScheme("unknown"))
-}
-
-func TestCorrectErrorOnReflectIsNilForArrayField(t *testing.T) {
-	s := NewScheme()
-	s.AddArray("arr", FieldTypeInt, true)
-	b := NewBuffer(s)
-	b.Set("arr", "non-array")
-	bytes, err := b.ToBytes()
-	// expecting panic on reflect.ValueOf("non-array").IsNil() at encodeBuffer() is avoided
-	require.NotNil(t, err)
-	require.Nil(t, bytes)
 }
 
 func TestPreviousResultDamageOnReuse(t *testing.T) {
@@ -1729,6 +1840,30 @@ func TestPreviousResultDamageOnReuse(t *testing.T) {
 	require.NotEqual(t, bytes1, bytes1Copy)
 }
 
+func TestReuse(t *testing.T) {
+	s, err := YamlToScheme(schemeStr)
+	require.Nil(t, err)
+
+	// borrow a Buffer and fill it
+	b := NewBuffer(s)
+	b.Set("name", "cola")
+	b.Set("price", float32(0.123))
+	b.Set("quantity", int32(42))
+	bytes, err := b.ToBytes()
+	require.Nil(t, err)
+	bytesNew := make([]byte, len(bytes))
+	copy(bytesNew, bytes)
+
+	b.Release() // `bytes` becomes obsolete here
+
+	// borrow one more
+	b = ReadBuffer(bytesNew, s)
+
+	require.Equal(t, "cola", b.Get("name"))
+	require.Equal(t, float32(0.123), b.Get("price"))
+	require.Equal(t, int32(42), b.Get("quantity"))
+	b.Release()
+}
 func BenchmarkSimpleDynobuffersArrayOfObjectsSet(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
@@ -1905,6 +2040,7 @@ func TestReset(t *testing.T) {
 	b.Reset(bytes1)
 	require.Equal(t, int32(1), b.Get("quantity"))
 	require.Equal(t, float32(0.123), b.Get("price"))
+
 	//check modified fields are cleared
 	bytes1, err = b.ToBytes()
 	require.Nil(t, err)
@@ -1933,9 +2069,11 @@ func BenchmarkToJSONSimple(b *testing.B) {
 	buf.Set("quantity", int32(42))
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		buf.ToJSON()
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf.ToJSON()
+		}
+	})
 }
 
 func BenchmarkApplyJSONAndToBytesSimple(b *testing.B) {
@@ -1943,18 +2081,18 @@ func BenchmarkApplyJSONAndToBytesSimple(b *testing.B) {
 	require.Nil(b, err)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	b.RunParallel(func(p *testing.PB) {
 		buf := NewBuffer(s)
-
-		_, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`))
-		if err != nil {
-			b.Fatal(err)
+		for p.Next() {
+			_, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`))
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
-		buf.Release()
-	}
+	})
 }
 
-func BenchmarkReadBuffered(bench *testing.B) {
+func BenchmarkWriteReadWithReuse(bench *testing.B) {
 	// Yaml representation of scheme
 	var schemeYaml = `
 name: string
@@ -1966,38 +2104,36 @@ weight: long
 	s, err := YamlToScheme(schemeYaml)
 	require.Nil(bench, err)
 
-	var b *Buffer
-
 	bench.ResetTimer()
-	for i := 0; i < bench.N; i++ {
+	bench.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			b := NewBuffer(s)
+			// str := "cola"
+			// b.Set("name", str) // +1 allocation
+			b.Set("name", "cola") // 0 allocations
+			b.Set("price", float32(0.123))
+			b.Set("quantity", int32(42))
+			b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
+			bytes, err := b.ToBytes()
+			if err != nil {
+				bench.Fatal(err)
+			}
+			b.Reset(bytes)
 
-		b = NewBuffer(s)
-		// str := "cola"
-		// b.Set("name", str) // +1 allocation
-		b.Set("name", "cola") // 0 allocations
-		b.Set("price", float32(0.123))
-		b.Set("quantity", int32(42))
-		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
-		bytes, err := b.ToBytes()
-		if err != nil {
-			bench.Fatal(err)
+			// Now we can Get fields
+			str, _ := b.GetString("name")
+			if str != "cola" {
+				bench.Fatal()
+			}
+			float, _ := b.GetFloat("price")
+			if float != 0.123 {
+				bench.Fatal()
+			}
+			q, _ := b.GetInt("quantity")
+			if q != 42 {
+				bench.Fatal()
+			}
+			b.Release()
 		}
-		b.Release()
-
-		b = ReadBuffer(bytes, s)
-		// Now we can Get fields
-		str, _ := b.GetString("name")
-		if str != "cola" {
-			bench.Fatal()
-		}
-		float, _ := b.GetFloat("price")
-		if float != 0.123 {
-			bench.Fatal()
-		}
-		q, _ := b.GetInt("quantity")
-		if q != 42 {
-			bench.Fatal()
-		}
-		b.Release()
-	}
+	})
 }
