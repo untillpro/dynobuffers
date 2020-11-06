@@ -24,18 +24,22 @@ type offset struct {
 
 // Begin pools
 
-var builderPool = sync.Pool{
-	New: func() interface{} { return flatbuffers.NewBuilder(0) },
-}
-
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return &Buffer{
-			builder:        flatbuffers.NewBuilder(0),
-			modifiedFields: make([]*modifiedField, defaultBufferSize),
-		}
-	},
-}
+var (
+	builderPool = sync.Pool{
+		New: func() interface{} { return flatbuffers.NewBuilder(0) },
+	}
+	bufferPool = sync.Pool{
+		New: func() interface{} {
+			return &Buffer{
+				builder:        flatbuffers.NewBuilder(0),
+				modifiedFields: make([]*modifiedField, defaultBufferSize),
+			}
+		},
+	}
+	objectArrayPool = sync.Pool{
+		New: func() interface{} { return &ObjectArray{} },
+	}
+)
 
 func getBuffer() (b *Buffer) {
 	b = bufferPool.Get().(*Buffer)
