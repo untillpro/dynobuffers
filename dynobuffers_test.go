@@ -2057,3 +2057,25 @@ func TestReset(t *testing.T) {
 	b = ReadBuffer(bytes1, s)
 	require.Equal(t, int32(5), b.Get("quantity"))
 }
+
+// https://github.com/golang/go/issues/40701
+func Benchmark_RW_Nested(b *testing.B) {
+	sNested := NewScheme()
+	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("str", FieldTypeString, false)
+	s := NewScheme()
+	s.AddNested("nes", sNested, false)
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := NewBuffer(s)
+			bufNes := NewBuffer(sNested)
+			bufNes.Set("int", 42)
+			bufNes.Set("str", "str")
+			buf.Set("nes", bufNes)
+			if _, err := buf.ToBytes(); err != nil {
+				b.Fatal(err)
+			}
+			buf.Release()
+		}
+	})
+}

@@ -422,8 +422,8 @@ func getFBFieldSize(ft FieldType) int {
 // Get returns stored field value by name.
 // field is scalar -> scalar is returned
 // field is an array of scalars -> []T is returned
-// field is a nested object -> *dynobuffers.Buffer is returned
-// field is an array of nested objects -> *dynobuffers.ObjectArray is returned
+// field is a nested object -> *dynobuffers.Buffer is returned.
+// field is an array of nested objects -> *dynobuffers.ObjectArray is returned.
 // field is not set, set to nil or no such field in the Scheme -> nil
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 func (b *Buffer) Get(name string) interface{} {
@@ -543,7 +543,7 @@ func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
 	if len(jsonMap) == 0 {
 		return nil
 	}
-	return gojay.UnmarshalJSONObjectWithPool(jsonMap, b)
+	return gojay.UnmarshalJSONObjectWithPool(jsonMap[:], b)
 }
 
 // ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array with inital + applied data
@@ -954,7 +954,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedStringField.value != nil {
 					switch toWrite := modifiedStringField.value.(type) {
 					case string:
-						offsets.Slice[f.order].str = bl.CreateByteString([]byte(toWrite))
+						offsets.Slice[f.order].str = bl.CreateString(toWrite)
 					case []byte:
 						offsets.Slice[f.order].str = bl.CreateByteString(toWrite)
 					default:
@@ -1256,7 +1256,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		target := *(*[]byte)(unsafe.Pointer(&hdr))
 		return bl.CreateByteVector(target), nil
 	case FieldTypeByte:
-		target := []byte{}
+		var target []byte
 		switch arr := value.(type) {
 		case []byte:
 			target = arr

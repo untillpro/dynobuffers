@@ -30,10 +30,10 @@ func Benchmark_MapToBytes_Pbill(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			pb := dynobuffers.NewBuffer(s)
-			if err = pb.ApplyMap(dest); err != nil {
+			if err := pb.ApplyMap(dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = pb.ToBytes(); err != nil {
+			if _, err := pb.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			pb.Release()
@@ -58,10 +58,10 @@ func Benchmark_MapToBytes_PBill_Append(b *testing.B) {
 		require.Nil(b, json.Unmarshal(jsonBytes, &dest))
 		for p.Next() {
 			pb := dynobuffers.ReadBuffer(bytes, s)
-			if err = pb.ApplyMap(dest); err != nil {
+			if err := pb.ApplyMap(dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = pb.ToBytes(); err != nil {
+			if _, err := pb.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			pb.Release()
@@ -158,10 +158,10 @@ func Benchmark_RW_Pbill_Json(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		dest := map[string]interface{}{}
 		for p.Next() {
-			if err = json.Unmarshal(jsonBytes, &dest); err != nil {
+			if err := json.Unmarshal(jsonBytes, &dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = json.Marshal(dest); err != nil {
+			if _, err := json.Marshal(dest); err != nil {
 				b.Fatal(err)
 			}
 		}
