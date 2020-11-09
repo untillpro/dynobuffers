@@ -145,7 +145,7 @@ func Benchmark_RW_Simple_Json(b *testing.B) {
 		sum := float32(0)
 		for p.Next() {
 			data := map[string]interface{}{}
-			if err = json.Unmarshal(bytes, &data); err != nil {
+			if err := json.Unmarshal(bytes, &data); err != nil {
 				b.Fatal(err)
 			}
 			price := float32(data["price"].(float64))
@@ -449,7 +449,9 @@ func Benchmark_RW_Article_AllFields_Json(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			dest := map[string]interface{}{}
-			json.Unmarshal(data, &dest)
+			if err := json.Unmarshal(data, &dest); err != nil {
+				b.Fatal(err)
+			}
 			_ = dest["id"]
 			_ = dest["article_number"]
 			_ = dest["name"]
@@ -574,7 +576,7 @@ func Benchmark_RW_Article_AllFields_Json(b *testing.B) {
 			_ = dest["block_transfer"]
 			_ = dest["id_size_modifier"]
 			dest["quantity"] = 123
-			if _, err = json.Marshal(dest); err != nil {
+			if _, err := json.Marshal(dest); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -716,7 +718,7 @@ func Benchmark_RW_Article_AllFields_Dyno_Untyped(b *testing.B) {
 			bf.Get("block_transfer")
 			bf.Get("id_size_modifier")
 			bf.Set("quantity", int32(123)) // to force re-encode
-			if _, err = bf.ToBytes(); err != nil {
+			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			bf.Release()
@@ -860,7 +862,7 @@ func Benchmark_RW_Article_AllFields_Dyno_Typed(b *testing.B) {
 			bf.GetInt("block_transfer")
 			bf.GetLong("id_size_modifier")
 			bf.Set("quantity", int32(123)) // to force re-encode
-			if _, err = bf.ToBytes(); err != nil {
+			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			bf.Release()

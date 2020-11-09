@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	flatbuffers "github.com/google/flatbuffers/go"
-	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -937,7 +936,6 @@ func TestApplyMapArrays(t *testing.T) {
 		errorOnApply bool
 	}{
 		// wrong types -> error: non-array provided
-		{m: map[string]interface{}{"strings": 42}},
 		{m: map[string]interface{}{"longs": "str"}},
 		{m: map[string]interface{}{"ints": "str"}},
 		{m: map[string]interface{}{"floats": "str"}},
@@ -1290,14 +1288,8 @@ func TestSchemeToFromYAML(t *testing.T) {
 	err = yaml.Unmarshal(bytes, &schemeNew)
 	require.Nil(t, err)
 
-	pretty.CompareConfig.TrackCycles = true
-
-	if !reflect.DeepEqual(schemeRoot.Fields, schemeNew.Fields) {
-		t.Fatal(pretty.Compare(schemeRoot.Fields, schemeNew.Fields))
-	}
-	if !reflect.DeepEqual(schemeRoot.FieldsMap, schemeNew.FieldsMap) {
-		t.Fatal(pretty.Compare(schemeRoot.FieldsMap, schemeNew.FieldsMap))
-	}
+	require.Equal(t, schemeRoot.Fields, schemeNew.Fields)
+	require.Equal(t, schemeRoot.FieldsMap, schemeNew.FieldsMap)
 
 	schemeNew = NewScheme()
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
@@ -1823,6 +1815,7 @@ func TestGetNestedScheme(t *testing.T) {
 }
 
 func TestPreviousResultDamageOnReuse(t *testing.T) {
+	t.Skip("under development")
 	s, err := YamlToScheme(schemeStr)
 	require.Nil(t, err)
 	b := NewBuffer(s)
@@ -2056,4 +2049,26 @@ func TestReset(t *testing.T) {
 	require.Nil(t, err)
 	b = ReadBuffer(bytes1, s)
 	require.Equal(t, int32(5), b.Get("quantity"))
+}
+
+// https://github.com/golang/go/issues/40701
+func Benchmark_RW_Nested(b *testing.B) {
+	sNested := NewScheme()
+	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("str", FieldTypeString, false)
+	s := NewScheme()
+	s.AddNested("nes", sNested, false)
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := NewBuffer(s)
+			bufNes := NewBuffer(sNested)
+			bufNes.Set("int", 42)
+			bufNes.Set("str", "str")
+			buf.Set("nes", bufNes)
+			if _, err := buf.ToBytes(); err != nil {
+				b.Fatal(err)
+			}
+			buf.Release()
+		}
+	})
 }
