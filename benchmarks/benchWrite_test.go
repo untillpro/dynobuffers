@@ -123,7 +123,7 @@ func Benchmark_MapToBytes_Simple_Avro(b *testing.B) {
 			data["name"] = "cola"
 			data["quantity"] = 1
 			data["price"] = float32(0.123)
-			if buf, err = codec.BinaryFromNative(buf[:0], data); err != nil {
+			if _, err := codec.BinaryFromNative(buf[:0], data); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -259,12 +259,15 @@ func Benchmark_ToJSON_Simple_Dyno(b *testing.B) {
 	buf.Set("name", "cola")
 	buf.Set("price", float32(0.123))
 	buf.Set("quantity", int32(42))
+	bytes, err := buf.ToBytes()
+	require.Nil(b, err)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
+		buf := dynobuffers.ReadBuffer(bytes, scheme)
 		for p.Next() {
 			buf.ToJSON()
 		}
+		buf.Release()
 	})
 }
-

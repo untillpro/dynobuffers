@@ -169,7 +169,10 @@ func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) 
 		copy(res, src)
 		return res
 	case FieldTypeByte:
-		return b.tab.Bytes[start : arrLen+int(start)]
+		// return b.tab.Bytes[start : arrLen+int(start)] -> race condition on byte array append. See Benchmark_MapToBytes_ArraysAppend_Dyno()
+		res := make([]byte, arrLen)
+		copy(res, b.tab.Bytes[start : arrLen+int(start)])
+		return res
 	case FieldTypeBool:
 		src := *(*[]bool)(unsafe.Pointer(&bytesSlice))
 		src = src[:arrLen]
