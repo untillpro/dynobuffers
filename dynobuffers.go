@@ -140,7 +140,7 @@ func (oa *ObjectArray) Value() interface{} {
 }
 
 // Release returns used ObjectArray instance to the pool. Releases also ObjectArray.Buffer
-// Note: ObjectArray instance itself, ObjectArray.Buffer, result of ObjectArray.Buffer.ToBytes() should not be used after Release()
+// Note: ObjectArray instance itself, ObjectArray.Buffer, result of ObjectArray.Buffer.ToBytes() must  not be used after Release()
 func (oa *ObjectArray) Release() {
 	oa.Buffer.Release()
 	oa.Buffer = nil
@@ -221,7 +221,7 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 }
 
 // Release returns used Buffer into pool
-// Note: Buffer instance itself, result of ToBytes() should not be used after Release()
+// Note: Buffer instance itself, result of ToBytes() must not be used after Release()
 func (b *Buffer) Release() {
 	if !b.isReleased {
 		b.releaseFields()
@@ -245,8 +245,7 @@ func (b *Buffer) releaseFields() {
 
 // GetInt returns int32 value by name and if the Scheme contains the field and the value was set to non-nil
 func (b *Buffer) GetInt(name string) (int32, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetInt32(o), true
 	}
 	return int32(0), false
@@ -254,8 +253,7 @@ func (b *Buffer) GetInt(name string) (int32, bool) {
 
 // GetFloat returns float32 value by name and if the Scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetFloat(name string) (float32, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetFloat32(o), true
 	}
 	return float32(0), false
@@ -263,8 +261,7 @@ func (b *Buffer) GetFloat(name string) (float32, bool) {
 
 // GetString returns string value by name and if the Scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetString(name string) (string, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return byteSliceToString(b.tab.ByteVector(o)), true
 	}
 	return "", false
@@ -272,8 +269,7 @@ func (b *Buffer) GetString(name string) (string, bool) {
 
 // GetLong returns int64 value by name and if the Scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetLong(name string) (int64, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetInt64(o), true
 	}
 	return int64(0), false
@@ -281,8 +277,7 @@ func (b *Buffer) GetLong(name string) (int64, bool) {
 
 // GetDouble returns float64 value by name and if the Scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetDouble(name string) (float64, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetFloat64(o), true
 	}
 	return float64(0), false
@@ -290,8 +285,7 @@ func (b *Buffer) GetDouble(name string) (float64, bool) {
 
 // GetByte returns byte value by name and if the Scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetByte(name string) (byte, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetByte(o), true
 	}
 	return byte(0), false
@@ -299,8 +293,7 @@ func (b *Buffer) GetByte(name string) (byte, bool) {
 
 // GetBool returns bool value by name and if the Scheme contains the field and if the value was set to non-nil
 func (b *Buffer) GetBool(name string) (bool, bool) {
-	o := b.getFieldUOffsetT(name)
-	if o != 0 {
+	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetBool(o), true
 	}
 	return false, false
@@ -328,11 +321,10 @@ func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
 }
 
 func (b *Buffer) getByField(f *Field, index int) interface{} {
-	uOffsetT := b.getFieldUOffsetTByOrder(f.order)
-	if uOffsetT == 0 {
-		return nil
+	if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
+		return b.getByUOffsetT(f, index, uOffsetT)
 	}
-	return b.getByUOffsetT(f, index, uOffsetT)
+	return nil
 }
 
 func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffsetT) interface{} {

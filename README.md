@@ -127,13 +127,18 @@
   ```go
   b.HasValue("name")
   ```
+- Return `Buffer` to pool to prevent additional memory allocations
+  ```go
+  b.Release()
+  // note: b itself and result of b.ToBytes() must not be used from now on.
+  ```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Nested objects
 - Declare scheme
   - by yaml
 	```go
-	var schemeStr = `
+	var schemeStr := `
 	name: string
 	Nested:
 	  nes1: int
@@ -178,6 +183,7 @@
 	// note: bNested is obsolete here. Need to obtain it again from bRoot
 	```
  - Empty nested objects are not stored
+ - Unmodified nested objects are copied field by field on `ToBytes()`
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Arrays
@@ -246,6 +252,9 @@
 		// arr.Buffer is switched on each arr.Next()
 		assert.Equal(t, int32(1), arr.Buffer.Get("nes1"))
 	}
+	// do not forget to return arr to pool to prevent additional memory allocations
+	arr.Release()
+	// note: arr itself, arr.Buffer, result of arr.Buffer.ToBytes() are obsolete here
 	```
 - Modify array and to bytes
 	- Set
@@ -288,13 +297,15 @@
  - Byte arrays are decoded to JSON as base64 strings
  - Byte array value could be set from either byte array and base64-encoded string
  - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
+ - Arrays of scalars are stored as byte arrays
+   - e.g. []int: []byte is taken starting from [0] with length 4*len
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 # TODO
 - For now there are 2 same methods: `ApplyMapBuffer()` and `ApplyJSONAndToBytes()`. Need to get rid of one of them.
 - For now `ToBytes()` result must not be stored if `Release()` is used because on next `ToBytes()` the stored previous `ToBytes()` result will be damaged. See `TestPreviousResultDamageOnReuse()`. The better soultion is to make `ToBytes()` return not `[]byte` but an `interface {Bytes() []byte; Release()}`.
   - use [bytebufferpool](https://github.com/valyala/bytebufferpool) on `flatbuffers.Builder.Bytes`?
-- `ToJSON()`: use bytebufferpool? 
+- `ToJSON()`: use bytebufferpool?
 - The only way to modify an element of array of nested objects - is to read all elements to `[]*Buffer` using `GetByIndex()` (not `ObjectArray`!), modify, then `Set(name, []*Buffer))`
 
 # Benchmarks
