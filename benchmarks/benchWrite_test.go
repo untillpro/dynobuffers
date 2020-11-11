@@ -236,3 +236,28 @@ func Benchmark_ToJSON_Simple_Dyno(b *testing.B) {
 		buf.Release()
 	})
 }
+
+func Benchmark_ToJSONMap_Simple_Dyno(b *testing.B) {
+	scheme := getSimpleScheme()
+
+	buf := dynobuffers.NewBuffer(scheme)
+	actual := map[string]interface{}{}
+	jsonBytes := buf.ToJSON()
+	json.Unmarshal(jsonBytes, &actual)
+	require.True(b, len(actual) == 0)
+	buf.Set("name", "cola")
+	buf.Set("price", float32(0.123))
+	buf.Set("quantity", int32(42))
+	bytes, err := buf.ToBytes()
+	require.Nil(b, err)
+
+	b.ResetTimer()
+	b.RunParallel(func(p *testing.PB) {
+		buf := dynobuffers.ReadBuffer(bytes, scheme)
+		for p.Next() {
+			buf.ToJSONMap()
+		}
+		buf.Release()
+	})
+}
+

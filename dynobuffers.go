@@ -171,7 +171,7 @@ func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) 
 	case FieldTypeByte:
 		// return b.tab.Bytes[start : arrLen+int(start)] -> race condition on byte array append. See Benchmark_MapToBytes_ArraysAppend_Dyno()
 		res := make([]byte, arrLen)
-		copy(res, b.tab.Bytes[start : arrLen+int(start)])
+		copy(res, b.tab.Bytes[start:arrLen+int(start)])
 		return res
 	case FieldTypeBool:
 		src := *(*[]bool)(unsafe.Pointer(&bytesSlice))
@@ -420,6 +420,11 @@ func getFBFieldSize(ft FieldType) int {
 	default:
 		return flatbuffers.SizeUOffsetT
 	}
+}
+
+// GetByField is an analogue of Get() but accepts a known Field
+func (b *Buffer) GetByField(f *Field) interface{} {
+	return b.getByField(f, -1)
 }
 
 // Get returns stored field value by name.
@@ -1083,7 +1088,7 @@ func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
 		arr = make([]int32, len(intfs))
 		for i, intf := range intfs {
 			float64Src, ok := intf.(float64)
-			if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
 				return nil, false
 			}
 			arr[i] = int32(float64Src)
@@ -1122,7 +1127,7 @@ func intfToInt64Arr(f *Field, value interface{}) ([]int64, bool) {
 		arr = make([]int64, len(intfs))
 		for i, intf := range intfs {
 			float64Src, ok := intf.(float64)
-			if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
 				return nil, false
 			}
 			arr[i] = int64(float64Src)
@@ -1141,7 +1146,7 @@ func intfToFloat32Arr(f *Field, value interface{}) ([]float32, bool) {
 		arr = make([]float32, len(intfs))
 		for i, intf := range intfs {
 			float64Src, ok := intf.(float64)
-			if !ok || !isFloat64ValueFitsIntoField(f, float64Src) {
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
 				return nil, false
 			}
 			arr[i] = float32(float64Src)
@@ -1432,7 +1437,10 @@ func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, before
 	return true
 }
 
-func isFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
+// IsFloat64ValueFitsIntoField checks if target type of field enough to fit float64 value
+// e.g. float64(1) could be applied to any numeric field, float64(256) to any numeric except FieldTypeByte etc
+// Useful to check interface{} values came from JSON
+func IsFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 	if float64Src == 0 {
 		return true
 	}
@@ -1450,80 +1458,78 @@ func isFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 }
 
 func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, beforePrepend func()) bool {
-	switch value.(type) {
+	switch val := value.(type) {
 	case bool:
 		if f.Ft != FieldTypeBool {
 			return false
 		}
 		beforePrepend()
-		bl.PrependBool(value.(bool))
+		bl.PrependBool(val)
 	case float64:
-		float64Src := value.(float64)
-		if !isFloat64ValueFitsIntoField(f, float64Src) {
+		if !IsFloat64ValueFitsIntoField(f, val) {
 			return false
 		}
 		switch f.Ft {
 		case FieldTypeInt:
 			beforePrepend()
-			bl.PrependInt32(int32(float64Src))
+			bl.PrependInt32(int32(val))
 		case FieldTypeLong:
 			beforePrepend()
-			bl.PrependInt64(int64(float64Src))
+			bl.PrependInt64(int64(val))
 		case FieldTypeFloat:
 			beforePrepend()
-			bl.PrependFloat32(float32(float64Src))
+			bl.PrependFloat32(float32(val))
 		case FieldTypeDouble:
 			beforePrepend()
-			bl.PrependFloat64(float64Src)
+			bl.PrependFloat64(val)
 		default:
 			beforePrepend()
-			bl.PrependByte(byte(float64Src))
+			bl.PrependByte(byte(val))
 		}
 	case float32:
 		if f.Ft != FieldTypeFloat {
 			return false
 		}
 		beforePrepend()
-		bl.PrependFloat32(value.(float32))
+		bl.PrependFloat32(val)
 	case int64:
 		if f.Ft != FieldTypeLong {
 			return false
 		}
 		beforePrepend()
-		bl.PrependInt64(value.(int64))
+		bl.PrependInt64(val)
 	case int32:
 		if f.Ft != FieldTypeInt {
 			return false
 		}
 		beforePrepend()
-		bl.PrependInt32(value.(int32))
+		bl.PrependInt32(val)
 	case byte:
 		if f.Ft != FieldTypeByte {
 			return false
 		}
 		beforePrepend()
-		bl.PrependByte(value.(byte))
+		bl.PrependByte(val)
 	case int:
-		intVal := value.(int)
 		switch f.Ft {
 		case FieldTypeInt:
-			if math.Abs(float64(intVal)) > math.MaxInt32 {
+			if math.Abs(float64(val)) > math.MaxInt32 {
 				return false
 			}
 			beforePrepend()
-			bl.PrependInt32(int32(intVal))
+			bl.PrependInt32(int32(val))
 		case FieldTypeLong:
-			if math.Abs(float64(intVal)) > math.MaxInt64 {
+			if math.Abs(float64(val)) > math.MaxInt64 {
 				return false
 			}
 			beforePrepend()
-			bl.PrependInt64(int64(intVal))
+			bl.PrependInt64(int64(val))
 		default:
-			if math.Abs(float64(intVal)) > 255 {
+			if math.Abs(float64(val)) > 255 {
 				return false
 			}
 			beforePrepend()
-			bl.PrependByte(byte(intVal))
+			bl.PrependByte(byte(val))
 		}
 	default:
 		return false
@@ -1779,26 +1785,13 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 				// empty base64 string for byte array -> no bytes, skip
 				continue
 			}
-			l := -1
-			switch arr := storedVal.(type) {
-			case []bool:
-				l = len(arr)
-			case []int32:
-				l = len(arr)
-			case []int64:
-				l = len(arr)
-			case []float32:
-				l = len(arr)
-			case []float64:
-				l = len(arr)
-			case []string:
-				l = len(arr)
-			case []byte:
-				l = len(arr)
-			}
-			if l == 0 {
-				// empty array met -> skip
-				continue
+			// speed is the same as on explicit storedVal to slice casting + len check
+			v := reflect.ValueOf(storedVal)
+			if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
+				if v.Len() == 0 {
+					// empty array -> skip
+					continue
+				}
 			}
 			res[f.Name] = storedVal
 		}
