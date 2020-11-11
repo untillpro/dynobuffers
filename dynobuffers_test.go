@@ -218,6 +218,7 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 	for i, f := range b.Scheme.Fields {
 		if f.Ft != FieldTypeObject {
 			require.Equal(t, values[i], b.Get(f.Name), f.Name)
+			require.Equal(t, values[i], b.GetByField(f), f.Name)
 		}
 		if values[i] != nil {
 			require.True(t, stringArrayContains(names, f.Name), f.Name)
