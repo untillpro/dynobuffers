@@ -1168,6 +1168,11 @@ func intfToFloat64Arr(f *Field, value interface{}) ([]float64, bool) {
 
 func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{}, toAppendToIntf interface{}) (flatbuffers.UOffsetT, error) {
 	elemSize := getFBFieldSize(f.Ft)
+	/*
+		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
+		target := *(*[]byte)(unsafe.Pointer(&hdr)) <-- problem here is that arr could be garbage collected already since it could be created at intfTo*Arr() and is not used after previous line ^^^
+	*/
+	var target []byte
 	switch f.Ft {
 	case FieldTypeInt:
 		arr, ok := intfToInt32Arr(f, value)
@@ -1184,9 +1189,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		}
 
 		length := len(arr) * flatbuffers.SizeInt32
-		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
-		target := *(*[]byte)(unsafe.Pointer(&hdr))
-		return bl.CreateByteVector(target), nil
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
+		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
+		sh.Len = length
+		sh.Cap = length
+		res := bl.CreateByteVector(target)
+		_ = arr // prevent GC before write to buffer
+		return res, nil
 	case FieldTypeBool:
 		arr, ok := intfToBoolArr(f, value)
 		if !ok {
@@ -1201,9 +1210,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr = toAppendTo
 		}
 		length := len(arr) * flatbuffers.SizeBool
-		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
-		target := *(*[]byte)(unsafe.Pointer(&hdr))
-		return bl.CreateByteVector(target), nil
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
+		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
+		sh.Len = length
+		sh.Cap = length
+		res := bl.CreateByteVector(target)
+		_ = arr // prevent GC before write to buffer
+		return res, nil
 	case FieldTypeLong:
 		arr, ok := intfToInt64Arr(f, value)
 		if !ok {
@@ -1218,9 +1231,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr = toAppendTo
 		}
 		length := len(arr) * flatbuffers.SizeInt64
-		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
-		target := *(*[]byte)(unsafe.Pointer(&hdr))
-		return bl.CreateByteVector(target), nil
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
+		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
+		sh.Len = length
+		sh.Cap = length
+		res := bl.CreateByteVector(target)
+		_ = arr // prevent GC before write to buffer
+		return res, nil
 	case FieldTypeFloat:
 		arr, ok := intfToFloat32Arr(f, value)
 		if !ok {
@@ -1235,9 +1252,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr = toAppendTo
 		}
 		length := len(arr) * flatbuffers.SizeFloat32
-		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
-		target := *(*[]byte)(unsafe.Pointer(&hdr))
-		return bl.CreateByteVector(target), nil
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
+		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
+		sh.Len = length
+		sh.Cap = length
+		res := bl.CreateByteVector(target)
+		_ = arr // prevent GC before write to buffer
+		return res, nil
 	case FieldTypeDouble:
 		arr, ok := intfToFloat64Arr(f, value)
 		if !ok {
@@ -1252,9 +1273,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			arr = toAppendTo
 		}
 		length := len(arr) * flatbuffers.SizeFloat64
-		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
-		target := *(*[]byte)(unsafe.Pointer(&hdr))
-		return bl.CreateByteVector(target), nil
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
+		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
+		sh.Len = length
+		sh.Cap = length
+		res := bl.CreateByteVector(target)
+		_ = arr // prevent GC before write to buffer
+		return res, nil
 	case FieldTypeByte:
 		var target []byte
 		switch arr := value.(type) {
@@ -1431,7 +1456,7 @@ func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, before
 
 // IsFloat64ValueFitsIntoField checks if target type of field enough to fit float64 value
 // e.g. float64(1) could be applied to any numeric field, float64(256) to any numeric except FieldTypeByte etc
-// Useful to check interface{} values came from JSON
+// Useful to check float64 values came from JSON
 func IsFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 	if float64Src == 0 {
 		return true
@@ -1531,6 +1556,7 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 }
 
 // IsNil returns if current buffer means nothing
+// need to comply to gojay.MarshalerJSONObject
 func (b *Buffer) IsNil() bool {
 	if b.isModified {
 		return false
