@@ -954,9 +954,13 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedStringField.value != nil {
 					switch toWrite := modifiedStringField.value.(type) {
 					case string:
-						offsets.Slice[f.order].str = bl.CreateString(toWrite)
+						if len(toWrite) > 0 {
+							offsets.Slice[f.order].str = bl.CreateString(toWrite)
+						}
 					case []byte:
-						offsets.Slice[f.order].str = bl.CreateByteString(toWrite)
+						if len(toWrite) > 0 {
+							offsets.Slice[f.order].str = bl.CreateByteString(toWrite)
+						}
 					default:
 						return 0, fmt.Errorf("string required but %#v provided for field %s", modifiedStringField.value, f.QualifiedName())
 					}

@@ -660,6 +660,16 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 
+	// empty strings are not stored
+	b.Set("string", "")
+	bytes, err = b.ToBytes()
+	require.Nil(t, bytes)
+	require.Nil(t, err)
+	b.Set("string", []byte{})
+	bytes, err = b.ToBytes()
+	require.Nil(t, bytes)
+	require.Nil(t, err)
+
 	// wrong types -> error
 	wrongs := map[string]interface{}{
 		"int":       "str",
@@ -743,6 +753,21 @@ func TestAllValues(t *testing.T) {
 	for _, f := range s.Fields {
 		b.Set(f.Name, nil)
 	}
+	bytes, err = b.ToBytes()
+	require.Nil(t, bytes)
+	require.Nil(t, err)
+
+	// set existing string to an empty string is equal to unset
+	b.Set("string", "str")
+	bytes, err = b.ToBytes()
+	require.Nil(t, err)
+	b = ReadBuffer(bytes, s)
+	b.Set("string", "")
+	bytes, err = b.ToBytes()
+	require.Nil(t, bytes)
+	require.Nil(t, err)
+	b = ReadBuffer(bytes, s)
+	b.Set("string", []byte{})
 	bytes, err = b.ToBytes()
 	require.Nil(t, bytes)
 	require.Nil(t, err)
