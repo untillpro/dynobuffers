@@ -1821,6 +1821,40 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 	return res
 }
 
+// IterateFields calls `callback` for each fields which has a value.
+// fields from `names` array are used. `names` empty -> all fields
+// callbeck retured false -> iteration stops
+// name contains an unexisting field -> no error, nothing happens
+func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}) bool) {
+	if len(b.tab.Bytes) == 0 {
+		return
+	}
+
+	callBackForField := func(f *Field) bool {
+		preOffset := flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((f.order + 2) * 2)))
+		if preOffset == 0 {
+			return true
+		}
+		uOffsetT := preOffset + b.tab.Pos
+		return callback(f.Name, b.getByUOffsetT(f, -1, uOffsetT))
+	}
+
+	if len(names) == 0 {
+		for _, f := range b.Scheme.Fields {
+			if !callBackForField(f) {
+				return
+			}
+		}
+	} else {
+		for _, name := range names {
+			f, ok := b.Scheme.FieldsMap[name]
+			if ok && !callBackForField(f) {
+				return
+			}
+		}
+	}
+}
+
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
 	return &Scheme{"", map[string]*Field{}, []*Field{}}
