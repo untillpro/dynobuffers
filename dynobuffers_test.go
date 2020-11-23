@@ -1947,8 +1947,9 @@ func TestIterateFields(t *testing.T) {
 	require.Equal(t, 3, iterationsCount)
 
 	// test iteration stop on iterate over specified fields only
+	// test iterate over an unexisting field does nothing
 	iterationsCount = 0
-	b.IterateFields([]string{"string", "double", "nested1"}, func(name string, value interface{}) bool {
+	b.IterateFields([]string{"unexisting", "string", "double", "nested1"}, func(name string, value interface{}) bool {
 		iterationsCount++
 		switch name {
 		case "string":
