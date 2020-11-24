@@ -1712,7 +1712,7 @@ func (b *Buffer) ToJSON() []byte {
 	return buf.Bytes()
 }
 
-// GetBytes is an alias for ToBytes(). Returns nil on error
+// GetBytes is an alias for ToBytes(). Simply returns underlying buffer if no modifications. Returns nil on error
 func (b *Buffer) GetBytes() []byte {
 	bytes, _ := b.ToBytes()
 	return bytes
