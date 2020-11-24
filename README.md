@@ -132,6 +132,11 @@
   b.Release()
   // note: b itself and result of b.ToBytes() must not be used from now on.
   ```
+- Iterate over fields which has value
+  ```go
+  b.IterateFields(nil, func(name string, value interface{}) bool {
+	  return true // continue iterating on true, stop on false
+  })
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Nested objects
