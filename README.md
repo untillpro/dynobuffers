@@ -134,9 +134,20 @@
   ```
 - Iterate over fields which has value
   ```go
-  b.IterateFields(nil, func(name string, value interface{}) bool {
+  b.IterateFields(nil, func(name string, value interface{}, ok bool) bool {
+	  // ok shows if field is known -> always true in this case
+	  // value is never nil in this case
 	  return true // continue iterating on true, stop on false
   })
+  ```
+- Iterate over specified fields only. Will iterate over each specified field even it has no value or the Buffer is empty
+  ```go
+  b.IterateFields([]string{"name", "price", "unknown"}, func(name string, value interface{}, ok bool) bool {
+	  // ok shows if field is known
+	  // !ok -> value is nil
+	  return true // continue iterating on true, stop on false
+  })
+  ```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Nested objects

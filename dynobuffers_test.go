@@ -1839,6 +1839,7 @@ func TestIterateFields(t *testing.T) {
 	schemeNested.AddField("quantity", FieldTypeInt, true)
 	schemeRoot.AddNested("nested1", schemeNested, false)
 	schemeRoot.AddNested("nested2", schemeNested, false)
+	schemeRoot.AddField("nil", FieldTypeInt, false)
 
 	// iterate on empty does nothing
 	b := NewBuffer(schemeRoot)
@@ -1872,7 +1873,7 @@ func TestIterateFields(t *testing.T) {
 			require.Nil(t, bNested.Get("price"))
 			require.Equal(t, int32(42), bNested.Get("quantity"))
 		default:
-			t.Fatal()
+			t.Fatal(name)
 		}
 		iterationsCount++
 		return true
@@ -1882,7 +1883,7 @@ func TestIterateFields(t *testing.T) {
 	// test filled
 	bytes, err = b.ApplyJSONAndToBytes([]byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124,
 		"double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false,
-		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}}`))
+		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}}, "nil": null`))
 	require.Nil(t, err)
 	b = ReadBuffer(bytes, schemeRoot)
 	iterationsCount = 0
@@ -1914,7 +1915,7 @@ func TestIterateFields(t *testing.T) {
 			require.Equal(t, float32(0.127), bNested.Get("price"))
 			require.Equal(t, int32(45), bNested.Get("quantity"))
 		default:
-			t.Fatal("unknown field on callback", name)
+			t.Fatal(name)
 		}
 		iterationsCount++
 		return true
@@ -1932,7 +1933,7 @@ func TestIterateFields(t *testing.T) {
 
 	// test iterate over specified fields only
 	iterationsCount = 0
-	b.IterateFields([]string{"double", "string", "nested1"}, func(name string, value interface{}, ok bool) bool {
+	b.IterateFields([]string{"double", "string", "nested1", "nil"}, func(name string, value interface{}, ok bool) bool {
 		require.True(t, ok)
 		switch name {
 		case "string":
@@ -1943,22 +1944,21 @@ func TestIterateFields(t *testing.T) {
 			bNested := value.(*Buffer)
 			require.Equal(t, float32(0.126), bNested.Get("price"))
 			require.Equal(t, int32(44), bNested.Get("quantity"))
+		case "nil":
+			require.Nil(t, value)
 		default:
-			t.Fatal()
+			t.Fatal(name)
 		}
 		iterationsCount++
 		return true
 	})
-	require.Equal(t, 3, iterationsCount)
+	require.Equal(t, 4, iterationsCount)
 
-	// test iteration stop on iterate over specified fields only
+	// test iteration stop on iterate specified known field
 	iterationsCount = 0
-	b.IterateFields([]string{"unexisting", "string", "double", "nested1"}, func(name string, value interface{}, ok bool) bool {
+	b.IterateFields([]string{"string", "double", "nested1"}, func(name string, value interface{}, ok bool) bool {
 		iterationsCount++
 		switch name {
-		case "unexisting":
-			require.False(t, ok)
-			require.Nil(t, value)
 		case "string":
 			require.True(t, ok)
 			require.Equal(t, "str", value)
@@ -1966,11 +1966,32 @@ func TestIterateFields(t *testing.T) {
 			require.True(t, ok)
 			return false
 		default:
-			t.Fatal()
+			t.Fatal(name)
 		}
 		return true
 	})
-	require.Equal(t, 3, iterationsCount)
+	require.Equal(t, 2, iterationsCount)
+
+	// test iteration stop on iterate specified unknown field
+	iterationsCount = 0
+	b.IterateFields([]string{"string", "unexisting", "double"}, func(name string, value interface{}, ok bool) bool {
+		iterationsCount++
+		switch name {
+		case "unexisting":
+			require.False(t, ok)
+			require.Nil(t, value)
+			return false
+		case "string":
+			require.True(t, ok)
+			require.Equal(t, "str", value)
+		case "double":
+			require.True(t, ok)
+		default:
+			t.Fatal(name)
+		}
+		return true
+	})
+	require.Equal(t, 2, iterationsCount)
 
 }
 
