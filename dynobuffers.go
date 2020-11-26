@@ -1822,10 +1822,10 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 }
 
 // IterateFields calls `callback` for each fields which has a value.
-// fields from `names` array are used. `names` empty -> all fields
-// callbeck retured false -> iteration stops
-// name contains an unexisting field -> no error, nothing happens
-func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}) bool) {
+// fields from `names` array are used. `names` empty -> all fields which has a value
+// callbeck returns false -> iteration stops
+// name contains an unexisting field -> callback is called with `name`, nil `value` and false `ok`
+func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}, ok bool) bool) {
 	if len(b.tab.Bytes) == 0 {
 		return
 	}
@@ -1836,7 +1836,7 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 			return true
 		}
 		uOffsetT := preOffset + b.tab.Pos
-		return callback(f.Name, b.getByUOffsetT(f, -1, uOffsetT))
+		return callback(f.Name, b.getByUOffsetT(f, -1, uOffsetT), true)
 	}
 
 	if len(names) == 0 {
@@ -1847,9 +1847,14 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 		}
 	} else {
 		for _, name := range names {
-			f, ok := b.Scheme.FieldsMap[name]
-			if ok && !callBackForField(f) {
-				return
+			if f, ok := b.Scheme.FieldsMap[name]; !ok {
+				if !callback(name, nil, false) {
+					return
+				}
+			} else {
+				if !callBackForField(f) {
+					return
+				}
 			}
 		}
 	}

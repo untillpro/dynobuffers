@@ -1843,7 +1843,8 @@ func TestIterateFields(t *testing.T) {
 	// iterate on empty does nothing
 	b := NewBuffer(schemeRoot)
 	iterationsCount := 0
-	b.IterateFields(nil, func(name string, value interface{}) bool {
+	b.IterateFields(nil, func(name string, value interface{}, ok bool) bool {
+		require.True(t, ok)
 		iterationsCount++
 		return true
 	})
@@ -1859,7 +1860,8 @@ func TestIterateFields(t *testing.T) {
 	require.Nil(t, err)
 	b = ReadBuffer(bytes, schemeRoot)
 	iterationsCount = 0
-	b.IterateFields(nil, func(name string, value interface{}) bool {
+	b.IterateFields(nil, func(name string, value interface{}, ok bool) bool {
+		require.True(t, ok)
 		switch name {
 		case "double":
 			require.Equal(t, float64(0.125), value)
@@ -1884,7 +1886,8 @@ func TestIterateFields(t *testing.T) {
 	require.Nil(t, err)
 	b = ReadBuffer(bytes, schemeRoot)
 	iterationsCount = 0
-	b.IterateFields(nil, func(name string, value interface{}) bool {
+	b.IterateFields(nil, func(name string, value interface{}, ok bool) bool {
+		require.True(t, ok)
 		switch name {
 		case "string":
 			require.Equal(t, "str", value)
@@ -1920,7 +1923,8 @@ func TestIterateFields(t *testing.T) {
 
 	// test iteration stop
 	iterationsCount = 0
-	b.IterateFields(nil, func(name string, value interface{}) bool {
+	b.IterateFields(nil, func(name string, value interface{}, ok bool) bool {
+		require.True(t, ok)
 		iterationsCount++
 		return name != "float"
 	})
@@ -1928,7 +1932,8 @@ func TestIterateFields(t *testing.T) {
 
 	// test iterate over specified fields only
 	iterationsCount = 0
-	b.IterateFields([]string{"double", "string", "nested1"}, func(name string, value interface{}) bool {
+	b.IterateFields([]string{"double", "string", "nested1"}, func(name string, value interface{}, ok bool) bool {
+		require.True(t, ok)
 		switch name {
 		case "string":
 			require.Equal(t, "str", value)
@@ -1947,21 +1952,25 @@ func TestIterateFields(t *testing.T) {
 	require.Equal(t, 3, iterationsCount)
 
 	// test iteration stop on iterate over specified fields only
-	// test iterate over an unexisting field does nothing
 	iterationsCount = 0
-	b.IterateFields([]string{"unexisting", "string", "double", "nested1"}, func(name string, value interface{}) bool {
+	b.IterateFields([]string{"unexisting", "string", "double", "nested1"}, func(name string, value interface{}, ok bool) bool {
 		iterationsCount++
 		switch name {
+		case "unexisting":
+			require.False(t, ok)
+			require.Nil(t, value)
 		case "string":
+			require.True(t, ok)
 			require.Equal(t, "str", value)
 		case "double":
+			require.True(t, ok)
 			return false
 		default:
 			t.Fatal()
 		}
 		return true
 	})
-	require.Equal(t, 2, iterationsCount)
+	require.Equal(t, 3, iterationsCount)
 
 }
 
