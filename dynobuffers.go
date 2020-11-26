@@ -1712,7 +1712,7 @@ func (b *Buffer) ToJSON() []byte {
 	return buf.Bytes()
 }
 
-// GetBytes is an alias for ToBytes(). Returns nil on error
+// GetBytes is an alias for ToBytes(). Simply returns underlying buffer if no modifications. Returns nil on error
 func (b *Buffer) GetBytes() []byte {
 	bytes, _ := b.ToBytes()
 	return bytes
@@ -1822,33 +1822,31 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 }
 
 // IterateFields calls `callback` for each fields which has a value.
-// fields from `names` array are used. `names` empty -> all fields
-// callbeck retured false -> iteration stops
-// name contains an unexisting field -> no error, nothing happens
-func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}) bool) {
-	if len(b.tab.Bytes) == 0 {
-		return
-	}
-
-	callBackForField := func(f *Field) bool {
-		preOffset := flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((f.order + 2) * 2)))
-		if preOffset == 0 {
-			return true
-		}
-		uOffsetT := preOffset + b.tab.Pos
-		return callback(f.Name, b.getByUOffsetT(f, -1, uOffsetT))
-	}
-
+// `names` empty -> calback is called for all fields which has a value, `ok` is true always
+// `names` not empty -> callback is called for each specified field name even if the Buffer is empty
+// - field is not known -> `ok` is false, `value` is nil
+// - field is known -> `ok` is true, `value` is nil if field has no value
+// callbeck returns false -> iteration stops
+func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}, ok bool) bool) {
 	if len(names) == 0 {
+		if len(b.tab.Bytes) == 0 {
+			return
+		}
 		for _, f := range b.Scheme.Fields {
-			if !callBackForField(f) {
-				return
+			if value := b.getByField(f, -1); value != nil {
+				if !callback(f.Name, value, true) {
+					return
+				}
 			}
 		}
 	} else {
 		for _, name := range names {
 			f, ok := b.Scheme.FieldsMap[name]
-			if ok && !callBackForField(f) {
+			var value interface{}
+			if ok {
+				value = b.getByField(f, -1)
+			}
+			if !callback(name, value, ok) {
 				return
 			}
 		}
