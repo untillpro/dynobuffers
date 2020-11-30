@@ -70,7 +70,10 @@
 	```
 - To bytes array
 	```go
-	bytes := b.ToBytes()
+	bytes, err := b.ToBytes()
+	if err != nil {
+		panic(err)
+	}
 	```
 - To JSON key-value
     ```go
@@ -95,11 +98,13 @@
 	```
 - Load data from JSON key-value and to bytes array
   	```go
-	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"name": "str", "price": 0.123, "fld": null}`))
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"name": "str", "price": 0.123, "fld": null}`))
 	if err != nil {
 		panic(err)
 	}
 	```
+	- `nilled` will contain list of field names whose values were effectively set to nil, i.e. fields names whose values were provided as `null` or as an empty object, array or string
+	  - note: nils are not stored in `bytes`
 	- value is nil and field is mandatory -> error
 	- value type and field type are incompatible (e.g. string provided for numeric field) -> error
 	- float value is provided for an integer field -> no error, integer part is considered only. E.g. 0.123 value in JSON is met -> integer field value is 0
@@ -134,17 +139,13 @@
   ```
 - Iterate over fields which has value
   ```go
-  b.IterateFields(nil, func(name string, value interface{}, ok bool) bool {
-	  // ok shows if field is known -> always true in this case
-	  // value is never nil in this case
+  b.IterateFields(nil, func(name string, value interface{}) bool {
 	  return true // continue iterating on true, stop on false
   })
   ```
-- Iterate over specified fields only. Will iterate over each specified field even it has no value or the Buffer is empty
+- Iterate over specified fields only. Will iterate over each specified name if according field has a value. Unknown field name -> no iteration
   ```go
-  b.IterateFields([]string{"name", "price", "unknown"}, func(name string, value interface{}, ok bool) bool {
-	  // ok shows if field is known
-	  // !ok -> value is nil
+  b.IterateFields([]string{"name", "price", "unknown"}, func(name string, value interface{}) bool {
 	  return true // continue iterating on true, stop on false
   })
   ```

@@ -168,36 +168,3 @@ func putBufferSlice(b *buffersSlice) {
 
 	buffersPool.Put(b)
 }
-
-//getStringSlice
-
-type stringsSlice struct {
-	Slice []string
-}
-
-var stringsPool = sync.Pool{
-	New: func() interface{} {
-		return &stringsSlice{
-			Slice: make([]string, defaultBufferSize),
-		}
-	},
-}
-
-func getStringSlice(l int) (b *stringsSlice) {
-	b = stringsPool.Get().(*stringsSlice)
-
-	if cap(b.Slice) < l {
-		b.Slice = make([]string, l)
-	} else {
-		b.Slice = b.Slice[:l]
-
-		for k := range b.Slice {
-			b.Slice[k] = ""
-		}
-	}
-	return
-}
-
-func putStringSlice(b *stringsSlice) {
-	stringsPool.Put(b)
-}

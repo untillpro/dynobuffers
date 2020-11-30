@@ -17,7 +17,7 @@ import (
 	"github.com/untillpro/dynobuffers"
 )
 
-func Benchmark_MapToBytes_Pbill(b *testing.B) {
+func Benchmark_MapToBytes_Pbill_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	bb := dynobuffers.NewBuffer(s)
@@ -41,7 +41,7 @@ func Benchmark_MapToBytes_Pbill(b *testing.B) {
 	})
 }
 
-func Benchmark_MapToBytes_PBill_AppendArrays(b *testing.B) {
+func Benchmark_MapToBytes_PBill_AppendArrays_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -49,7 +49,7 @@ func Benchmark_MapToBytes_PBill_AppendArrays(b *testing.B) {
 	jsonBytes := []byte(pb.ToJSON())
 	pb = dynobuffers.NewBuffer(s)
 
-	bytes, err := pb.ApplyJSONAndToBytes(jsonBytes)
+	bytes, _, err := pb.ApplyJSONAndToBytes(jsonBytes)
 	require.Nil(b, err)
 
 	b.ResetTimer()
@@ -69,7 +69,7 @@ func Benchmark_MapToBytes_PBill_AppendArrays(b *testing.B) {
 	})
 }
 
-func Benchmark_R_PbillItem_ByIndex(b *testing.B) {
+func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -106,7 +106,7 @@ func Benchmark_R_PbillItem_ByIndex(b *testing.B) {
 	})
 }
 
-func Benchmark_R_PBillItem_Iter(b *testing.B) {
+func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
