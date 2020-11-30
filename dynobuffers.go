@@ -77,7 +77,6 @@ type Buffer struct {
 	isReleased     bool
 	owner          *Buffer
 	builder        *flatbuffers.Builder
-	names          *stringsSlice
 }
 
 // Field describes a Scheme field
@@ -228,12 +227,6 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 func (b *Buffer) Release() {
 	if !b.isReleased {
 		b.releaseFields()
-
-		if b.names != nil {
-			putStringSlice(b.names)
-			b.names = nil
-		}
-
 		putBuffer(b)
 	}
 }
@@ -548,11 +541,26 @@ func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
 
 // ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array with inital + applied data
 // See `ApplyMapBuffer` for details
-func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) ([]byte, error) {
+func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) (res []byte, nilled []string, err error) {
 	if err := b.ApplyMapBuffer(jsonBytes); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return b.ToBytes()
+	return b.ToBytesNilled()
+}
+
+// ToBytesNilled constructs resulting byte array (nil values are not stored) and list of field names which were nilled using Set, ApplyJSON, ApplyMap
+// useful in cases when we should know which fields were null on load from map or JSON
+// nilled fields of nested objects are not considered
+func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) {
+	if res, err = b.ToBytes(); err != nil {
+		return
+	}
+	for i, mf := range b.modifiedFields {
+		if mf != nil && !mf.isReleased && mf.value == nil {
+			nilledFields = append(nilledFields, b.Scheme.Fields[i].Name)
+		}
+	}
+	return
 }
 
 // ApplyMap sets field values described by provided map[string]interface{}
@@ -881,6 +889,7 @@ func (b *Buffer) prepareModifiedFields() {
 	}
 }
 
+// if modifiedField is set to non-nil but the value is empty array, object or string -> set modifiedField.value = nil to easier calculate nilledFields at ToBytesNilled()
 func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, error) {
 	offsets := getOffsetSlice(len(b.Scheme.Fields))
 
@@ -900,6 +909,9 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 					if arrayUOffsetT, err = b.encodeArray(bl, f, modifiedField.value, toAppendToIntf); err != nil {
 						return 0, err
+					}
+					if arrayUOffsetT == 0 {
+						modifiedField.value = nil
 					}
 				}
 			} else {
@@ -935,6 +947,9 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					} else if nestedUOffsetT, err = nestedBuffer.encodeBuffer(bl); err != nil {
 						return 0, err
 					}
+					if nestedUOffsetT == 0 {
+						modifiedField.value = nil
+					}
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
@@ -949,27 +964,33 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			}
 			offsets.Slice[f.order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
+			stringUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedStringField := b.modifiedFields[f.order]
 			if modifiedStringField != nil && !modifiedStringField.isReleased {
 				if modifiedStringField.value != nil {
 					switch toWrite := modifiedStringField.value.(type) {
 					case string:
 						if len(toWrite) > 0 {
-							offsets.Slice[f.order].str = bl.CreateString(toWrite)
+							stringUOffsetT = bl.CreateString(toWrite)
 						}
 					case []byte:
 						if len(toWrite) > 0 {
-							offsets.Slice[f.order].str = bl.CreateByteString(toWrite)
+							stringUOffsetT = bl.CreateByteString(toWrite)
 						}
 					default:
 						return 0, fmt.Errorf("string required but %#v provided for field %s", modifiedStringField.value, f.QualifiedName())
 					}
+					if stringUOffsetT == 0 {
+						modifiedStringField.value = nil
+					}
+
 				}
 			} else {
 				if offset := b.getFieldUOffsetTByOrder(f.order); offset != 0 {
-					offsets.Slice[f.order].str = bl.CreateByteString(b.tab.ByteVector(offset))
+					stringUOffsetT = bl.CreateByteString(b.tab.ByteVector(offset))
 				}
 			}
+			offsets.Slice[f.order].str = stringUOffsetT
 		}
 	}
 
@@ -1034,11 +1055,6 @@ func (b *Buffer) Reset(bytes []byte) {
 		b.tab.Pos = 0
 	} else {
 		b.tab.Pos = flatbuffers.GetUOffsetT(b.tab.Bytes)
-	}
-
-	if b.names != nil {
-		putStringSlice(b.names)
-		b.names = nil
 	}
 
 	if b.modifiedFields != nil {
@@ -1718,37 +1734,6 @@ func (b *Buffer) GetBytes() []byte {
 	return bytes
 }
 
-// GetNames returns list of field names which values are non-nil in current buffer
-// Set() fields are not considered
-// fields of nested objects are not considered
-func (b *Buffer) GetNames() []string {
-	if len(b.tab.Bytes) == 0 {
-		return nil
-	}
-
-	if b.names == nil {
-		b.names = getStringSlice(0)
-	} else {
-		b.names.Slice = b.names.Slice[:0]
-	}
-
-	// same approach is used at InNil()
-	vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
-	vOffsetT := b.tab.GetVOffsetT(vTable)
-
-	for order := 0; true; order++ {
-		vTableOffset := flatbuffers.VOffsetT((order + 2) * 2)
-		if vTableOffset >= vOffsetT {
-			break
-		}
-		if b.tab.GetVOffsetT(vTable+flatbuffers.UOffsetT(vTableOffset)) > 0 {
-			b.names.Slice = append(b.names.Slice, b.Scheme.Fields[order].Name)
-		}
-	}
-
-	return b.names.Slice
-}
-
 // ToJSONMap returns map[string]interface{} representation of the buffer compatible to json
 // result map is built using inital data + current modifications
 // numeric field types are kept (not float64 as json.Unmarshal() does)
@@ -1822,32 +1807,27 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 }
 
 // IterateFields calls `callback` for each fields which has a value.
-// `names` empty -> calback is called for all fields which has a value, `ok` is true always
-// `names` not empty -> callback is called for each specified field name even if the Buffer is empty
-// - field is not known -> `ok` is false, `value` is nil
-// - field is known -> `ok` is true, `value` is nil if field has no value
+// `names` empty -> calback is called for all fields which has a value
+// `names` not empty -> callback is called for each specified name if according field has a value
 // callbeck returns false -> iteration stops
-func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}, ok bool) bool) {
+func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}) bool) {
+	if len(b.tab.Bytes) == 0 {
+		return
+	}
 	if len(names) == 0 {
-		if len(b.tab.Bytes) == 0 {
-			return
-		}
 		for _, f := range b.Scheme.Fields {
 			if value := b.getByField(f, -1); value != nil {
-				if !callback(f.Name, value, true) {
+				if !callback(f.Name, value) {
 					return
 				}
 			}
 		}
 	} else {
 		for _, name := range names {
-			f, ok := b.Scheme.FieldsMap[name]
-			var value interface{}
-			if ok {
-				value = b.getByField(f, -1)
-			}
-			if !callback(name, value, ok) {
-				return
+			if val := b.Get(name); val != nil {
+				if !callback(name, val) {
+					return
+				}
 			}
 		}
 	}

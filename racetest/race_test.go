@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-package benchrun
+package racetest
 
 import (
 	"bufio"
@@ -15,9 +15,9 @@ import (
 	"testing"
 )
 
-func TestBenchRun(t *testing.T) {
-	// run: go.exe test github.com/untillpro/dynobuffers/benchrun -run ^TestBenchRun$ -v
-	cmd := exec.Command("go", "test", "github.com/untillpro/dynobuffers/benchmarks", "-bench", "^(Benchmark)", "-v", "-benchmem", "-race")
+func TestRace(t *testing.T) {
+	// run: go.exe test github.com/untillpro/dynobuffers/benchrun -run ^TestRace$ -v
+	cmd := exec.Command("go", "test", "github.com/untillpro/dynobuffers/benchmarks", "-bench", "(?i)^.*(dyno)", "-v", "-benchmem", "-race")
 
 	var err error
 	cmd.Dir, err = os.Getwd()

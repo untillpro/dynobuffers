@@ -80,7 +80,7 @@ intsObj..:
 	require.Nil(b, err)
 
 	buf := dynobuffers.NewBuffer(s)
-	bytes, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
+	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
 	require.Nil(b, err)
 
 	dest := map[string]interface{}{}
@@ -118,7 +118,7 @@ intsObj..:
 	s, err := dynobuffers.YamlToScheme(arraysAllTypesYaml)
 	require.Nil(b, err)
 	buf := dynobuffers.NewBuffer(s)
-	bytes, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
+	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
 	require.Nil(b, err)
 
 	dest := map[string]interface{}{}

@@ -142,7 +142,7 @@ func Benchmark_JSONToBytes_Simple_Dyno(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			buf := dynobuffers.NewBuffer(s)
-			if _, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`)); err != nil {
+			if _, _, err := buf.ApplyJSONAndToBytes([]byte(`{"name": "cola", "price": 0.123, "quantity": 1}`)); err != nil {
 				b.Fatal(err)
 			}
 			buf.Release()
@@ -260,4 +260,3 @@ func Benchmark_ToJSONMap_Simple_Dyno(b *testing.B) {
 		buf.Release()
 	})
 }
-
