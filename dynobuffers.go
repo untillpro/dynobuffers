@@ -83,7 +83,7 @@ type Buffer struct {
 type Field struct {
 	Name        string
 	Ft          FieldType
-	order       int
+	Order       int
 	IsMandatory bool
 	FieldScheme *Scheme // != nil for FieldTypeObject only
 	ownerScheme *Scheme
@@ -187,7 +187,7 @@ func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) 
 	default:
 		// string
 		res := make([]string, arrLen)
-		arrayUOffsetT := b.getFieldUOffsetTByOrder(f.order)
+		arrayUOffsetT := b.getFieldUOffsetTByOrder(f.Order)
 		for i := 0; i < arrLen; i++ {
 			elementUOffsetT := b.tab.Vector(arrayUOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(i*flatbuffers.SizeUOffsetT)
 			res[i] = byteSliceToString(b.tab.ByteVector(elementUOffsetT))
@@ -300,7 +300,7 @@ func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
 		return 0
 	}
 	if f, ok := b.Scheme.FieldsMap[name]; ok {
-		return b.getFieldUOffsetTByOrder(f.order)
+		return b.getFieldUOffsetTByOrder(f.Order)
 	}
 	return 0
 }
@@ -317,7 +317,7 @@ func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
 }
 
 func (b *Buffer) getByField(f *Field, index int) interface{} {
-	if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
+	if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
 		return b.getByUOffsetT(f, index, uOffsetT)
 	}
 	return nil
@@ -377,7 +377,7 @@ func (b *Buffer) getValueByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) int
 		}
 		if !f.IsArray {
 			b.prepareModifiedFields()
-			if b.modifiedFields[f.order] == nil || b.modifiedFields[f.order].isReleased {
+			if b.modifiedFields[f.Order] == nil || b.modifiedFields[f.Order].isReleased {
 				b.set(f, res)
 			}
 		}
@@ -470,7 +470,7 @@ func (b *Buffer) setModified() {
 
 func (b *Buffer) set(f *Field, value interface{}) {
 	b.prepareModifiedFields()
-	m := b.modifiedFields[f.order]
+	m := b.modifiedFields[f.Order]
 
 	if m == nil {
 		m = &modifiedField{}
@@ -490,7 +490,7 @@ func (b *Buffer) set(f *Field, value interface{}) {
 	m.isAppend = false
 	m.isReleased = false
 
-	b.modifiedFields[f.order] = m
+	b.modifiedFields[f.Order] = m
 
 	b.setModified()
 }
@@ -511,7 +511,7 @@ func (b *Buffer) append(f *Field, toAppend interface{}) {
 
 	b.prepareModifiedFields()
 
-	m := b.modifiedFields[f.order]
+	m := b.modifiedFields[f.Order]
 
 	if m == nil {
 		m = &modifiedField{}
@@ -521,7 +521,7 @@ func (b *Buffer) append(f *Field, toAppend interface{}) {
 	m.isAppend = true
 	m.isReleased = false
 
-	b.modifiedFields[f.order] = m
+	b.modifiedFields[f.Order] = m
 
 	b.setModified()
 }
@@ -900,7 +900,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	for _, f := range b.Scheme.Fields {
 		if f.IsArray {
 			arrayUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedField := b.modifiedFields[f.order]
+			modifiedField := b.modifiedFields[f.Order]
 			if modifiedField != nil && !modifiedField.isReleased {
 				if modifiedField.value != nil {
 					var toAppendToIntf interface{} = nil
@@ -915,7 +915,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			} else {
-				if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
+				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
 					// copy from source bytes if not modified and initially existed
 					if isFixedSizeField(f) {
 						// copy fixed-size array as byte array
@@ -930,10 +930,10 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets.Slice[f.order].arr = arrayUOffsetT
+			offsets.Slice[f.Order].arr = arrayUOffsetT
 		} else if f.Ft == FieldTypeObject {
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedField := b.modifiedFields[f.order]
+			modifiedField := b.modifiedFields[f.Order]
 			if modifiedField != nil && !modifiedField.isReleased {
 				if modifiedField.value != nil {
 					if nestedBuffer, ok := modifiedField.value.(*Buffer); !ok {
@@ -952,7 +952,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			} else {
-				if uOffsetT := b.getFieldUOffsetTByOrder(f.order); uOffsetT != 0 {
+				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
 					bufToWrite := b.getByUOffsetT(f, -1, uOffsetT) // can not be nil
 					if storeObjectsAsBytes {
 						nestedBytes, _ := bufToWrite.(*Buffer).ToBytes() // no errors should be here
@@ -962,10 +962,10 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets.Slice[f.order].obj = nestedUOffsetT
+			offsets.Slice[f.Order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
 			stringUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedStringField := b.modifiedFields[f.order]
+			modifiedStringField := b.modifiedFields[f.Order]
 			if modifiedStringField != nil && !modifiedStringField.isReleased {
 				if modifiedStringField.value != nil {
 					switch toWrite := modifiedStringField.value.(type) {
@@ -986,11 +986,11 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 
 				}
 			} else {
-				if offset := b.getFieldUOffsetTByOrder(f.order); offset != 0 {
+				if offset := b.getFieldUOffsetTByOrder(f.Order); offset != 0 {
 					stringUOffsetT = bl.CreateByteString(b.tab.ByteVector(offset))
 				}
 			}
-			offsets.Slice[f.order].str = stringUOffsetT
+			offsets.Slice[f.Order].str = stringUOffsetT
 		}
 	}
 
@@ -1005,15 +1005,15 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		isSet := false
 		offsetToWrite := flatbuffers.UOffsetT(0)
 		if f.IsArray {
-			offsetToWrite = offsets.Slice[f.order].arr
+			offsetToWrite = offsets.Slice[f.Order].arr
 		} else {
 			switch f.Ft {
 			case FieldTypeString:
-				offsetToWrite = offsets.Slice[f.order].str
+				offsetToWrite = offsets.Slice[f.Order].str
 			case FieldTypeObject:
-				offsetToWrite = offsets.Slice[f.order].obj
+				offsetToWrite = offsets.Slice[f.Order].obj
 			default:
-				modifiedField := b.modifiedFields[f.order]
+				modifiedField := b.modifiedFields[f.Order]
 				if modifiedField != nil && !modifiedField.isReleased {
 					if isSet = modifiedField.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, modifiedField.value, beforePrepend) {
@@ -1030,7 +1030,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		}
 		if offsetToWrite > 0 {
 			beforePrepend()
-			bl.PrependUOffsetTSlot(f.order, offsetToWrite, 0)
+			bl.PrependUOffsetTSlot(f.Order, offsetToWrite, 0)
 		}
 	}
 	putOffsetSlice(offsets)
@@ -1451,7 +1451,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 }
 
 func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, beforePrepend func()) bool {
-	offset := src.getFieldUOffsetTByOrder(f.order)
+	offset := src.getFieldUOffsetTByOrder(f.Order)
 	if offset == 0 {
 		return false
 	}
@@ -1470,7 +1470,7 @@ func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, before
 	case FieldTypeBool:
 		dest.PrependBool(src.tab.GetBool(offset))
 	}
-	dest.Slot(f.order)
+	dest.Slot(f.Order)
 	return true
 }
 
@@ -1571,7 +1571,7 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 	default:
 		return false
 	}
-	bl.Slot(f.order)
+	bl.Slot(f.Order)
 	return true
 }
 
@@ -1599,7 +1599,7 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 	b.prepareModifiedFields()
 	for _, f := range b.Scheme.Fields {
 		var value interface{}
-		modifiedField := b.modifiedFields[f.order]
+		modifiedField := b.modifiedFields[f.Order]
 		if modifiedField != nil && !modifiedField.isReleased {
 			value = modifiedField.value
 		} else {
@@ -1744,7 +1744,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 	b.prepareModifiedFields()
 	for _, f := range b.Scheme.Fields {
 		var storedVal interface{}
-		modifiedField := b.modifiedFields[f.order]
+		modifiedField := b.modifiedFields[f.Order]
 		if modifiedField != nil && !modifiedField.isReleased {
 			storedVal = modifiedField.value
 		} else {
