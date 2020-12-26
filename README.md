@@ -70,7 +70,10 @@
 	```
 - To bytes array
 	```go
-	bytes := b.ToBytes()
+	bytes, err := b.ToBytes()
+	if err != nil {
+		panic(err)
+	}
 	```
 - To JSON key-value
     ```go
@@ -95,11 +98,13 @@
 	```
 - Load data from JSON key-value and to bytes array
   	```go
-	bytes, err := b.ApplyJSONAndToBytes([]byte(`{"name": "str", "price": 0.123, "fld": null}`))
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"name": "str", "price": 0.123, "fld": null}`))
 	if err != nil {
 		panic(err)
 	}
 	```
+	- `nilled` will contain list of field names whose values were effectively set to nil, i.e. fields names whose values were provided as `null` or as an empty object, array or string
+	  - note: nils are not stored in `bytes`
 	- value is nil and field is mandatory -> error
 	- value type and field type are incompatible (e.g. string provided for numeric field) -> error
 	- float value is provided for an integer field -> no error, integer part is considered only. E.g. 0.123 value in JSON is met -> integer field value is 0
@@ -127,13 +132,30 @@
   ```go
   b.HasValue("name")
   ```
+- Return `Buffer` to pool to prevent additional memory allocations
+  ```go
+  b.Release()
+  // note: b itself and result of b.ToBytes() must not be used from now on.
+  ```
+- Iterate over fields which has value
+  ```go
+  b.IterateFields(nil, func(name string, value interface{}) bool {
+	  return true // continue iterating on true, stop on false
+  })
+  ```
+- Iterate over specified fields only. Will iterate over each specified name if according field has a value. Unknown field name -> no iteration
+  ```go
+  b.IterateFields([]string{"name", "price", "unknown"}, func(name string, value interface{}) bool {
+	  return true // continue iterating on true, stop on false
+  })
+  ```
 - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Nested objects
 - Declare scheme
   - by yaml
 	```go
-	var schemeStr = `
+	var schemeStr := `
 	name: string
 	Nested:
 	  nes1: int
@@ -178,6 +200,7 @@
 	// note: bNested is obsolete here. Need to obtain it again from bRoot
 	```
  - Empty nested objects are not stored
+ - Unmodified nested objects are copied field by field on `ToBytes()`
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 ## Arrays
@@ -246,6 +269,9 @@
 		// arr.Buffer is switched on each arr.Next()
 		assert.Equal(t, int32(1), arr.Buffer.Get("nes1"))
 	}
+	// do not forget to return arr to pool to prevent additional memory allocations
+	arr.Release()
+	// note: arr itself, arr.Buffer, result of arr.Buffer.ToBytes() are obsolete here
 	```
 - Modify array and to bytes
 	- Set
@@ -288,13 +314,15 @@
  - Byte arrays are decoded to JSON as base64 strings
  - Byte array value could be set from either byte array and base64-encoded string
  - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
+ - Arrays of scalars are stored as byte arrays
+   - e.g. []int: []byte is taken starting from [0] with length 4*len
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 # TODO
 - For now there are 2 same methods: `ApplyMapBuffer()` and `ApplyJSONAndToBytes()`. Need to get rid of one of them.
 - For now `ToBytes()` result must not be stored if `Release()` is used because on next `ToBytes()` the stored previous `ToBytes()` result will be damaged. See `TestPreviousResultDamageOnReuse()`. The better soultion is to make `ToBytes()` return not `[]byte` but an `interface {Bytes() []byte; Release()}`.
   - use [bytebufferpool](https://github.com/valyala/bytebufferpool) on `flatbuffers.Builder.Bytes`?
-- `ToJSON()`: use bytebufferpool? 
+- `ToJSON()`: use bytebufferpool?
 - The only way to modify an element of array of nested objects - is to read all elements to `[]*Buffer` using `GetByIndex()` (not `ObjectArray`!), modify, then `Set(name, []*Buffer))`
 
 # Benchmarks

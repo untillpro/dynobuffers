@@ -17,7 +17,7 @@ import (
 	"github.com/untillpro/dynobuffers"
 )
 
-func Benchmark_MapToBytes_Pbill(b *testing.B) {
+func Benchmark_MapToBytes_Pbill_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	bb := dynobuffers.NewBuffer(s)
@@ -30,10 +30,10 @@ func Benchmark_MapToBytes_Pbill(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			pb := dynobuffers.NewBuffer(s)
-			if err = pb.ApplyMap(dest); err != nil {
+			if err := pb.ApplyMap(dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = pb.ToBytes(); err != nil {
+			if _, err := pb.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			pb.Release()
@@ -41,7 +41,7 @@ func Benchmark_MapToBytes_Pbill(b *testing.B) {
 	})
 }
 
-func Benchmark_MapToBytes_PBill_Append(b *testing.B) {
+func Benchmark_MapToBytes_PBill_AppendArrays_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -49,7 +49,7 @@ func Benchmark_MapToBytes_PBill_Append(b *testing.B) {
 	jsonBytes := []byte(pb.ToJSON())
 	pb = dynobuffers.NewBuffer(s)
 
-	bytes, err := pb.ApplyJSONAndToBytes(jsonBytes)
+	bytes, _, err := pb.ApplyJSONAndToBytes(jsonBytes)
 	require.Nil(b, err)
 
 	b.ResetTimer()
@@ -58,10 +58,10 @@ func Benchmark_MapToBytes_PBill_Append(b *testing.B) {
 		require.Nil(b, json.Unmarshal(jsonBytes, &dest))
 		for p.Next() {
 			pb := dynobuffers.ReadBuffer(bytes, s)
-			if err = pb.ApplyMap(dest); err != nil {
+			if err := pb.ApplyMap(dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = pb.ToBytes(); err != nil {
+			if _, err := pb.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			pb.Release()
@@ -69,7 +69,7 @@ func Benchmark_MapToBytes_PBill_Append(b *testing.B) {
 	})
 }
 
-func Benchmark_R_PbillItem_ByIndex(b *testing.B) {
+func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -88,10 +88,10 @@ func Benchmark_R_PbillItem_ByIndex(b *testing.B) {
 	require.Nil(b, err)
 	pb = dynobuffers.ReadBuffer(bytes, s)
 	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.ObjectArray).Len)
-	sum := float32(0)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
+		sum := float32(0)
 		for p.Next() {
 			pb := dynobuffers.ReadBuffer(bytes, s)
 			for i := 0; i < 10; i++ {
@@ -102,11 +102,11 @@ func Benchmark_R_PbillItem_ByIndex(b *testing.B) {
 			}
 			pb.Release()
 		}
+		_ = sum
 	})
-	_ = sum
 }
 
-func Benchmark_R_PBillItem_Iter(b *testing.B) {
+func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
 	require.Nil(b, err)
 	pb := dynobuffers.NewBuffer(s)
@@ -126,10 +126,9 @@ func Benchmark_R_PBillItem_Iter(b *testing.B) {
 	pb = dynobuffers.ReadBuffer(bytes, s)
 	assert.Equal(b, 10, pb.Get("pbill_item").(*dynobuffers.ObjectArray).Len)
 
-	sum := float32(0)
-
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
+		sum := float32(0)
 		for p.Next() {
 			pb := dynobuffers.ReadBuffer(bytes, s)
 			pbillItems := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
@@ -140,8 +139,8 @@ func Benchmark_R_PBillItem_Iter(b *testing.B) {
 			pbillItems.Release()
 			pb.Release()
 		}
+		_ = sum
 	})
-	_ = sum
 }
 
 func Benchmark_RW_Pbill_Json(b *testing.B) {
@@ -158,12 +157,61 @@ func Benchmark_RW_Pbill_Json(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		dest := map[string]interface{}{}
 		for p.Next() {
-			if err = json.Unmarshal(jsonBytes, &dest); err != nil {
+			if err := json.Unmarshal(jsonBytes, &dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = json.Marshal(dest); err != nil {
+			for range dest {
+			}
+			if _, err := json.Marshal(dest); err != nil {
 				b.Fatal(err)
 			}
+		}
+	})
+}
+
+func Benchmark_RW_Pbill_Dyno_AllFields(b *testing.B) {
+	s, err := dynobuffers.YamlToScheme(pbillYaml)
+	require.Nil(b, err)
+	pb := dynobuffers.NewBuffer(s)
+	fillBuffer(pb)
+	bytes, err := pb.ToBytes()
+	require.Nil(b, err)
+
+	b.ResetTimer()
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			pb := dynobuffers.ReadBuffer(bytes, s)
+			for _, f := range s.Fields {
+				if pb.Get(f.Name) == nil {
+					b.Fatal("nil on ", f.Name)
+				}
+			}
+			pb.Set(s.Fields[0].Name, 1)
+			if _, err := pb.ToBytes(); err != nil {
+				b.Fatal(err)
+			}
+			pb.Release()
+		}
+	})
+}
+
+func Benchmark_RW_Pbill_Dyno_NoRead(b *testing.B) {
+	s, err := dynobuffers.YamlToScheme(pbillYaml)
+	require.Nil(b, err)
+	pb := dynobuffers.NewBuffer(s)
+	fillBuffer(pb)
+	bytes, err := pb.ToBytes()
+	require.Nil(b, err)
+
+	b.ResetTimer()
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			pb := dynobuffers.ReadBuffer(bytes, s)
+			pb.Set(s.Fields[0].Name, 1)
+			if _, err := pb.ToBytes(); err != nil {
+				b.Fatal(err)
+			}
+			pb.Release()
 		}
 	})
 }

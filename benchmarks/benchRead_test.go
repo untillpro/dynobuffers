@@ -80,7 +80,7 @@ intsObj..:
 	require.Nil(b, err)
 
 	buf := dynobuffers.NewBuffer(s)
-	bytes, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
+	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
 	require.Nil(b, err)
 
 	dest := map[string]interface{}{}
@@ -91,10 +91,10 @@ intsObj..:
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			bf := dynobuffers.ReadBuffer(bytes, s)
-			if err = bf.ApplyMap(dest); err != nil {
+			if err := bf.ApplyMap(dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = bf.ToBytes(); err != nil {
+			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			bf.Release()
@@ -118,7 +118,7 @@ intsObj..:
 	s, err := dynobuffers.YamlToScheme(arraysAllTypesYaml)
 	require.Nil(b, err)
 	buf := dynobuffers.NewBuffer(s)
-	bytes, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
+	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
 	require.Nil(b, err)
 
 	dest := map[string]interface{}{}
@@ -129,10 +129,10 @@ intsObj..:
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			bf := dynobuffers.ReadBuffer(bytes, s)
-			if err = bf.ApplyMap(dest); err != nil {
+			if err := bf.ApplyMap(dest); err != nil {
 				b.Fatal(err)
 			}
-			if _, err = bf.ToBytes(); err != nil {
+			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			bf.Release()
@@ -252,7 +252,7 @@ func Benchmark_R_Simple_Json(b *testing.B) {
 		sum := float64(0)
 		data := map[string]interface{}{}
 		for p.Next() {
-			if err = json.Unmarshal(bytes, &data); err != nil {
+			if err := json.Unmarshal(bytes, &data); err != nil {
 				b.Fatal(err)
 			}
 			price := float64(data["price"].(float64))
@@ -281,7 +281,8 @@ func Benchmark_R_Article_FewFields_Avro(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		sum := float64(0)
 		for p.Next() {
-			if native, _, err = codec.NativeFromBinary(bytes); err != nil {
+			native, _, err := codec.NativeFromBinary(bytes)
+			if err != nil {
 				b.Fatal(err)
 			}
 			decoded := native.(map[string]interface{})
@@ -364,7 +365,8 @@ func Benchmark_R_Article_AllFields_Avro(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			if native, _, err = codec.NativeFromBinary(bytes); err != nil {
+			native, _, err := codec.NativeFromBinary(bytes)
+			if err != nil {
 				b.Fatal(err)
 			}
 			decoded := native.(map[string]interface{})
