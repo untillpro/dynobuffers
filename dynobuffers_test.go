@@ -2246,7 +2246,6 @@ func mapFromArray(strs []string) map[string]struct{} {
 	return res
 }
 
-// https://github.com/golang/go/issues/40701
 func Benchmark_RW_Nested(b *testing.B) {
 	sNested := NewScheme()
 	sNested.AddField("int", FieldTypeInt, false)
