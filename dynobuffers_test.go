@@ -1734,6 +1734,8 @@ func TestArrays(t *testing.T) {
 	bNestedArr = []*Buffer{}
 	bNested = NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 5)
+	bNestedBytes, err := bNested.ToBytes()
+	require.Nil(t, err)
 	bNestedArr = append(bNestedArr, bNested)
 	bNested = NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 6)
@@ -1753,6 +1755,12 @@ func TestArrays(t *testing.T) {
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
+
+	// check the correct bytes are returned on (array element).GetBytes(). Was: the entire `bytes` returned
+	oa := b.Get("intsObj").(*ObjectArray)
+	require.True(t, oa.Next())
+	bb := oa.Buffer.GetBytes()
+	require.Equal(t, bNestedBytes, bb)
 
 	// append existing
 	b.Append("ints", []int32{7, 8})

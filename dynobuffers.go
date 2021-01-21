@@ -41,7 +41,7 @@ const (
 	FieldTypeDouble
 	// FieldTypeString variable length
 	FieldTypeString
-	// FieldTypeBool s.e.
+	// FieldTypeBool bool
 	FieldTypeBool
 	// FieldTypeByte byte
 	FieldTypeByte
@@ -342,6 +342,7 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 				arr.curElem = -1
 				arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
 				arr.Buffer.tab.Bytes = b.tab.Bytes
+				arr.Buffer.isModified = true // to force build correct bytes array on arr.Buffer.ToBytes(). Otherwise the entire b.tab.Bytes will be returned (if unmodified) instead of arr.Buffer
 				return arr
 			}
 			uOffsetT = b.tab.Vector(uOffsetT - b.tab.Pos)
