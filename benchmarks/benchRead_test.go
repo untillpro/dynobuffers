@@ -26,6 +26,8 @@ func Benchmark_R_Simple_Dyno_Typed_String(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -39,6 +41,7 @@ func Benchmark_R_Simple_Dyno_Typed_String(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_R_Simple_Dyno_Untyped(b *testing.B) {
@@ -49,6 +52,8 @@ func Benchmark_R_Simple_Dyno_Untyped(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -61,6 +66,7 @@ func Benchmark_R_Simple_Dyno_Untyped(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_MapToBytes_ArraysAppend_Dyno(b *testing.B) {
@@ -82,6 +88,8 @@ intsObj..:
 	buf := dynobuffers.NewBuffer(s)
 	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	buf.Release()
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY="}`)
@@ -100,6 +108,7 @@ intsObj..:
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_MapToBytes_ArraysAppendNested_Dyno(b *testing.B) {
@@ -120,6 +129,8 @@ intsObj..:
 	buf := dynobuffers.NewBuffer(s)
 	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	buf.Release()
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`)
@@ -138,6 +149,7 @@ intsObj..:
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_R_Simple_Avro(b *testing.B) {
@@ -183,6 +195,8 @@ func Benchmark_R_Simple_Dyno_Typed(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -195,6 +209,7 @@ func Benchmark_R_Simple_Dyno_Typed(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 func Benchmark_R_Simple_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
@@ -297,6 +312,8 @@ func Benchmark_R_Article_FewFields_Dyno_Typed(b *testing.B) {
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	bytes, _ := bf.ToBytes()
+	bytes = copyBytes(bytes)
+	bf.Release()
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		sum := float64(0)
@@ -308,6 +325,7 @@ func Benchmark_R_Article_FewFields_Dyno_Typed(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 func Benchmark_R_Article_FewFields_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
@@ -344,6 +362,8 @@ func Benchmark_R_Article_FewFields_Json(b *testing.B) {
 			sum += q * price
 		}
 	})
+	bf.Release()
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_R_Article_AllFields_Avro(b *testing.B) {
@@ -503,6 +523,8 @@ func Benchmark_R_Article_AllFields_Dyno_Untyped(b *testing.B) {
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -634,6 +656,7 @@ func Benchmark_R_Article_AllFields_Dyno_Untyped(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_R_Article_AllFields_Dyno_Typed(b *testing.B) {
@@ -642,6 +665,8 @@ func Benchmark_R_Article_AllFields_Dyno_Typed(b *testing.B) {
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -774,6 +799,7 @@ func Benchmark_R_Article_AllFields_Dyno_Typed(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 func Benchmark_R_Article_AllFields_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)

@@ -85,4 +85,6 @@ func Test_MemAllArticleFields_Dyno(t *testing.T) {
 	require.Nil(t, err)
 
 	log.Println("MemAllArticleFields_Dyno:", len(bytes))
+	bf.Release()
+	require.Zero(t, dynobuffers.GetObjectsInUse())
 }

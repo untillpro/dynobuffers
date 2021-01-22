@@ -135,7 +135,7 @@
 - Return `Buffer` to pool to prevent additional memory allocations
   ```go
   b.Release()
-  // note: b itself and result of b.ToBytes() must not be used from now on.
+  // b itself, all objects created manually and used in b.Set(), all objects got using `b.Get()` are released also. Nor these objects neither result of `b.ToBytes()` must not be used from now on
   ```
 - Iterate over fields which has value
   ```go
@@ -269,9 +269,7 @@
 		// arr.Buffer is switched on each arr.Next()
 		assert.Equal(t, int32(1), arr.Buffer.Get("nes1"))
 	}
-	// do not forget to return arr to pool to prevent additional memory allocations
-	arr.Release()
-	// note: arr itself, arr.Buffer, result of arr.Buffer.ToBytes() are obsolete here
+	// note: not need to release `arr`. It will be released on `b.Release()`
 	```
 - Modify array and to bytes
 	- Set

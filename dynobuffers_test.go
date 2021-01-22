@@ -48,7 +48,9 @@ weight: long
 		b.Set("quantity", int32(42))
 		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
 		bytes, err = b.ToBytes()
+		bytes = copyBytes(bytes) // ToBytes() result will be obsolete after .Release() so need to copy
 		require.Nil(t, err)
+		b.Release()
 	}
 
 	// Create from bytes
@@ -70,6 +72,8 @@ weight: long
 		b.Set("name", nil) // set to nil means `unset`
 		bytes, err = b.ToBytes()
 		require.Nil(t, err)
+		bytes = copyBytes(bytes)
+		b.Release()
 		b = ReadBuffer(bytes, s)
 		require.Nil(t, b.Get("name"))
 		require.Equal(t, float32(0.124), b.Get("price").(float32))
@@ -81,6 +85,8 @@ weight: long
 		b.Set("quantity", 45)
 		bytes, err = b.ToBytes()
 		require.Nil(t, err)
+		bytes = copyBytes(bytes)
+		b.Release()
 		b = ReadBuffer(bytes, s)
 		actual := b.Get("quantity")
 		require.Equal(t, int32(45), actual.(int32))
@@ -92,6 +98,8 @@ weight: long
 		require.False(t, ok)
 	}
 
+	b.Release()
+
 	// Check HasValue
 	{
 		b = NewBuffer(s)
@@ -99,6 +107,8 @@ weight: long
 		b.Set("quantity", nil)
 		bytes, err = b.ToBytes()
 		require.Nil(t, err, err)
+		bytes = copyBytes(bytes)
+		b.Release()
 		b = ReadBuffer(bytes, s)
 		require.True(t, b.HasValue("price"))
 		require.False(t, b.HasValue("quantity")) // set to nil
@@ -111,6 +121,7 @@ weight: long
 		b.Set("name", 123)
 		bytes, err = b.ToBytes()
 		require.NotNil(t, err)
+		require.Nil(t, bytes)
 	}
 
 	// nil Scheme provided -> panic
@@ -118,6 +129,8 @@ weight: long
 		require.Panics(t, func() { NewBuffer(nil) })
 		require.Panics(t, func() { ReadBuffer([]byte{}, nil) })
 	}
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 var schemeStr = `
@@ -176,12 +189,15 @@ func TestWriteNewReadOld(t *testing.T) {
 
 	schemeOld, err := YamlToScheme(schemeStr)
 	require.Nil(t, err)
-	b = ReadBuffer(bytesNew, schemeOld)
+	b1 := ReadBuffer(bytesNew, schemeOld)
 
-	require.Equal(t, "cola", b.Get("name"))
-	require.Equal(t, float32(0.123), b.Get("price"))
-	require.Equal(t, int32(42), b.Get("quantity"))
-	require.Nil(t, b.Get("newField"))
+	require.Equal(t, "cola", b1.Get("name"))
+	require.Equal(t, float32(0.123), b1.Get("price"))
+	require.Equal(t, int32(42), b1.Get("quantity"))
+	require.Nil(t, b1.Get("newField"))
+	b.Release()
+	b1.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestWriteOldReadNew(t *testing.T) {
@@ -196,12 +212,15 @@ func TestWriteOldReadNew(t *testing.T) {
 
 	schemeNew, err := YamlToScheme(schemeStrNew)
 	require.Nil(t, err)
-	b = ReadBuffer(bytesOld, schemeNew)
+	b1 := ReadBuffer(bytesOld, schemeNew)
 
-	require.Equal(t, "cola", b.Get("name"))
-	require.Equal(t, float32(0.123), b.Get("price"))
-	require.Equal(t, int32(42), b.Get("quantity"))
-	require.Nil(t, b.Get("newField"))
+	require.Equal(t, "cola", b1.Get("name"))
+	require.Equal(t, float32(0.123), b1.Get("price"))
+	require.Equal(t, int32(42), b1.Get("quantity"))
+	require.Nil(t, b1.Get("newField"))
+	b.Release()
+	b1.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func stringArrayContains(arr []string, str string) bool {
@@ -245,7 +264,6 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 					testFieldValues(t, nestedBuf, valuesNested...)
 				}
 				require.Nil(t, b.GetByIndex(f.Name, nestedArr.Len))
-				nestedArr.Release()
 			} else {
 				require.Equal(t, values[i], b.Get(f.Name))
 			}
@@ -335,6 +353,9 @@ func TestToJSONBasic(t *testing.T) {
 	// unmodified
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
+
 	b = ReadBuffer(bytes, scheme)
 	jsonBytes = b.ToJSON()
 	json.Unmarshal(jsonBytes, &actual)
@@ -342,6 +363,7 @@ func TestToJSONBasic(t *testing.T) {
 	require.Equal(t, "cola", actual["name"])
 	require.Equal(t, float64(0.123), actual["price"])
 	require.Equal(t, float64(42), actual["quantity"])
+	b.Release()
 
 	// test field initially not set
 	b = NewBuffer(scheme)
@@ -357,6 +379,9 @@ func TestToJSONBasic(t *testing.T) {
 	// test field not set after ReadBuffer
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
+
 	b = ReadBuffer(bytes, scheme)
 	jsonBytes = b.ToJSON()
 	actual = map[string]interface{}{}
@@ -376,12 +401,18 @@ func TestToJSONBasic(t *testing.T) {
 	// test read bytes with an unset field
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
+
 	b = ReadBuffer(bytes, scheme)
 	jsonBytes = b.ToJSON()
 	actual = map[string]interface{}{}
 	json.Unmarshal(jsonBytes, &actual)
 	require.True(t, len(actual) == 1)
 	require.Equal(t, "cola", actual["name"])
+	b.Release()
+
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestToJSONMapBasic(t *testing.T) {
@@ -405,12 +436,15 @@ func TestToJSONMapBasic(t *testing.T) {
 	// unmodified
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, scheme)
 	dest = b.ToJSONMap()
 	require.True(t, len(dest) == 3)
 	require.Equal(t, "cola", dest["name"])
 	require.Equal(t, float32(0.123), dest["price"])
 	require.Equal(t, int32(42), dest["quantity"])
+	b.Release()
 
 	// test field initially not set
 	b = NewBuffer(scheme)
@@ -424,6 +458,8 @@ func TestToJSONMapBasic(t *testing.T) {
 	// test field not set on ReadBuffer
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, scheme)
 
 	dest = b.ToJSONMap()
@@ -440,10 +476,33 @@ func TestToJSONMapBasic(t *testing.T) {
 	// test read bytes with an unset field
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, scheme)
 	dest = b.ToJSONMap()
 	require.True(t, len(dest) == 1)
 	require.Equal(t, "cola", dest["name"])
+	b.Release()
+
+	require.Zero(t, GetObjectsInUse())
+}
+
+func TestErr(t *testing.T) {
+	s, err := YamlToScheme(arraysAllTypesYaml)
+	require.Nil(t, err)
+	b := NewBuffer(s)
+
+	bytes, _, err := b.ApplyJSONAndToBytes([]byte(`{"ints": [42, 43]}`))
+	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
+
+	b = ReadBuffer(bytes, s)
+	bytes, _, err = b.ApplyJSONAndToBytes([]byte(`{"ints": []}`))
+	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
+
 }
 
 func TestApplyJSONArrays(t *testing.T) {
@@ -454,7 +513,6 @@ func TestApplyJSONArrays(t *testing.T) {
 	for _, f := range s.Fields {
 		allFields = append(allFields, f.Name)
 	}
-
 
 	// errors
 	wrongs := []struct {
@@ -522,6 +580,8 @@ func TestApplyJSONArrays(t *testing.T) {
 		"bytes": "BQY=", "bytesBase64":"BQY=", "intsObj":[{"int":42},{"int":43}]}`))
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{44, 45}, []int64{42, 43}, []float32{0.124, 0.125}, []float64{0.126, 0.127},
 		[]string{"str1", "str2"}, []bool{true, true}, []bool{false, false}, []byte{5, 6}, []byte{5, 6},
@@ -533,6 +593,8 @@ func TestApplyJSONArrays(t *testing.T) {
 		"bytes": "BQY=", "bytesBase64":"BQY=", "intsObj":[{"int":50},{"int":51}]}`))
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{44, 45, 46, 47}, []int64{42, 43, 48, 49}, []float32{0.124, 0.125, 0.128, 0.129}, []float64{0.126, 0.127, 0.130, 0.131},
 		[]string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false}, []bool{false, false, true, true}, []byte{5, 6, 5, 6}, []byte{5, 6, 5, 6},
@@ -556,7 +618,11 @@ func TestApplyJSONArrays(t *testing.T) {
 		require.Nil(t, err)
 		require.Nil(t, bytes)
 		require.Equal(t, allFields, nilled)
+		b1.Release()
 	}
+	b.Release()
+
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestApplyJSON(t *testing.T) {
@@ -642,9 +708,13 @@ func TestApplyJSON(t *testing.T) {
 		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}}`))
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 	b = ReadBuffer(bytes, schemeRoot)
 	testFieldValues(t, b, int32(43), int64(42), float32(0.124), float64(0.125), "str", true, false, byte(6),
 		[]interface{}{float32(0.126), int32(44)}, []interface{}{float32(0.127), int32(45)})
+	b.Release()
 
 	// unset all
 	// note: nested2:{} - mandatory field is not set but ok because empty object means no object
@@ -655,6 +725,8 @@ func TestApplyJSON(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Equal(t, allFields, nilled)
 
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestAllValues(t *testing.T) {
@@ -672,8 +744,8 @@ func TestAllValues(t *testing.T) {
 	testEmpty(t, b)
 
 	// no data -> nothing
-	bytes, nilled, err := b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err := b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Nil(t, nilled)
 
@@ -681,24 +753,25 @@ func TestAllValues(t *testing.T) {
 	for _, f := range s.Fields {
 		b.Set(f.Name, nil)
 	}
-	bytes, nilled, err = b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err = b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
 
 	// empty strings are not stored
 	b.Set("string", "")
-	bytes, nilled, err = b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err = b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
 	b.Set("string", []byte{})
-	bytes, nilled, err = b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err = b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
 
 	// wrong types -> error
+	b.Release()
 	wrongs := map[string]interface{}{
 		"int":       "str",
 		"long":      "str",
@@ -713,13 +786,15 @@ func TestAllValues(t *testing.T) {
 	for fn, wrong := range wrongs {
 		b = NewBuffer(s)
 		b.Set(fn, wrong)
-		bytes, nilled, err = b.ToBytesNilled()
-		require.Nil(t, bytes)
+		builderBytes, nilled, err = b.ToBytesNilled()
+		require.Nil(t, builderBytes)
 		require.NotNil(t, err)
 		require.Nil(t, nilled)
+		b.Release()
 	}
 
 	// fill values
+	b = NewBuffer(s)
 	b.Set("int", int32(1))
 	b.Set("long", int64(2))
 	b.Set("float", float32(0.1))
@@ -734,6 +809,8 @@ func TestAllValues(t *testing.T) {
 	bytesFilled, nilled, err := b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytesFilled = copyBytes(bytesFilled)
+	b.Release()
 	b = ReadBuffer(bytesFilled, s)
 	expectedValues := []interface{}{int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)}}
 	testFieldValues(t, b, expectedValues...)
@@ -742,7 +819,9 @@ func TestAllValues(t *testing.T) {
 	b.Reset(bytesFilled)
 	bl := flatbuffers.NewBuilder(0)
 	require.Nil(t, b.ToBytesWithBuilder(bl))
-	b = ReadBuffer(bl.Bytes, s)
+	builderBytes = copyBytes(bl.Bytes)
+	b.Release()
+	b = ReadBuffer(builderBytes, s)
 	testFieldValues(t, b, expectedValues...)
 
 	// GetBytes will return ToBytes() which will return the underlying byte array here
@@ -755,17 +834,22 @@ func TestAllValues(t *testing.T) {
 	bytesFilled, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytesFilled = copyBytes(bytesFilled)
+	b.Release()
 	b = ReadBuffer(bytesFilled, s)
 	testFieldValues(t, b, expectedValues...)
 
 	// set nested object to an empty object -> no nested object
 	bNested = NewBuffer(sNested)
 	b.Set("nes", bNested)
-	bytes, nilled, err = b.ToBytesNilled()
+	builderBytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Contains(t, nilled, "nes")
-	b = ReadBuffer(bytes, s)
+	builderBytes = copyBytes(builderBytes)
+	b.Release()
+	b = ReadBuffer(builderBytes, s)
 	require.Nil(t, b.Get("nes"))
+	b.Release()
 
 	// unset values by one (check false is returned by typed Get*())
 	expectedValuesCopy := make([]interface{}, len(expectedValues))
@@ -777,36 +861,48 @@ func TestAllValues(t *testing.T) {
 		bytes, nilled, err := b.ToBytesNilled()
 		require.Nil(t, err)
 		require.Equal(t, []string{f.Name}, nilled)
+		bytes = copyBytes(bytes)
+		b.Release()
 		b = ReadBuffer(bytes, s)
 		testFieldValues(t, b, expectedValuesCopy...)
 		expectedValuesCopy[i] = expectedValues[i]
+		b.Release()
 	}
 
 	// unset values
+	b = ReadBuffer(bytesFilled, s)
 	for _, f := range s.Fields {
 		b.Set(f.Name, nil)
 	}
-	bytes, nilled, err = b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err = b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
+	b.Release()
 
 	// set existing string to an empty string is equal to unset
+	b = NewBuffer(s)
 	b.Set("string", "str")
-	bytes, err = b.ToBytes()
+	builderBytes, err = b.ToBytes()
 	require.Nil(t, err)
-	b = ReadBuffer(bytes, s)
+	builderBytes = copyBytes(builderBytes)
+	b.Release()
+	b = ReadBuffer(builderBytes, s)
 	b.Set("string", "")
-	bytes, nilled, err = b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err = b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, []string{"string"}, nilled)
-	b = ReadBuffer(bytes, s)
+	b.Release()
+	b = ReadBuffer(builderBytes, s)
 	b.Set("string", []byte{})
-	bytes, nilled, err = b.ToBytesNilled()
-	require.Nil(t, bytes)
+	builderBytes, nilled, err = b.ToBytesNilled()
+	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, []string{"string"}, nilled)
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func testEmpty(t *testing.T, b *Buffer) {
@@ -885,8 +981,12 @@ func TestApplyMap(t *testing.T) {
 		{m: map[string]interface{}{"boolTrue": "str"}},
 		{m: map[string]interface{}{"byte": "str"}},
 		{m: map[string]interface{}{"nes": "str"}, errorOnApply: true},
+		{m: map[string]interface{}{"nes": map[string]interface{}{
+			"unknownField": 42,
+		}}, errorOnApply: true},
 		{m: map[string]interface{}{"unknown": 42}, errorOnApply: true},
 	}
+	b.Release()
 	for _, wrong := range wrongs {
 		b = NewBuffer(s)
 		if wrong.errorOnApply {
@@ -902,9 +1002,11 @@ func TestApplyMap(t *testing.T) {
 		} else {
 			require.NotNil(t, err)
 		}
+		b.Release()
 	}
 
 	// apply values
+	b = NewBuffer(s)
 	require.Nil(t, b.ApplyMap(map[string]interface{}{
 		"int":       int32(1),
 		"long":      int64(2),
@@ -921,6 +1023,8 @@ func TestApplyMap(t *testing.T) {
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
 
@@ -940,6 +1044,8 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 
 	// apply json map
 	b = NewBuffer(s)
@@ -950,6 +1056,8 @@ func TestApplyMap(t *testing.T) {
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Empty(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
 
@@ -962,6 +1070,9 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, bytes)
 	require.Equal(t, allFields, nilled)
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestApplyMapArrays(t *testing.T) {
@@ -1059,7 +1170,11 @@ func TestApplyMapArrays(t *testing.T) {
 		{m: map[string]interface{}{"intsObj": []interface{}{map[string]interface{}{"int": 44}, nil}}, errorOnApply: true},
 		// failed to encode an array element (required field notset) -> error
 		{m: map[string]interface{}{"intsObj": []interface{}{map[string]interface{}{"int": nil}}}},
+		// failed to apply nested array of objects -> error
+		{m: map[string]interface{}{"intsObj": []interface{}{map[string]interface{}{"unknownField": 42}}}, errorOnApply: true},
 	}
+	b.Release()
+	b = NewBuffer(s)
 	for _, wrong := range wrongs {
 		b.Reset(nil)
 		if wrong.errorOnApply {
@@ -1076,6 +1191,7 @@ func TestApplyMapArrays(t *testing.T) {
 			require.NotNil(t, err, wrong)
 		}
 	}
+	b.Release()
 
 	// set values
 	m := map[string]interface{}{
@@ -1099,6 +1215,8 @@ func TestApplyMapArrays(t *testing.T) {
 	bytes, nilled, err := b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}})
@@ -1124,6 +1242,8 @@ func TestApplyMapArrays(t *testing.T) {
 	bytesFilled, nilled, err := b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytesFilled = copyBytes(bytesFilled)
+	b.Release()
 	b = ReadBuffer(bytesFilled, s)
 	testFieldValues(t, b, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
 		[]bool{false, false, true, true}, []byte{7, 8, 13, 14}, []byte{5, 6, 5, 6}, []interface{}{[]interface{}{int32(7)}, []interface{}{int32(8)}})
@@ -1146,6 +1266,7 @@ func TestApplyMapArrays(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, bytes)
 	require.Equal(t, allFields, nilled)
+	b.Release()
 
 	// unset all by empty arrays
 	b = ReadBuffer(bytesFilled, s)
@@ -1166,6 +1287,7 @@ func TestApplyMapArrays(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, bytes)
 	require.Equal(t, allFields, nilled)
+	b.Release()
 
 	// unset all by empty arrays from json (check []float64 for numerics)
 	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
@@ -1178,6 +1300,7 @@ func TestApplyMapArrays(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, bytes)
 	require.Equal(t, allFields, nilled)
+	b.Release()
 
 	// load from json. All numerics are float64. No errors expected despite type are not matched to the scheme
 	jsonStr = []byte(`{"ints":[1, 2],"longs":[3, 4],"floats":[0.1, 0.2],"doubles":[0.3, 0.4],"strings":["str1", "str2"],"boolTrues":[true, true],"boolFalses":[false, false],
@@ -1189,9 +1312,12 @@ func TestApplyMapArrays(t *testing.T) {
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{5, 6}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}})
+	b.Release()
 
 	// unset all by nulls from json
 	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
@@ -1204,6 +1330,9 @@ func TestApplyMapArrays(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, bytes)
 	require.Equal(t, allFields, nilled)
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestToJSONAndToJSONMap(t *testing.T) {
@@ -1245,11 +1374,11 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	}
 
 	for _, empty := range empties {
-		b = NewBuffer(s)
 		b.ApplyMap(empty)
 		require.Equal(t, []byte("{}"), b.ToJSON())
 		require.Empty(t, b.ToJSONMap())
 	}
+	b.Release()
 
 	// set values
 	m := map[string]interface{}{
@@ -1275,13 +1404,18 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	require.Nil(t, b.ApplyMap(m))
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 
 	// test ToJSON
 	jsonBytes := b.ToJSON()
+	b.Release()
 	b = NewBuffer(s)
 	bytes, _, err = b.ApplyJSONAndToBytes(jsonBytes)
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}}, []interface{}{int32(-7)})
@@ -1293,41 +1427,57 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	intsObjs = append(intsObjs, intsObj)
 	b.Set("intsObj", intsObjs)
 	jsonBytes = b.ToJSON()
+	b.Release()
 	b = NewBuffer(s)
 	bytes, _, err = b.ApplyJSONAndToBytes(jsonBytes)
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(8)}}, []interface{}{int32(-7)})
+	b.Release()
 
 	// case when intsObj is *buffersSlice: ApplyMap() called
 	b = NewBuffer(s)
 	require.Nil(t, b.ApplyMap(m))
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	m = b.ToJSONMap()
+	b.Release()
 	b = NewBuffer(s)
 	b.ApplyMap(m) // here array of objects is *bufferSlice
-	b.ToJSON()
+	b.ToJSON()    // just use case when array of objects is *bufferSlice
+	b.Release()
 	b = NewBuffer(s)
 	bytes, _, err = b.ApplyJSONAndToBytes(jsonBytes)
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(8)}}, []interface{}{int32(-7)})
+	b.Release()
 
 	// test ToJSONMap
 	b = NewBuffer(s)
 	require.Nil(t, b.ApplyMap(m))
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	m = b.ToJSONMap()
+	b.Release()
 	b = NewBuffer(s)
 	b.ApplyMap(m)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}}, []interface{}{int32(-7)})
@@ -1339,31 +1489,44 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	intsObjs = append(intsObjs, intsObj)
 	b.Set("intsObj", intsObjs)
 	m = b.ToJSONMap()
+	b.Release()
 	b = NewBuffer(s)
 	b.ApplyMap(m)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(9)}}, []interface{}{int32(-7)})
+	b.Release()
 
 	// case when intsObj is *buffersSlice: ApplyMap() called
 	b = NewBuffer(s)
 	require.Nil(t, b.ApplyMap(m))
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	m = b.ToJSONMap()
+	b.Release()
 	b = NewBuffer(s)
 	b.ApplyMap(m)     // *bufferSlice is used
 	m = b.ToJSONMap() // *bufferSlice is used on map filling
+	b.Release()
 	b = NewBuffer(s)
 	b.ApplyMap(m)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(9)}}, []interface{}{int32(-7)})
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestSchemeToFromYAML(t *testing.T) {
@@ -1423,11 +1586,15 @@ func TestMandatoryFields(t *testing.T) {
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
 	require.NotNil(t, bytes)
+	b.Release()
 
 	b = ReadBuffer(bytes, scheme)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
 	require.NotNil(t, bytes)
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestNestedBasic(t *testing.T) {
@@ -1450,6 +1617,8 @@ func TestNestedBasic(t *testing.T) {
 	// nested still nil after Get() and not modify
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, schemeRoot)
 	require.Nil(t, b.Get("nes"))
 
@@ -1462,6 +1631,8 @@ func TestNestedBasic(t *testing.T) {
 	b.Set("last", 42)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 
 	b = ReadBuffer(bytes, schemeRoot)
 	require.Equal(t, "str", b.Get("name"))
@@ -1470,6 +1641,9 @@ func TestNestedBasic(t *testing.T) {
 	bNested = b.Get("nes").(*Buffer)
 	require.Equal(t, int32(42), bNested.Get("quantity"))
 	require.Equal(t, float32(0.123), bNested.Get("price"))
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestNestedAdvanced(t *testing.T) {
@@ -1500,6 +1674,8 @@ func TestNestedAdvanced(t *testing.T) {
 	b.Set("nes", bNested)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 
 	// modify nested
 	b = ReadBuffer(bytes, schemeRoot)
@@ -1508,6 +1684,8 @@ func TestNestedAdvanced(t *testing.T) {
 	bNested.Set("price", 0.124)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, schemeRoot)
 	require.Equal(t, "str", b.Get("name"))
 	require.Equal(t, int32(42), b.Get("last"))
@@ -1530,6 +1708,9 @@ func TestNestedAdvanced(t *testing.T) {
 	b.Set("nes", nil)
 	bytes, err = b.ToBytes()
 	require.NotNil(t, err)
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestArraysBasic(t *testing.T) {
@@ -1540,6 +1721,8 @@ func TestArraysBasic(t *testing.T) {
 	b := NewBuffer(s)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Nil(t, b.Get("longs"))
 
@@ -1548,6 +1731,8 @@ func TestArraysBasic(t *testing.T) {
 	b.Set("longs", longs)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Equal(t, int64(5), b.GetByIndex("longs", 0))
 	require.Nil(t, b.GetByIndex("longs", 3))
@@ -1558,6 +1743,8 @@ func TestArraysBasic(t *testing.T) {
 	// Non-modified array should be copied on ToBytes()
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Equal(t, int64(5), b.GetByIndex("longs", 0))
 	require.Equal(t, int64(6), b.GetByIndex("longs", 1))
@@ -1571,6 +1758,8 @@ func TestArraysBasic(t *testing.T) {
 	b.Set("longs", longs)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Equal(t, int64(7), b.GetByIndex("longs", 0))
 	require.Equal(t, int64(8), b.GetByIndex("longs", 1))
@@ -1579,6 +1768,8 @@ func TestArraysBasic(t *testing.T) {
 	b.Set("longs", nil)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Nil(t, b.Get("longs"))
 
@@ -1587,8 +1778,13 @@ func TestArraysBasic(t *testing.T) {
 	b.Set("longs", longs)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Nil(t, b.Get("longs"))
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestArrays(t *testing.T) {
@@ -1605,8 +1801,9 @@ func TestArrays(t *testing.T) {
 		"boolTrues": {nil, []bool{}},
 		"bytes":     {nil, "", []byte{}},
 		"strings":   {nil, []string{}, [][]byte{}},
-		"intsObj":   {nil, []*Buffer{}, &buffersSlice{}},
+		"intsObj":   {nil, []*Buffer{}, getBufferSlice(0)},
 	}
+	b.Release()
 	for fn, values := range tests {
 		for _, value := range values {
 			// set
@@ -1615,12 +1812,14 @@ func TestArrays(t *testing.T) {
 			bytes, err := b.ToBytes()
 			require.Nil(t, err, fn, value)
 			require.Nil(t, bytes, fn, value)
+			b.Release()
 			// append
 			b = NewBuffer(s)
 			b.Append(fn, value)
 			bytes, err = b.ToBytes()
 			require.Nil(t, err, fn, value)
 			require.Nil(t, bytes, fn, value)
+			b.Release()
 		}
 	}
 
@@ -1691,6 +1890,7 @@ func TestArrays(t *testing.T) {
 			bytes, err := b.ToBytes()
 			require.NotNil(t, err, fn)
 			require.Nil(t, bytes, fn)
+			b.Release()
 		}
 	}
 
@@ -1716,9 +1916,12 @@ func TestArrays(t *testing.T) {
 	b.Append("intsObj", bNestedArr)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
+	b.Release()
 
 	// set values
 	b = NewBuffer(s)
@@ -1734,6 +1937,9 @@ func TestArrays(t *testing.T) {
 	bNestedArr = []*Buffer{}
 	bNested = NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 5)
+	bNestedBytes, err := bNested.ToBytes()
+	require.Nil(t, err)
+	bNestedBytes = copyBytes(bNestedBytes)
 	bNestedArr = append(bNestedArr, bNested)
 	bNested = NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 6)
@@ -1741,6 +1947,8 @@ func TestArrays(t *testing.T) {
 	b.Set("intsObj", bNestedArr)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
@@ -1750,9 +1958,17 @@ func TestArrays(t *testing.T) {
 	b.Set("ints", b.Get("ints"))
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
+
+	// check the correct bytes are returned on (array element).GetBytes(). Was: the entire `bytes` returned
+	oa := b.Get("intsObj").(*ObjectArray)
+	require.True(t, oa.Next())
+	bb := oa.Buffer.GetBytes()
+	require.Equal(t, bNestedBytes, bb)
 
 	// append existing
 	b.Append("ints", []int32{7, 8})
@@ -1774,10 +1990,15 @@ func TestArrays(t *testing.T) {
 	b.Append("intsObj", bNestedArr)
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	testFieldValues(t, b, []int32{1, 2, 7, 8}, []int64{3, 4, 9, 10}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, .7, 0.8}, []string{"str1", "str2", "str3", "str4"},
 		[]bool{true, true, false, false}, []bool{false, false, true, true}, []byte{1, 2, 11, 12}, []byte{5, 6, 5, 6},
 		[]interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}, []interface{}{int32(11)}, []interface{}{int32(12)}})
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 
 }
 
@@ -1796,12 +2017,17 @@ func TestCopyBytes(t *testing.T) {
 	b.Set("float", 0.123)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 
 	// make buffer unmodified
 	b = ReadBuffer(bytes, s)
 
 	// force copy existing unmodified array
 	bytes, err = b.ToBytes()
+	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, s)
 	require.Equal(t, "str", b.Get("name"))
 	require.Equal(t, int32(42), b.Get("id"))
@@ -1810,6 +2036,9 @@ func TestCopyBytes(t *testing.T) {
 	require.Equal(t, int64(46), arr[1])
 	require.Equal(t, int64(45), b.GetByIndex("longs", 0))
 	require.Equal(t, float32(0.123), b.Get("float"))
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestObjectAsBytesInv(t *testing.T) {
@@ -1850,6 +2079,8 @@ func TestObjectAsBytesInv(t *testing.T) {
 	nestedStrOffset := flatbuffers.UOffsetT(nestedTab.Offset(flatbuffers.VOffsetT((0+2)*2))) + nestedTab.Pos
 
 	require.Equal(t, "nes1", byteSliceToString(nestedTab.ByteVector(nestedStrOffset)))
+
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestIterateFields(t *testing.T) {
@@ -1877,6 +2108,8 @@ func TestIterateFields(t *testing.T) {
 	b.Set("nested1", bNested)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	b = ReadBuffer(bytes, schemeRoot)
 	fieldsMap := mapFromArray([]string{"double", "string", "nested1"})
 	b.IterateFields(nil, func(name string, value interface{}) bool {
@@ -1902,6 +2135,8 @@ func TestIterateFields(t *testing.T) {
 		"double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false,
 		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}, "nil": null}`))
 	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	b.Release()
 	require.Equal(t, []string{"nil"}, nilled)
 	b = ReadBuffer(bytes, schemeRoot)
 	fields := []string{}
@@ -1939,7 +2174,7 @@ func TestIterateFields(t *testing.T) {
 		default:
 			t.Fatal(name)
 		}
-		delete (fieldsMap, name)
+		delete(fieldsMap, name)
 		return true
 	})
 	require.Empty(t, fieldsMap)
@@ -1991,6 +2226,9 @@ func TestIterateFields(t *testing.T) {
 	})
 	require.Len(t, fieldsMap, 1)
 	require.NotNil(t, fieldsMap["nested1"])
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestGetNestedScheme(t *testing.T) {
@@ -2003,7 +2241,6 @@ func TestGetNestedScheme(t *testing.T) {
 }
 
 func TestPreviousResultDamageOnReuse(t *testing.T) {
-	t.Skip("under development")
 	s, err := YamlToScheme(schemeStr)
 	require.Nil(t, err)
 	b := NewBuffer(s)
@@ -2011,14 +2248,22 @@ func TestPreviousResultDamageOnReuse(t *testing.T) {
 	b.Set("quantity", 42)
 	bytes1, err := b.ToBytes()
 	bytes1Copy := make([]byte, len(bytes1))
-	copy(bytes1Copy, bytes1)
+	copy(bytes1Copy, bytes1) // create ethalon copy of bytes1
+
 	b.Release()
+	// nor b neither bytes1 must not be used from now on
+
 	b = NewBuffer(s)
+	// b is valid, bytes1 - is not
+
 	b.Set("name", "str")
 	b.Set("quantity", 43)
 	_, err = b.ToBytes() // bytes1 damages here
 	require.Nil(t, err)
 	require.NotEqual(t, bytes1, bytes1Copy)
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func TestReuse(t *testing.T) {
@@ -2044,20 +2289,40 @@ func TestReuse(t *testing.T) {
 	require.Equal(t, float32(0.123), b.Get("price"))
 	require.Equal(t, int32(42), b.Get("quantity"))
 	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
+
+func TestRelease(t *testing.T) {
+	s, err := YamlToScheme(allTypesYaml)
+	require.Nil(t, err)
+	b := NewBuffer(s)
+
+	// was a bug: release twice -> put to buffer pool twice the same object.
+	// result is that consecutive NewBuffer(); NewBuffer() calls returns the same buffer! (because it was put to the pool twice)
+	b.Release()
+	b.Release()
+
+	b1 := NewBuffer(s)
+	b2 := NewBuffer(s)
+	require.True(t, b1 != b2)
+
+	b1.Release()
+	b2.Release()
+	require.Zero(t, GetObjectsInUse())
+}
+
 func Benchmark_ArrayOfObjectsSet_Dyno(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
 	sNested.AddField("int", FieldTypeInt, false)
 	s.AddNestedArray("ints", sNested, false)
 
-	bfNested := NewBuffer(sNested)
-	bfNested.Set("int", 42)
-	bufs := []*Buffer{bfNested}
-
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
+			bfNested := NewBuffer(sNested)
+			bfNested.Set("int", 42)
+			bufs := []*Buffer{bfNested}
 			bf := NewBuffer(s)
 			bf.Set("ints", bufs)
 			if _, err := bf.ToBytes(); err != nil {
@@ -2066,6 +2331,7 @@ func Benchmark_ArrayOfObjectsSet_Dyno(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, GetObjectsInUse())
 }
 
 func BenchmarkS_ArrayOfObjectsAppend_ToBytes_Dyno(b *testing.B) {
@@ -2084,18 +2350,24 @@ func BenchmarkS_ArrayOfObjectsAppend_ToBytes_Dyno(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
+			bfNested := NewBuffer(sNested)
+			bfNested.Set("int", 42)
+			bufs := []*Buffer{bfNested}
 			bf := ReadBuffer(bytes, s)
 			bf.Append("ints", bufs)
-			if _, err = bf.ToBytes(); err != nil {
+			if _, err := bf.ToBytes(); err != nil {
 				b.Fatal(err)
 			}
 			bf.Release()
 		}
 	})
+	require.Zero(b, GetObjectsInUse())
 }
 
 func Benchmark_ArrayOfObjectsAppend_ToBytes_Flat(b *testing.B) {
@@ -2198,6 +2470,8 @@ func TestReset(t *testing.T) {
 	b.Set("quantity", 1)
 	bytes1, err := b.ToBytes()
 	require.Nil(t, err, err)
+	bytes1 = copyBytes(bytes1)
+	b.Release()
 
 	// create new from bytes1, modify and to bytes2
 	b = ReadBuffer(bytes1, s)
@@ -2205,6 +2479,8 @@ func TestReset(t *testing.T) {
 	b.Set("quantity", 2)
 	bytes2, err := b.ToBytes()
 	require.Nil(t, err, err)
+	bytes2 = copyBytes(bytes2)
+	b.Release()
 
 	// create new from bytes2
 	b = ReadBuffer(bytes2, s)
@@ -2227,6 +2503,8 @@ func TestReset(t *testing.T) {
 	//check modified fields are cleared
 	bytes1, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes1 = copyBytes(bytes1)
+	b.Release()
 	b = ReadBuffer(bytes1, s)
 	require.Equal(t, int32(1), b.Get("quantity"))
 
@@ -2234,8 +2512,13 @@ func TestReset(t *testing.T) {
 	b.Set("quantity", 5)
 	bytes1, err = b.ToBytes()
 	require.Nil(t, err)
+	bytes1 = copyBytes(bytes1)
+	b.Release()
 	b = ReadBuffer(bytes1, s)
 	require.Equal(t, int32(5), b.Get("quantity"))
+
+	b.Release()
+	require.Zero(t, GetObjectsInUse())
 }
 
 func mapFromArray(strs []string) map[string]struct{} {
@@ -2265,4 +2548,11 @@ func Benchmark_RW_Nested(b *testing.B) {
 			buf.Release()
 		}
 	})
+	require.Zero(b, GetObjectsInUse())
+}
+
+func copyBytes(src []byte) []byte {
+	res := make([]byte, len(src))
+	copy(res, src)
+	return res
 }

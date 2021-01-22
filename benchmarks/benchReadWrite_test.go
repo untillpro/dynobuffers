@@ -27,6 +27,8 @@ func Benchmark_RW_Simple_Dyno_Typed(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -44,6 +46,7 @@ func Benchmark_RW_Simple_Dyno_Typed(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_RW_Simple_Dyno_Typed_String(b *testing.B) {
@@ -54,6 +57,8 @@ func Benchmark_RW_Simple_Dyno_Typed_String(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -72,6 +77,7 @@ func Benchmark_RW_Simple_Dyno_Typed_String(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_RW_Simple_Dyno_Untyped(b *testing.B) {
@@ -82,6 +88,8 @@ func Benchmark_RW_Simple_Dyno_Untyped(b *testing.B) {
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -98,6 +106,7 @@ func Benchmark_RW_Simple_Dyno_Untyped(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_RW_Simple_Flat(b *testing.B) {
@@ -203,6 +212,8 @@ func Benchmark_RW_Article_FewFields_Dyno_Typed(b *testing.B) {
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -219,6 +230,7 @@ func Benchmark_RW_Article_FewFields_Dyno_Typed(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 func Benchmark_RW_Article_FewFields_Flat(b *testing.B) {
 	bl := flatbuffers.NewBuilder(0)
@@ -265,6 +277,8 @@ func Benchmark_RW_Article_FewFields_Json(b *testing.B) {
 			}
 		}
 	})
+	bf.Release()
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_RW_Article_FewFields_Avro(b *testing.B) {
@@ -589,6 +603,8 @@ func Benchmark_RW_Article_AllFields_Dyno_Untyped(b *testing.B) {
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -724,6 +740,7 @@ func Benchmark_RW_Article_AllFields_Dyno_Untyped(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_RW_Article_AllFields_Dyno_Typed(b *testing.B) {
@@ -732,6 +749,8 @@ func Benchmark_RW_Article_AllFields_Dyno_Typed(b *testing.B) {
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
 	require.Nil(b, err)
+	bytes = copyBytes(bytes)
+	bf.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -868,4 +887,5 @@ func Benchmark_RW_Article_AllFields_Dyno_Typed(b *testing.B) {
 			bf.Release()
 		}
 	})
+	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
