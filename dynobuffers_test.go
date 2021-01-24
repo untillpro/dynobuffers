@@ -9,7 +9,6 @@ package dynobuffers
 
 import (
 	"encoding/json"
-	"log"
 	"reflect"
 	"testing"
 
@@ -2136,7 +2135,6 @@ func TestIterateFields(t *testing.T) {
 		"double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false,
 		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}, "nil": null}`))
 	require.Nil(t, err)
-	log.Println(len(bytes))
 	bytes = copyBytes(bytes)
 	b.Release()
 	require.Equal(t, []string{"nil"}, nilled)

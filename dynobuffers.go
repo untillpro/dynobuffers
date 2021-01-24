@@ -901,15 +901,16 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	}
 
 	b.builder.Reset()
-	prevHead := b.builder.Head()
 
-	if err := b.ToBytesWithBuilder(b.builder); err != nil {
+	uOffset, err := b.encodeBuffer(b.builder)
+	if err != nil {
 		return nil, err
 	}
 
-	if prevHead != b.builder.Head() {
+	if uOffset != 0 {
 		return b.builder.FinishedBytes(), nil
 	}
+	
 	return nil, nil
 }
 
