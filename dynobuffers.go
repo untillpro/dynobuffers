@@ -560,6 +560,7 @@ func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
 	if len(jsonMap) == 0 {
 		return nil
 	}
+	b.prepareModifiedFields()
 	return gojay.UnmarshalJSONObjectWithPool(jsonMap[:], b)
 }
 
@@ -909,7 +910,6 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	if prevHead != b.builder.Head() {
 		return b.builder.FinishedBytes(), nil
 	}
-
 	return nil, nil
 }
 
