@@ -2247,19 +2247,24 @@ func TestPreviousResultDamageOnReuse(t *testing.T) {
 	b.Set("name", "str")
 	b.Set("quantity", 42)
 	bytes1, err := b.ToBytes()
-	bytes1Copy := make([]byte, len(bytes1))
-	copy(bytes1Copy, bytes1) // create ethalon copy of bytes1
+	require.Nil(t, err)
+	bytes1Copy := copyBytes(bytes1) // create ethalon copy of bytes1
 
 	b.Release()
-	// nor b neither bytes1 must not be used from now on
+	// nor `b` neither `bytes1` must not be used from now on
 
 	b = NewBuffer(s)
 	// b is valid, bytes1 - is not
 
 	b.Set("name", "str")
 	b.Set("quantity", 43)
-	_, err = b.ToBytes() // bytes1 damages here
-	require.Nil(t, err)
+	for i := 0; i < 10; i++ {
+		_, err = b.ToBytes() // bytes1 should be damaged here (sometimes not, try 10 times)
+		require.Nil(t, err)
+		if reflect.DeepEqual(bytes1, bytes1Copy) {
+			break
+		}
+	}
 	require.NotEqual(t, bytes1, bytes1Copy)
 
 	b.Release()
