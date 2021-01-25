@@ -910,7 +910,7 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	if uOffset != 0 {
 		return b.builder.FinishedBytes(), nil
 	}
-	
+
 	return nil, nil
 }
 

@@ -2241,6 +2241,7 @@ func TestGetNestedScheme(t *testing.T) {
 }
 
 func TestPreviousResultDamageOnReuse(t *testing.T) {
+	t.Skip("unstable. Use as an example only")
 	s, err := YamlToScheme(schemeStr)
 	require.Nil(t, err)
 	b := NewBuffer(s)
@@ -2258,13 +2259,8 @@ func TestPreviousResultDamageOnReuse(t *testing.T) {
 
 	b.Set("name", "str")
 	b.Set("quantity", 43)
-	for i := 0; i < 10; i++ {
-		_, err = b.ToBytes() // bytes1 should be damaged here (sometimes not, try 10 times)
-		require.Nil(t, err)
-		if reflect.DeepEqual(bytes1, bytes1Copy) {
-			break
-		}
-	}
+	_, err = b.ToBytes() // bytes1 damaged here
+	require.Nil(t, err)
 	require.NotEqual(t, bytes1, bytes1Copy)
 
 	b.Release()
