@@ -691,6 +691,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 			if err = dec.ObjectOrNull(len(f.FieldScheme.Fields), func() gojay.UnmarshalerJSONObject {
 				bNested = NewBuffer(f.FieldScheme)
 				bNested.owner = b
+				bNested.prepareModifiedFields()
 				return bNested
 			}); err != nil {
 				return err
