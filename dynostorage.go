@@ -34,9 +34,6 @@ type offset struct {
 // Begin pools
 
 var (
-	builderPool = sync.Pool{
-		New: func() interface{} { return flatbuffers.NewBuilder(0) },
-	}
 	bufferPool = sync.Pool{
 		New: func() interface{} {
 			return &Buffer{
@@ -50,16 +47,12 @@ var (
 	}
 	uOffsetPool = sync.Pool{
 		New: func() interface{} {
-			return &uOffsetSlice{
-				Slice: make([]flatbuffers.UOffsetT, defaultBufferSize),
-			}
+			return make([]flatbuffers.UOffsetT, defaultBufferSize)
 		},
 	}
 	offsetPool = sync.Pool{
 		New: func() interface{} {
-			return &offsetSlice{
-				Slice: make([]offset, defaultBufferSize),
-			}
+			return make([]offset, defaultBufferSize)
 		},
 	}
 	buffersPool = sync.Pool{
@@ -83,55 +76,48 @@ func putBuffer(b *Buffer) {
 }
 
 //getUOffsetSlice
+// []flatbuffers.UOffsetT
 
-type uOffsetSlice struct {
-	Slice []flatbuffers.UOffsetT
-}
-
-func getUOffsetSlice(l int) (c *uOffsetSlice) {
-	c = uOffsetPool.Get().(*uOffsetSlice)
+func getUOffsetSlice(l int) (c []flatbuffers.UOffsetT) {
+	c = uOffsetPool.Get().([]flatbuffers.UOffsetT)
 	atomic.AddUint64(&uOffsetsInUse, 1)
 
-	if cap(c.Slice) < l {
-		c.Slice = make([]flatbuffers.UOffsetT, l)
+	if cap(c) < l {
+		c = make([]flatbuffers.UOffsetT, l)
 	} else {
-		c.Slice = c.Slice[:l]
+		c = c[:l]
 
-		for k := range c.Slice {
-			c.Slice[k] = 0
+		for k := range c {
+			c[k] = 0
 		}
 	}
 	return
 }
 
-func putUOffsetSlice(c *uOffsetSlice) {
+func putUOffsetSlice(c []flatbuffers.UOffsetT) {
 	uOffsetPool.Put(c)
 	atomic.AddUint64(&uOffsetsInUse, ^uint64(0))
 }
 
 //getUOffsetSlice
 
-type offsetSlice struct {
-	Slice []offset
-}
-
-func getOffsetSlice(l int) (c *offsetSlice) {
-	c = offsetPool.Get().(*offsetSlice)
+func getOffsetSlice(l int) (c []offset) {
+	c = offsetPool.Get().([]offset)
 	atomic.AddUint64(&offsetsInUse, 1)
 
-	if cap(c.Slice) < l {
-		c.Slice = make([]offset, l)
+	if cap(c) < l {
+		c = make([]offset, l)
 	} else {
-		c.Slice = c.Slice[:l]
+		c = c[:l]
 
-		for k := range c.Slice {
-			c.Slice[k] = offset{}
+		for k := range c {
+			c[k] = offset{}
 		}
 	}
 	return
 }
 
-func putOffsetSlice(c *offsetSlice) {
+func putOffsetSlice(c []offset) {
 	offsetPool.Put(c)
 	atomic.AddUint64(&offsetsInUse, ^uint64(0))
 }

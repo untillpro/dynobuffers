@@ -2267,32 +2267,6 @@ func TestPreviousResultDamageOnReuse(t *testing.T) {
 	require.Zero(t, GetObjectsInUse())
 }
 
-func TestReuse(t *testing.T) {
-	s, err := YamlToScheme(schemeStr)
-	require.Nil(t, err)
-
-	// borrow a Buffer and fill it
-	b := NewBuffer(s)
-	b.Set("name", "cola")
-	b.Set("price", float32(0.123))
-	b.Set("quantity", int32(42))
-	bytes, err := b.ToBytes()
-	require.Nil(t, err)
-	bytesNew := make([]byte, len(bytes))
-	copy(bytesNew, bytes)
-
-	b.Release() // `bytes` becomes obsolete here
-
-	// borrow one more
-	b = ReadBuffer(bytesNew, s)
-
-	require.Equal(t, "cola", b.Get("name"))
-	require.Equal(t, float32(0.123), b.Get("price"))
-	require.Equal(t, int32(42), b.Get("quantity"))
-	b.Release()
-	require.Zero(t, GetObjectsInUse())
-}
-
 func TestRelease(t *testing.T) {
 	s, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)

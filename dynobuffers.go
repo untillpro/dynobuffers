@@ -256,7 +256,7 @@ func (b *Buffer) GetInt(name string) (int32, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetInt32(o), true
 	}
-	return int32(0), false
+	return 0, false
 }
 
 // GetFloat returns float32 value by name and if the Scheme contains the field and if the value was set to non-nil
@@ -264,7 +264,7 @@ func (b *Buffer) GetFloat(name string) (float32, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetFloat32(o), true
 	}
-	return float32(0), false
+	return 0, false
 }
 
 // GetString returns string value by name and if the Scheme contains the field and if the value was set to non-nil
@@ -280,7 +280,7 @@ func (b *Buffer) GetLong(name string) (int64, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetInt64(o), true
 	}
-	return int64(0), false
+	return 0, false
 }
 
 // GetDouble returns float64 value by name and if the Scheme contains the field and if the value was set to non-nil
@@ -288,7 +288,7 @@ func (b *Buffer) GetDouble(name string) (float64, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetFloat64(o), true
 	}
-	return float64(0), false
+	return 0, false
 }
 
 // GetByte returns byte value by name and if the Scheme contains the field and if the value was set to non-nil
@@ -296,7 +296,7 @@ func (b *Buffer) GetByte(name string) (byte, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetByte(o), true
 	}
-	return byte(0), false
+	return 0, false
 }
 
 // GetBool returns bool value by name and if the Scheme contains the field and if the value was set to non-nil
@@ -308,24 +308,21 @@ func (b *Buffer) GetBool(name string) (bool, bool) {
 }
 
 func (b *Buffer) getFieldUOffsetT(name string) flatbuffers.UOffsetT {
-	if len(b.tab.Bytes) == 0 {
-		return 0
-	}
-	if f, ok := b.Scheme.FieldsMap[name]; ok {
-		return b.getFieldUOffsetTByOrder(f.Order)
+	if len(b.tab.Bytes) > 0 {
+		if f, ok := b.Scheme.FieldsMap[name]; ok {
+			return b.getFieldUOffsetTByOrder(f.Order)
+		}
 	}
 	return 0
 }
 
 func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
-	if len(b.tab.Bytes) == 0 {
-		return 0
+	if len(b.tab.Bytes) > 0 {
+		if preOffset := flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((order + 2) * 2))); preOffset > 0 {
+			return preOffset + b.tab.Pos
+		}
 	}
-	preOffset := flatbuffers.UOffsetT(b.tab.Offset(flatbuffers.VOffsetT((order + 2) * 2)))
-	if preOffset == 0 {
-		return 0
-	}
-	return preOffset + b.tab.Pos
+	return 0
 }
 
 func (b *Buffer) getByField(f *Field, index int) interface{} {
@@ -363,10 +360,6 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 		}
 		uOffsetT = b.tab.Vector(uOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(index*elemSize)
 	}
-	return b.getValueByUOffsetT(f, uOffsetT)
-}
-
-func (b *Buffer) getValueByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interface{} {
 	switch f.Ft {
 	case FieldTypeInt:
 		return b.tab.GetInt32(uOffsetT)
@@ -978,7 +971,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets.Slice[f.Order].arr = arrayUOffsetT
+			offsets[f.Order].arr = arrayUOffsetT
 		} else if f.Ft == FieldTypeObject {
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.Order]
@@ -1011,7 +1004,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets.Slice[f.Order].obj = nestedUOffsetT
+			offsets[f.Order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
 			stringUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedStringField := b.modifiedFields[f.Order]
@@ -1039,7 +1032,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					stringUOffsetT = bl.CreateByteString(b.tab.ByteVector(offset))
 				}
 			}
-			offsets.Slice[f.Order].str = stringUOffsetT
+			offsets[f.Order].str = stringUOffsetT
 		}
 	}
 
@@ -1054,13 +1047,13 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		isSet := false
 		offsetToWrite := flatbuffers.UOffsetT(0)
 		if f.IsArray {
-			offsetToWrite = offsets.Slice[f.Order].arr
+			offsetToWrite = offsets[f.Order].arr
 		} else {
 			switch f.Ft {
 			case FieldTypeString:
-				offsetToWrite = offsets.Slice[f.Order].str
+				offsetToWrite = offsets[f.Order].str
 			case FieldTypeObject:
-				offsetToWrite = offsets.Slice[f.Order].obj
+				offsetToWrite = offsets[f.Order].obj
 			default:
 				modifiedField := b.modifiedFields[f.Order]
 				if modifiedField != nil && !modifiedField.isReleased {
@@ -1392,12 +1385,12 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		stringUOffsetTs := getUOffsetSlice(len(strArr))
 
 		for i := 0; i < len(strArr); i++ {
-			stringUOffsetTs.Slice[i] = bl.CreateString(strArr[i])
+			stringUOffsetTs[i] = bl.CreateString(strArr[i])
 		}
 		bl.StartVector(elemSize, len(strArr), elemSize)
 
 		for i := len(strArr) - 1; i >= 0; i-- {
-			bl.PrependUOffsetT(stringUOffsetTs.Slice[i])
+			bl.PrependUOffsetT(stringUOffsetTs[i])
 		}
 
 		putUOffsetSlice(stringUOffsetTs)
@@ -1419,13 +1412,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, bl.CreateByteVector(nestedBytes))
+					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, err := arr.Slice[i].encodeBuffer(bl)
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, nestedUOffsetT)
+					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
 		case []*Buffer:
@@ -1439,13 +1432,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, bl.CreateByteVector(nestedBytes))
+					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, err := arr[i].encodeBuffer(bl)
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, nestedUOffsetT)
+					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
 		case *ObjectArray:
@@ -1453,10 +1446,10 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			for arr.Next() {
 				if storeObjectsAsBytes {
 					nestedBytes, _ := arr.Buffer.ToBytes()
-					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, bl.CreateByteVector(nestedBytes))
+					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, _ := arr.Buffer.encodeBuffer(bl) // should be no errors here
-					nestedUOffsetTs.Slice = append(nestedUOffsetTs.Slice, nestedUOffsetT)
+					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
 
@@ -1464,7 +1457,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			return 0, fmt.Errorf("%#v provided for field %s is not an array of nested objects", value, f.QualifiedName())
 		}
 
-		if len(nestedUOffsetTs.Slice) == 0 {
+		if len(nestedUOffsetTs) == 0 {
 			return 0, nil // empty nested objects array -> skip
 		}
 
@@ -1477,23 +1470,23 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			for i := 0; toAppendToArr.Next(); i++ {
 				if storeObjectsAsBytes {
 					bufBytes, _ := toAppendToArr.Buffer.ToBytes()
-					toAppendToUOffsetTs.Slice[i] = bl.CreateByteVector(bufBytes)
+					toAppendToUOffsetTs[i] = bl.CreateByteVector(bufBytes)
 				} else {
-					toAppendToUOffsetTs.Slice[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
+					toAppendToUOffsetTs[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
 				}
 			}
 
-			toAppendToUOffsetTs.Slice = append(toAppendToUOffsetTs.Slice, nestedUOffsetTs.Slice...)
+			toAppendToUOffsetTs = append(toAppendToUOffsetTs, nestedUOffsetTs...)
 
 			nestedUOffsetTs = toAppendToUOffsetTs
 		}
 
-		bl.StartVector(elemSize, len(nestedUOffsetTs.Slice), elemSize)
-		for i := len(nestedUOffsetTs.Slice) - 1; i >= 0; i-- {
-			bl.PrependUOffsetT(nestedUOffsetTs.Slice[i])
+		bl.StartVector(elemSize, len(nestedUOffsetTs), elemSize)
+		for i := len(nestedUOffsetTs) - 1; i >= 0; i-- {
+			bl.PrependUOffsetT(nestedUOffsetTs[i])
 		}
 
-		o := bl.EndVector(len(nestedUOffsetTs.Slice))
+		o := bl.EndVector(len(nestedUOffsetTs))
 
 		return o, nil
 	}
