@@ -54,6 +54,9 @@ func Test_MemFewArticleFields_Dyno(t *testing.T) {
 	bytes, err = bf.ToBytes()
 	require.Nil(t, err)
 	log.Println("Buffer len for quantity, purchase_price, id, article_number:", len(bytes))
+
+	bf.Release()
+	require.Zero(t, dynobuffers.GetObjectsInUse())
 }
 
 func Test_MemAllArticleFields_Avro(t *testing.T) {
@@ -85,4 +88,6 @@ func Test_MemAllArticleFields_Dyno(t *testing.T) {
 	require.Nil(t, err)
 
 	log.Println("MemAllArticleFields_Dyno:", len(bytes))
+	bf.Release()
+	require.Zero(t, dynobuffers.GetObjectsInUse())
 }
