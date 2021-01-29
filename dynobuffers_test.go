@@ -2041,6 +2041,42 @@ func TestCopyBytes(t *testing.T) {
 	require.Zero(t, GetObjectsInUse())
 }
 
+func TestCorrectBytesFromNested(t *testing.T) {
+	/*
+		nes:
+		  fld: int
+		ReadBuffer(Get("nes").GetBytes()).Get("fld") should work properly
+		was: root bytes returned, there is no fld
+	*/
+	sNested := NewScheme()
+	sNested.AddField("fld", FieldTypeInt, false)
+	sRoot := NewScheme()
+	sRoot.AddNested("nes", sNested, false)
+
+	bNested := NewBuffer(sNested)
+	bRoot := NewBuffer(sRoot)
+	bNested.Set("fld", 42)
+	bRoot.Set("nes", bNested)
+
+	bytes, err := bRoot.ToBytes()
+	require.Nil(t, err)
+	bytes = copyBytes(bytes)
+	bRoot.Release()
+
+	bRoot = ReadBuffer(bytes, sRoot)
+	bNested = bRoot.Get("nes").(*Buffer)
+
+	bytes = bNested.GetBytes()
+	bytes = copyBytes(bytes)
+	bRoot.Release()
+
+	bNested = ReadBuffer(bytes, sNested)
+	require.Equal(t, int32(42), bNested.Get("fld"))
+
+	bNested.Release()
+	require.Zero(t, GetObjectsInUse())
+}
+
 func TestObjectAsBytesInv(t *testing.T) {
 	bl := flatbuffers.NewBuilder(0)
 	strOffset := bl.CreateString("nes1")
