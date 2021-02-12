@@ -390,6 +390,7 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 				b.set(f, res)
 			}
 		}
+		res.setModified() // to force new correct bytes generation on GetBytes(). Otherwise the entire b.tab.Bytes will be returned - it is not res, it _contains_ res
 		res.owner = b
 		if !setted {
 			// in modified fields _. will be released by modifiedFields.Release(). Otherwise will be released on b.Release()
