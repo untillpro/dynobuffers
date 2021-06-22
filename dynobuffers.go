@@ -1883,30 +1883,35 @@ func NewScheme() *Scheme {
 }
 
 // AddField adds field
-func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
+func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) *Scheme {
 	s.AddFieldC(name, ft, nil, isMandatory, false)
+	return s
 }
 
 // AddArray adds array field
-func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) {
+func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) *Scheme {
 	s.AddFieldC(name, elementType, nil, isMandatory, true)
+	return s
 }
 
 // AddNested adds nested object field
-func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
+func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) *Scheme {
 	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, false)
+	return s
 }
 
 // AddNestedArray adds array of nested objects field
-func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
+func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) *Scheme {
 	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, true)
+	return s
 }
 
 // AddFieldC adds new finely-tuned field
-func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
+func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) *Scheme {
 	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, IsArray}
 	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
+	return s
 }
 
 // MarshalYAML marshals Scheme to yaml. Needs to conform to yaml.Marshaler interface
