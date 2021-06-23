@@ -223,15 +223,6 @@ func TestWriteOldReadNew(t *testing.T) {
 	require.Zero(t, GetObjectsInUse())
 }
 
-func stringArrayContains(arr []string, str string) bool {
-	for _, s := range arr {
-		if s == str {
-			return true
-		}
-	}
-	return false
-}
-
 func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 	for i, f := range b.Scheme.Fields {
 		if f.Ft != FieldTypeObject {
@@ -487,24 +478,6 @@ func TestToJSONMapBasic(t *testing.T) {
 	require.Zero(t, GetObjectsInUse())
 }
 
-func TestErr(t *testing.T) {
-	s, err := YamlToScheme(arraysAllTypesYaml)
-	require.Nil(t, err)
-	b := NewBuffer(s)
-
-	bytes, _, err := b.ApplyJSONAndToBytes([]byte(`{"ints": [42, 43]}`))
-	require.Nil(t, err)
-	bytes = copyBytes(bytes)
-	b.Release()
-
-	b = ReadBuffer(bytes, s)
-	bytes, _, err = b.ApplyJSONAndToBytes([]byte(`{"ints": []}`))
-	require.Nil(t, err)
-	bytes = copyBytes(bytes)
-	b.Release()
-
-}
-
 func TestApplyJSONArrays(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
 	require.Nil(t, err)
@@ -628,9 +601,9 @@ func TestApplyJSONArrays(t *testing.T) {
 func TestApplyJSON(t *testing.T) {
 	schemeRoot, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)
-	schemeNested := NewScheme()
-	schemeNested.AddField("price", FieldTypeFloat, false)
-	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeNested := NewScheme().
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, true)
 	schemeRoot.AddNested("nested1", schemeNested, false)
 	schemeRoot.AddNested("nested2", schemeNested, false)
 	allFields := []string{}
@@ -1044,7 +1017,6 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	bytes = copyBytes(bytes)
 	b.Release()
 
 	// apply json map
@@ -1530,20 +1502,21 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 }
 
 func TestSchemeToFromYAML(t *testing.T) {
-	schemeRoot := NewScheme()
-	schemeNested := NewScheme()
-	schemeNested.AddField("price", FieldTypeFloat, false)
-	schemeNested.AddField("quantity", FieldTypeInt, true)
+	schemeNested := NewScheme().
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, true)
 	schemeNested.Name = "nes"
-	schemeNestedArr := NewScheme()
-	schemeNestedArr.AddField("price", FieldTypeFloat, false)
-	schemeNestedArr.AddField("quantity", FieldTypeInt, true)
+	schemeNestedArr := NewScheme().
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, true)
 	schemeNestedArr.Name = "nesarr"
-	schemeRoot.AddField("name", FieldTypeString, false)
-	schemeRoot.AddNested("nes", schemeNested, true)
-	schemeRoot.AddNestedArray("nesarr", schemeNestedArr, true)
-	schemeRoot.AddField("last", FieldTypeInt, false)
+	schemeRoot := NewScheme().
+		AddField("name", FieldTypeString, false).
+		AddNested("nes", schemeNested, true).
+		AddNestedArray("nesarr", schemeNestedArr, true).
+		AddField("last", FieldTypeInt, false)
 	bytes, err := yaml.Marshal(schemeRoot)
+	require.Nil(t, err)
 	schemeNew := NewScheme()
 	err = yaml.Unmarshal(bytes, &schemeNew)
 	require.Nil(t, err)
@@ -1598,18 +1571,19 @@ func TestMandatoryFields(t *testing.T) {
 }
 
 func TestNestedBasic(t *testing.T) {
-	schemeNested := NewScheme()
-	schemeNested.AddField("price", FieldTypeFloat, false)
-	schemeNested.AddField("quantity", FieldTypeInt, true)
-	schemeRoot := NewScheme()
-	schemeRoot.AddField("name", FieldTypeString, false)
-	schemeRoot.AddNested("nes", schemeNested, false)
-	schemeRoot.AddField("last", FieldTypeInt, false)
+	schemeNested := NewScheme().
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, true)
+	schemeRoot := NewScheme().
+		AddField("name", FieldTypeString, false).
+		AddNested("nes", schemeNested, false).
+		AddField("last", FieldTypeInt, false)
 
 	// initially nil
 	b := NewBuffer(schemeRoot)
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
+	require.Nil(t, bytes)
 	require.Nil(t, b.Get("name"))
 	require.Nil(t, b.Get("nes"))
 	require.Nil(t, b.Get("last"))
@@ -1647,13 +1621,14 @@ func TestNestedBasic(t *testing.T) {
 }
 
 func TestNestedAdvanced(t *testing.T) {
-	schemeRoot := NewScheme()
-	schemeNested := NewScheme()
-	schemeNested.AddField("price", FieldTypeFloat, false)
-	schemeNested.AddField("quantity", FieldTypeInt, true)
-	schemeRoot.AddField("name", FieldTypeString, false)
-	schemeRoot.AddNested("nes", schemeNested, true)
-	schemeRoot.AddField("last", FieldTypeInt, false)
+
+	schemeNested := NewScheme().
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, true)
+	schemeRoot := NewScheme().
+		AddField("name", FieldTypeString, false).
+		AddNested("nes", schemeNested, true).
+		AddField("last", FieldTypeInt, false)
 	b := NewBuffer(schemeRoot)
 
 	// fill
@@ -1666,9 +1641,11 @@ func TestNestedAdvanced(t *testing.T) {
 	// error if mandatory object is not set
 	bytes, err := b.ToBytes()
 	require.NotNil(t, err)
+	require.Nil(t, bytes)
 	b.Set("nes", nil)
 	bytes, err = b.ToBytes()
 	require.NotNil(t, err)
+	require.Nil(t, bytes)
 
 	// set mandatory object
 	b.Set("nes", bNested)
@@ -1696,18 +1673,21 @@ func TestNestedAdvanced(t *testing.T) {
 	// non-*Buffer is provided -> error
 	b.Set("nes", []int32{0, 1})
 	bytes, err = b.ToBytes()
+	require.Nil(t, bytes)
 	require.NotNil(t, err)
 	b.Set("nes", bNested)
 
 	// error if unset mandatory in nested
 	bNested.Set("quantity", nil)
 	bytes, err = b.ToBytes()
+	require.Nil(t, bytes)
 	require.NotNil(t, err)
 
 	// error if unset nested
 	b.Set("nes", nil)
 	bytes, err = b.ToBytes()
 	require.NotNil(t, err)
+	require.Nil(t, bytes)
 
 	b.Release()
 	require.Zero(t, GetObjectsInUse())
@@ -2003,11 +1983,11 @@ func TestArrays(t *testing.T) {
 }
 
 func TestCopyBytes(t *testing.T) {
-	s := NewScheme()
-	s.AddField("name", FieldTypeString, false)
-	s.AddField("id", FieldTypeInt, false)
-	s.AddArray("longs", FieldTypeLong, false)
-	s.AddField("float", FieldTypeFloat, false)
+	s := NewScheme().
+		AddField("name", FieldTypeString, false).
+		AddField("id", FieldTypeInt, false).
+		AddArray("longs", FieldTypeLong, false).
+		AddField("float", FieldTypeFloat, false)
 
 	// initial
 	b := NewBuffer(s)
@@ -2122,12 +2102,12 @@ func TestObjectAsBytesInv(t *testing.T) {
 func TestIterateFields(t *testing.T) {
 	schemeRoot, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)
-	schemeNested := NewScheme()
-	schemeNested.AddField("price", FieldTypeFloat, false)
-	schemeNested.AddField("quantity", FieldTypeInt, true)
-	schemeRoot.AddNested("nested1", schemeNested, false)
-	schemeRoot.AddNested("nested2", schemeNested, false)
-	schemeRoot.AddField("nil", FieldTypeInt, false)
+	schemeNested := NewScheme().
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, true)
+	schemeRoot.AddNested("nested1", schemeNested, false).
+		AddNested("nested2", schemeNested, false).
+		AddField("nil", FieldTypeInt, false)
 
 	// iterate on empty does nothing
 	b := NewBuffer(schemeRoot)
@@ -2470,10 +2450,10 @@ func Benchmark_Fill_ToBytes_NestedArray_Flat(b *testing.B) {
 }
 
 func TestReset(t *testing.T) {
-	s := NewScheme()
-	s.AddField("name", FieldTypeString, false)
-	s.AddField("price", FieldTypeFloat, false)
-	s.AddField("quantity", FieldTypeInt, false)
+	s := NewScheme().
+		AddField("name", FieldTypeString, false).
+		AddField("price", FieldTypeFloat, false).
+		AddField("quantity", FieldTypeInt, false)
 
 	// create new empty, fill and to bytes1
 	b := NewBuffer(s)

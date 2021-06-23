@@ -973,7 +973,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets[f.Order].arr = arrayUOffsetT
+			(*offsets)[f.Order].arr = arrayUOffsetT
 		} else if f.Ft == FieldTypeObject {
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedField := b.modifiedFields[f.Order]
@@ -1006,7 +1006,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					}
 				}
 			}
-			offsets[f.Order].obj = nestedUOffsetT
+			(*offsets)[f.Order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
 			stringUOffsetT := flatbuffers.UOffsetT(0)
 			modifiedStringField := b.modifiedFields[f.Order]
@@ -1034,7 +1034,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					stringUOffsetT = bl.CreateByteString(b.tab.ByteVector(offset))
 				}
 			}
-			offsets[f.Order].str = stringUOffsetT
+			(*offsets)[f.Order].str = stringUOffsetT
 		}
 	}
 
@@ -1049,13 +1049,13 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		isSet := false
 		offsetToWrite := flatbuffers.UOffsetT(0)
 		if f.IsArray {
-			offsetToWrite = offsets[f.Order].arr
+			offsetToWrite = (*offsets)[f.Order].arr
 		} else {
 			switch f.Ft {
 			case FieldTypeString:
-				offsetToWrite = offsets[f.Order].str
+				offsetToWrite = (*offsets)[f.Order].str
 			case FieldTypeObject:
-				offsetToWrite = offsets[f.Order].obj
+				offsetToWrite = (*offsets)[f.Order].obj
 			default:
 				modifiedField := b.modifiedFields[f.Order]
 				if modifiedField != nil && !modifiedField.isReleased {
@@ -1070,7 +1070,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			}
 		}
 		if f.IsMandatory && offsetToWrite == 0 && !isSet {
-			return 0, fmt.Errorf("Mandatory field %s is not set", f.QualifiedName())
+			return 0, fmt.Errorf("mandatory field %s is not set", f.QualifiedName())
 		}
 		if offsetToWrite > 0 {
 			beforePrepend()
@@ -1387,12 +1387,12 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 		stringUOffsetTs := getUOffsetSlice(len(strArr))
 
 		for i := 0; i < len(strArr); i++ {
-			stringUOffsetTs[i] = bl.CreateString(strArr[i])
+			(*stringUOffsetTs)[i] = bl.CreateString(strArr[i])
 		}
 		bl.StartVector(elemSize, len(strArr), elemSize)
 
 		for i := len(strArr) - 1; i >= 0; i-- {
-			bl.PrependUOffsetT(stringUOffsetTs[i])
+			bl.PrependUOffsetT((*stringUOffsetTs)[i])
 		}
 
 		putUOffsetSlice(stringUOffsetTs)
@@ -1414,13 +1414,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
+					*nestedUOffsetTs = append(*nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, err := arr.Slice[i].encodeBuffer(bl)
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
+					*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
 		case []*Buffer:
@@ -1434,13 +1434,13 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
+					*nestedUOffsetTs = append(*nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, err := arr[i].encodeBuffer(bl)
 					if err != nil {
 						return 0, err
 					}
-					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
+					*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
 		case *ObjectArray:
@@ -1448,10 +1448,10 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			for arr.Next() {
 				if storeObjectsAsBytes {
 					nestedBytes, _ := arr.Buffer.ToBytes()
-					nestedUOffsetTs = append(nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
+					*nestedUOffsetTs = append(*nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
 				} else {
 					nestedUOffsetT, _ := arr.Buffer.encodeBuffer(bl) // should be no errors here
-					nestedUOffsetTs = append(nestedUOffsetTs, nestedUOffsetT)
+					*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
 				}
 			}
 
@@ -1459,7 +1459,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			return 0, fmt.Errorf("%#v provided for field %s is not an array of nested objects", value, f.QualifiedName())
 		}
 
-		if len(nestedUOffsetTs) == 0 {
+		if len(*nestedUOffsetTs) == 0 {
 			return 0, nil // empty nested objects array -> skip
 		}
 
@@ -1472,23 +1472,23 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			for i := 0; toAppendToArr.Next(); i++ {
 				if storeObjectsAsBytes {
 					bufBytes, _ := toAppendToArr.Buffer.ToBytes()
-					toAppendToUOffsetTs[i] = bl.CreateByteVector(bufBytes)
+					(*toAppendToUOffsetTs)[i] = bl.CreateByteVector(bufBytes)
 				} else {
-					toAppendToUOffsetTs[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
+					(*toAppendToUOffsetTs)[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
 				}
 			}
 
-			toAppendToUOffsetTs = append(toAppendToUOffsetTs, nestedUOffsetTs...)
+			*toAppendToUOffsetTs = append(*toAppendToUOffsetTs, *nestedUOffsetTs...)
 
 			nestedUOffsetTs = toAppendToUOffsetTs
 		}
 
-		bl.StartVector(elemSize, len(nestedUOffsetTs), elemSize)
-		for i := len(nestedUOffsetTs) - 1; i >= 0; i-- {
-			bl.PrependUOffsetT(nestedUOffsetTs[i])
+		bl.StartVector(elemSize, len(*nestedUOffsetTs), elemSize)
+		for i := len(*nestedUOffsetTs) - 1; i >= 0; i-- {
+			bl.PrependUOffsetT((*nestedUOffsetTs)[i])
 		}
 
-		o := bl.EndVector(len(nestedUOffsetTs))
+		o := bl.EndVector(len(*nestedUOffsetTs))
 
 		return o, nil
 	}
@@ -1883,30 +1883,35 @@ func NewScheme() *Scheme {
 }
 
 // AddField adds field
-func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) {
+func (s *Scheme) AddField(name string, ft FieldType, isMandatory bool) *Scheme {
 	s.AddFieldC(name, ft, nil, isMandatory, false)
+	return s
 }
 
 // AddArray adds array field
-func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) {
+func (s *Scheme) AddArray(name string, elementType FieldType, isMandatory bool) *Scheme {
 	s.AddFieldC(name, elementType, nil, isMandatory, true)
+	return s
 }
 
 // AddNested adds nested object field
-func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) {
+func (s *Scheme) AddNested(name string, nested *Scheme, isMandatory bool) *Scheme {
 	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, false)
+	return s
 }
 
 // AddNestedArray adds array of nested objects field
-func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) {
+func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) *Scheme {
 	s.AddFieldC(name, FieldTypeObject, nested, isMandatory, true)
+	return s
 }
 
 // AddFieldC adds new finely-tuned field
-func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) {
+func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) *Scheme {
 	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, IsArray}
 	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
+	return s
 }
 
 // MarshalYAML marshals Scheme to yaml. Needs to conform to yaml.Marshaler interface
