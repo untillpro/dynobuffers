@@ -1055,7 +1055,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			case FieldTypeString:
 				offsetToWrite = (*offsets)[f.Order].str
 			case FieldTypeObject:
-				offsetToWrite =(* offsets)[f.Order].obj
+				offsetToWrite = (*offsets)[f.Order].obj
 			default:
 				modifiedField := b.modifiedFields[f.Order]
 				if modifiedField != nil && !modifiedField.isReleased {

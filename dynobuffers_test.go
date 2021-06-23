@@ -1017,7 +1017,6 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	copyBytes(bytes)
 	b.Release()
 
 	// apply json map
