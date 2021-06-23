@@ -223,15 +223,6 @@ func TestWriteOldReadNew(t *testing.T) {
 	require.Zero(t, GetObjectsInUse())
 }
 
-func stringArrayContains(arr []string, str string) bool {
-	for _, s := range arr {
-		if s == str {
-			return true
-		}
-	}
-	return false
-}
-
 func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 	for i, f := range b.Scheme.Fields {
 		if f.Ft != FieldTypeObject {
@@ -485,24 +476,6 @@ func TestToJSONMapBasic(t *testing.T) {
 	b.Release()
 
 	require.Zero(t, GetObjectsInUse())
-}
-
-func TestErr(t *testing.T) {
-	s, err := YamlToScheme(arraysAllTypesYaml)
-	require.Nil(t, err)
-	b := NewBuffer(s)
-
-	bytes, _, err := b.ApplyJSONAndToBytes([]byte(`{"ints": [42, 43]}`))
-	require.Nil(t, err)
-	bytes = copyBytes(bytes)
-	b.Release()
-
-	b = ReadBuffer(bytes, s)
-	bytes, _, err = b.ApplyJSONAndToBytes([]byte(`{"ints": []}`))
-	require.Nil(t, err)
-	bytes = copyBytes(bytes)
-	b.Release()
-
 }
 
 func TestApplyJSONArrays(t *testing.T) {
