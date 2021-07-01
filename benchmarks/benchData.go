@@ -14,9 +14,9 @@ import (
 
 var (
 
-/*
-{"viewMods": [{"viewType": "usertable","partitionKey":{"value": "user40"},"clusterKey":{"value": "52466453699787802"},"values":{"field0":0[u+S=3P#)&v3Uc\"/60'z&^{17>9Po%Z%1C-06d>C-&D+0Rm0^)5!d3::570;Ri7Y'5Ow*&|.%h?=l:A#<Jk ^7!$p:6v6Ww:Gm;","field1": ")\"60A?+Wg\"Ew;Tk:<v7D5$Oc*@u:-p\"T/%E/'K75_-0_%9Jc8L}\"P58Xi6N2Uo;^q(]')D%1b;W7.S;89n/; ) ~4H10[=.#b:","field2": ";P9 !>-)0!; # $(+>8Wm3Cs<#h*Q/5N18A;$9v7D-19($H/$$d*I{>T5):f?@5=Aw$ :49n68\"1&65Uc;+x3Ay+[o?])(((;2b>","field3": ";P3 ]7 >v/P1 Q55J'9Mq6O} &\"$P{/+|2R}#6v/4~6R9)Ky.Zw/:*3A/<Y},Yk/(>?V3%8|5:b.J{#3x+^+03 4Vg#Og?/p&W=<","field4": "9Hq?B{\"- <Qa4Y-(Ku$<60#d##p*?6&+x/..&5l:0v'T3-Cw:., '(( :4Zw9; 8Um 80=<>7L%9+l6R?1(z??x;.4$Bu2W5%Mw7","field5": "$Q3$22;=t:@k#U),5z%Yy'Ke(5r:S%?G!<Hg1Ii2Fi26p*E?8<j2\"8W-126.D%)&v1!v:]w , $Bq/04 Wk%+$5Ia,$$)3x4^#4","field6": "<M#)*b'U!4L?;>x#.l766,^a*@;9Qa%*+;n(C7$\\q9=3&|9I5$/f,S5(/f7T38]31Wg;:,(&:)(r%#|'=f3Sw#M1/G+0V7.$n>","field7": "35\"-H'1]};..1[!5Q7$$( Fk5C5!?.\"1>)/$%Tw\"E}$Mq\"\"r2Ia?Ni$\",<Xi#9\"5!t\"Be:U+#/f+-~51.,N{8\\{:I%5Fc*Hi1=,%","field8": ";5$<Ce4O%1:<.=:,8~:-|++()Ie65b4-t6Mw#2b\"6r9M5(\"h756,\\y8^k>\"~<M)(V1$Ig:. 5;44Rg6@50 $890<.d(+*8>t*Z+-","field9": "&Co3^g.+ ,.\"-Mc;,d!/z\"(48[u+_!=b\"Fu4#8-/z0Wg&W-%.r3+l'/r3/4'^3%(()Z%)2.%\"|#Bw6Y)5!*1'V9!J#93*9Ea7"}}]}
-*/
+	/*
+	   {"viewMods": [{"viewType": "usertable","partitionKey":{"value": "user40"},"clusterKey":{"value": "52466453699787802"},"values":{"field0":0[u+S=3P#)&v3Uc\"/60'z&^{17>9Po%Z%1C-06d>C-&D+0Rm0^)5!d3::570;Ri7Y'5Ow*&|.%h?=l:A#<Jk ^7!$p:6v6Ww:Gm;","field1": ")\"60A?+Wg\"Ew;Tk:<v7D5$Oc*@u:-p\"T/%E/'K75_-0_%9Jc8L}\"P58Xi6N2Uo;^q(]')D%1b;W7.S;89n/; ) ~4H10[=.#b:","field2": ";P9 !>-)0!; # $(+>8Wm3Cs<#h*Q/5N18A;$9v7D-19($H/$$d*I{>T5):f?@5=Aw$ :49n68\"1&65Uc;+x3Ay+[o?])(((;2b>","field3": ";P3 ]7 >v/P1 Q55J'9Mq6O} &\"$P{/+|2R}#6v/4~6R9)Ky.Zw/:*3A/<Y},Yk/(>?V3%8|5:b.J{#3x+^+03 4Vg#Og?/p&W=<","field4": "9Hq?B{\"- <Qa4Y-(Ku$<60#d##p*?6&+x/..&5l:0v'T3-Cw:., '(( :4Zw9; 8Um 80=<>7L%9+l6R?1(z??x;.4$Bu2W5%Mw7","field5": "$Q3$22;=t:@k#U),5z%Yy'Ke(5r:S%?G!<Hg1Ii2Fi26p*E?8<j2\"8W-126.D%)&v1!v:]w , $Bq/04 Wk%+$5Ia,$$)3x4^#4","field6": "<M#)*b'U!4L?;>x#.l766,^a*@;9Qa%*+;n(C7$\\q9=3&|9I5$/f,S5(/f7T38]31Wg;:,(&:)(r%#|'=f3Sw#M1/G+0V7.$n>","field7": "35\"-H'1]};..1[!5Q7$$( Fk5C5!?.\"1>)/$%Tw\"E}$Mq\"\"r2Ia?Ni$\",<Xi#9\"5!t\"Be:U+#/f+-~51.,N{8\\{:I%5Fc*Hi1=,%","field8": ";5$<Ce4O%1:<.=:,8~:-|++()Ie65b4-t6Mw#2b\"6r9M5(\"h756,\\y8^k>\"~<M)(V1$Ig:. 5;44Rg6@50 $890<.d(+*8>t*Z+-","field9": "&Co3^g.+ ,.\"-Mc;,d!/z\"(48[u+_!=b\"Fu4#8-/z0Wg&W-%.r3+l'/r3/4'^3%(()Z%)2.%\"|#Bw6Y)5!*1'V9!J#93*9Ea7"}}]}
+	*/
 
 	testData = []byte(`
 {
@@ -43,291 +43,291 @@ var (
 	}]
 }`)
 	pbillYaml string = `
-Id: long
-Id_bill: long
-Id_untill_users: long
-number: int
-failurednumber: int
+Id: int64
+Id_bill: int64
+Id_untill_users: int64
+number: int32
+failurednumber: int32
 suffix: string
 pdatetime: string
-id_sales_area: long
+id_sales_area: int64
 pcname: string
-service_charge: double
+service_charge: float64
 real_datetime: string
-tips: float
-id_clients: long
-pbill_index: int
-split_parts: double
-id_real_untill_user: long
+tips: float32
+id_clients: int64
+pbill_index: int32
+split_parts: float64
+id_real_untill_user: int64
 reopen_type: byte
 external_id: string
-covers: int
+covers: int32
 hht: string
-super_dx: long
-c_tips: float
-id_currency: long
+super_dx: int64
+c_tips: float32
+id_currency: int64
 bill:
-  Id: long
-  Tableno: int
-  Id_untill_users: long
+  Id: int64
+  Tableno: int32
+  Id_untill_users: int64
   Table_part: string
-  id_courses: long
-  id_clients: long
+  id_courses: int64
+  id_clients: int64
   name: string
   Proforma: byte
   modified: string
   open_datetime: string
   close_datetime: string
-  number: int
-  failurednumber: int
+  number: int32
+  failurednumber: int32
   suffix: string
-  pbill_number: int
-  pbill_failurednumber: int
+  pbill_number: int32
+  pbill_failurednumber: int32
   pbill_suffix: string
-  hc_foliosequence: int
+  hc_foliosequence: int32
   hc_folionumber: string
-  tip: float
-  qty_persons: int
+  tip: float32
+  qty_persons: int32
   isdirty: byte
   reservationid: string
-  id_alter_user: long
-  service_charge: double
-  number_of_covers: int
-  id_user_proforma: long
+  id_alter_user: int64
+  service_charge: float64
+  number_of_covers: int32
+  id_user_proforma: int64
   bill_type: byte
-  locker: int
-  id_time_article: long
+  locker: int32
+  id_time_article: int64
   timer_start: string
   timer_stop: string
   isactive: byte
   table_name: string
   group_vat_level: byte
   comments: string
-  id_cardprice: long
-  discount: double
-  discount_value: float
-  id_discount_reasons: long
+  id_cardprice: int64
+  discount: float64
+  discount_value: float32
+  id_discount_reasons: int64
   hc_roomnumber: string
   ignore_auto_sc: byte
   extra_fields..: byte
-  id_bo_service_charge: long
+  id_bo_service_charge: int64
   free_comments: string
-  id_t2o_groups: long
-  service_tax: float
+  id_t2o_groups: int64
+  service_tax: float32
   sc_plan..: byte
   client_phone: string
   age: string
   description..: byte
   sdescription: string
   vars..: byte
-  take_away: int
-  fiscal_number: int
-  fiscal_failurednumber: int
+  take_away: int32
+  fiscal_number: int32
+  fiscal_failurednumber: int32
   fiscal_suffix: string
-  id_order_type: long
-  not_paid: float
-  total: float
+  id_order_type: int64
+  not_paid: float32
+  total: float32
 bill_reprints..:
-  Id: long
-  Id_pbill: long
+  Id: int64
+  Id_pbill: int64
   datetime: string
-  id_untill_users: long
+  id_untill_users: int64
 bill_split_rest..:
-  Id: long
-  id_bill: long
+  Id: int64
+  id_bill: int64
   is_active: byte
   split_data..: byte
   datetime: string
-  id_pbill: long
+  id_pbill: int64
 complete_meal..:
-  Id: long
-  id_pbill: long
-  id_untill_users: long
+  Id: int64
+  id_pbill: int64
+  id_untill_users: int64
   cm_datetime: string
   cm_pcname: string
-  cm_quantity: int
-  cm_price: float
+  cm_quantity: int32
+  cm_price: float32
 neg_pbill..:
-  Id: long
-  Id_pbill: long
+  Id: int64
+  Id_pbill: int64
   R_type: byte
   pdatetime: string
-  id_pbill_close: long
+  id_pbill_close: int64
 open_discounts..:
-  Id: long
-  Id_pbill: long
-  amount: float
-  vat_percent: float
-  vat: double
+  Id: int64
+  Id_pbill: int64
+  amount: float32
+  vat_percent: float32
+  vat: float64
 pbill_balance..:
-  Id: long
-  id_pbill: long
-  id_clients: long
-  id_accounts: long
-  pre_balance: float
-  pre_balance_common: float
+  Id: int64
+  id_pbill: int64
+  id_clients: int64
+  id_accounts: int64
+  pre_balance: float32
+  pre_balance_common: float32
 pbill_cleancash_info..:
-  Id: long
-  id_pbill: long
-  clean_cash_trnumber: long
+  Id: int64
+  id_pbill: int64
+  clean_cash_trnumber: int64
   clean_cash_signature: string
   manufacturing_code: string
   control_timestamp: string
   ticket_counter: string
   vsc_id: string
   plu_data_hash: string
-  id_bill: long
+  id_bill: int64
   ccdatetime: string
   kind: byte
   production_nr: string
   extra1: string
   extra2: string
 pbill_email..:
-  Id: long
-  id_pbill: long
+  Id: int64
+  id_pbill: int64
   pemail_email: string
   pemail_body..: byte
   pemail_dt: string
   pemail_state: byte
 pbill_item..:
-  Id: long
-  Id_pbill: long
-  Id_untill_users: long
-  Tableno: int
+  Id: int64
+  Id_pbill: int64
+  Id_untill_users: int64
+  Tableno: int32
   Rowbeg: byte
   Kind: byte
-  Quantity: int
-  id_articles: long
-  Price: float
+  Quantity: int32
+  id_articles: int64
+  Price: float32
   text: string
-  id_prices: long
-  with_without: int
-  id_courses: long
+  id_prices: int64
+  with_without: int32
+  id_courses: int64
   pdatetime: string
-  purchase_price: float
+  purchase_price: float32
   vat_sign: string
-  vat: double
-  id_menu: long
-  menu_quantity: int
-  original_price: float
-  id_discount_reasons: long
-  discount_type: int
-  chair_number: int
+  vat: float64
+  id_menu: int64
+  menu_quantity: int32
+  original_price: float32
+  id_discount_reasons: int64
+  discount_type: int32
+  chair_number: int32
   separated: byte
   negative: byte
-  vat_percent: float
+  vat_percent: float32
   chair_name: string
-  id_option_article: long
-  start_delay_minutes: int
+  id_option_article: int64
+  start_delay_minutes: int32
   pua: byte
   no_price: byte
-  orig_pbill_id: long
-  parts_id: long
+  orig_pbill_id: int64
+  parts_id: int64
   full_paid: byte
-  weight: float
-  splitted_coef: double
-  split_id: long
+  weight: float32
+  splitted_coef: float64
+  split_id: int64
   free_comments: string
-  id_smartcards: long
+  id_smartcards: int64
   has_allergens: byte
-  id_article_options: long
+  id_article_options: int64
   order_item_allergens..:
-    Id: long
-    id_order_item: long
-    id_menu_item: long
-    id_allergens: long
+    Id: int64
+    id_order_item: int64
+    id_menu_item: int64
+    id_allergens: int64
     text: string
-    id_pbill_item: long
+    id_pbill_item: int64
   order_item_extra..:
-    Id: long
-    id_order_item: long
-    id_menu_item: long
-    id_pbill_item: long
-    id_article_barcodes: long
+    Id: int64
+    id_order_item: int64
+    id_menu_item: int64
+    id_pbill_item: int64
+    id_article_barcodes: int64
   order_item_sizes..:
-    Id: long
-    id_order_item: long
-    id_menu_item: long
-    id_pbill_item: long
-    id_articles: long
-    price: float
-    original_price: float
-    vat: double
-    id_size_modifier_item: long
+    Id: int64
+    id_order_item: int64
+    id_menu_item: int64
+    id_pbill_item: int64
+    id_articles: int64
+    price: float32
+    original_price: float32
+    vat: float64
+    id_size_modifier_item: int64
   pbill_hash..:
-    Id: long
-    Id_pbill_item: long
-    Id_untill_users: long
+    Id: int64
+    Id_pbill_item: int64
+    Id_untill_users: int64
   pbill_item_bookp..:
-    Id: long
-    id_pbill_item: long
-    id_bookkeeping_turnover: long
-    id_bookkeeping_vat: long
+    Id: int64
+    id_pbill_item: int64
+    id_bookkeeping_turnover: int64
+    id_bookkeeping_vat: int64
 pbill_item_refund..:
-  Id: long
-  Id_pbill: long
-  Id_untill_users: long
-  Tableno: int
+  Id: int64
+  Id_pbill: int64
+  Id_untill_users: int64
+  Tableno: int32
   Rowbeg: byte
   Kind: byte
-  Quantity: int
-  id_articles: long
-  id_department: long
-  id_food_group: long
-  id_category: long
-  Price: float
+  Quantity: int32
+  id_articles: int64
+  id_department: int64
+  id_food_group: int64
+  id_category: int64
+  Price: float32
   text: string
-  id_prices: long
-  with_without: int
-  id_courses: long
+  id_prices: int64
+  with_without: int32
+  id_courses: int64
   pdatetime: string
-  purchase_price: float
+  purchase_price: float32
   vat_sign: string
-  vat: double
-  id_menu: long
-  menu_quantity: int
+  vat: float64
+  id_menu: int64
+  menu_quantity: int32
   ref_type: byte
 pbill_payments..:
-  Id: long
-  Id_pbill: long
-  Id_payments: long
-  Price: float
-  customer_amount: float
-  c_price: float
-  c_customer_amount: float
-  vat: float
-  id_driver_discount: long
+  Id: int64
+  Id_pbill: int64
+  Id_payments: int64
+  Price: float32
+  customer_amount: float32
+  c_price: float32
+  c_customer_amount: float32
+  vat: float32
+  id_driver_discount: int64
   accounts_payments..:
-    Id: long
+    Id: int64
     datetime: string
-    Id_clients: long
-    Id_untill_users: long
-    tableno: int
+    Id_clients: int64
+    Id_untill_users: int64
+    tableno: int32
     tablepart: string
-    number: int
+    number: int32
     suffix: string
     name: string
     tr_datetime: string
     bill_number: string
     parts_count: byte
     part_index: byte
-    discount: double
-    id_sales_area: long
-    total: float
+    discount: float64
+    id_sales_area: int64
+    total: float32
     account_type: byte
     payer_name: string
-    id_pbill_payments: long
+    id_pbill_payments: int64
   account_payment_data..:
-    Id: long
-    id_pbill_payments: long
+    Id: int64
+    id_pbill_payments: int64
     account_type: byte
   payments_hash..:
-    Id: long
-    Id_payments: long
-    Id_untill_users: long
+    Id: int64
+    Id_payments: int64
+    Id_untill_users: int64
   pbill_card_payments_info..:
-    Id: long
-    Id_pbill_payments: long
+    Id: int64
+    Id_pbill_payments: int64
     masked_pan: string
     pan: string
     expire: string
@@ -339,11 +339,11 @@ pbill_payments..:
     field4: string
     field5: string
     track2data: string
-    loyaltyamount: long
+    loyaltyamount: int64
     controlno: string
-    chargetype: int
+    chargetype: int32
     cardname: string
-    cardnoentertype: int
+    cardnoentertype: int32
     terminalid: string
     aid: string
     tvr: string
@@ -360,94 +360,94 @@ pbill_payments..:
     field9: string
     field10: string
     merchant_id: string
-    cashback_amount: long
+    cashback_amount: int64
     field11: string
     field12: string
     field13: string
     field14: string
     field15: string
   pbill_payer..:
-    Id: long
-    id_pbill_payments: long
+    Id: int64
+    id_pbill_payments: int64
     payer_name: string
   pbill_payments_bookp..:
-    Id: long
-    id_pbill_payments: long
-    id_bookkeeping: long
+    Id: int64
+    id_pbill_payments: int64
+    id_bookkeeping: int64
   pbill_zapper_payments_info..:
-    Id: long
-    Id_pbill_payments: long
-    Id_zapper_proformas: long
+    Id: int64
+    Id_pbill_payments: int64
+    Id_zapper_proformas: int64
     zapper_id: string
     misc_data..: byte
   psp_tips..:
-    Id: long
-    Id_pbill: long
-    amount: float
-    id_pbill_payments: long
+    Id: int64
+    Id_pbill: int64
+    amount: float32
+    id_pbill_payments: int64
   smartcards_turnover..:
-    Id: long
+    Id: int64
     datetime: string
-    Id_smartcards: long
-    Id_untill_users: long
+    Id_smartcards: int64
+    Id_untill_users: int64
     kind: byte
-    amount: float
-    p_amount: float
-    id_pbill_payments: long
-    id_payments: long
+    amount: float32
+    p_amount: float32
+    id_pbill_payments: int64
+    id_payments: int64
     is_initial_value: byte
     card_data..: byte
-    deposit_number: int
+    deposit_number: int32
     deposit_suffix: string
     pcname: string
-    new_balance: float
+    new_balance: float32
   voucher_payments..:
-    Id: long
-    id_vouchers: long
-    id_pbill_payments: long
+    Id: int64
+    id_vouchers: int64
+    id_pbill_payments: int64
     used_dt: string
   voucher_pbill_payments..:
-    Id: long
-    id_voucher_pbill: long
-    price: float
-    id_vouchers: long
-    id_payments: long
-    id_pbill_payments: long
+    Id: int64
+    id_voucher_pbill: int64
+    price: float32
+    id_vouchers: int64
+    id_payments: int64
+    id_pbill_payments: int64
 pbill_return..:
-  Id: long
-  id_pbill: long
+  Id: int64
+  id_pbill: int64
   ref_type: byte
-  id_void_reason: long
+  id_void_reason: int64
   void_text: string
 psp_tips..:
-  Id: long
-  Id_pbill: long
-  amount: float
-  id_pbill_payments: long
+  Id: int64
+  Id_pbill: int64
+  amount: float32
+  id_pbill_payments: int64
 sold_articles..:
-  Id: long
-  id_pbill: long
-  id_order_item: long
-  quantity: int
-  parts_id: long
-  sa_coef: double
-  split_id: long
+  Id: int64
+  id_pbill: int64
+  id_order_item: int64
+  quantity: int32
+  parts_id: int64
+  sa_coef: float64
+  split_id: int64
 sold_articles_wm..:
-  Id: long
-  id_order_item: long
-  id_pbill: long
-  quantity: int
-  sa_coef: double
+  Id: int64
+  id_order_item: int64
+  id_pbill: int64
+  quantity: int32
+  sa_coef: float64
 stock_doc..:
-  Id: long
-  id_orders: long
-  id_pbill: long
-  id_stock_invoice: long
-  id_stock_adjustment: long
-  id_stock_cost_correction: long
+  Id: int64
+  id_orders: int64
+  id_pbill: int64
+  id_stock_invoice: int64
+  id_stock_adjustment: int64
+  id_stock_cost_correction: int64
 stock_pbill_queue..:
-  Id: long
-  Id_pbill: long
+  Id: int64
+  Id_pbill: int64
   pdatetime: string
 `
 )
@@ -727,108 +727,108 @@ func fillArticleDynoBuffer(bf *dynobuffers.Buffer) {
 
 func getArticleSchemeDynoBuffer() *dynobuffers.Scheme {
 	s := dynobuffers.NewScheme()
-	s.AddField("id", dynobuffers.FieldTypeLong, false)
-	s.AddField("article_number", dynobuffers.FieldTypeInt, false)
+	s.AddField("id", dynobuffers.FieldTypeInt64, false)
+	s.AddField("article_number", dynobuffers.FieldTypeInt32, false)
 	s.AddField("name", dynobuffers.FieldTypeString, false)
 	s.AddField("internal_name", dynobuffers.FieldTypeString, false)
 	s.AddField("article_manual", dynobuffers.FieldTypeBool, false)
 	s.AddField("article_hash", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_courses", dynobuffers.FieldTypeLong, false)
-	s.AddField("id_departament", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_courses", dynobuffers.FieldTypeInt64, false)
+	s.AddField("id_departament", dynobuffers.FieldTypeInt64, false)
 	s.AddField("pc_bitmap", dynobuffers.FieldTypeString, false) // blob
-	s.AddField("pc_color", dynobuffers.FieldTypeInt, false)
+	s.AddField("pc_color", dynobuffers.FieldTypeInt32, false)
 	s.AddField("pc_text", dynobuffers.FieldTypeString, false)
 	s.AddField("pc_font_name", dynobuffers.FieldTypeString, false)
-	s.AddField("pc_font_size", dynobuffers.FieldTypeInt, false)
-	s.AddField("pc_font_attr", dynobuffers.FieldTypeInt, false)
-	s.AddField("pc_font_color", dynobuffers.FieldTypeInt, false)
+	s.AddField("pc_font_size", dynobuffers.FieldTypeInt32, false)
+	s.AddField("pc_font_attr", dynobuffers.FieldTypeInt32, false)
+	s.AddField("pc_font_color", dynobuffers.FieldTypeInt32, false)
 	s.AddField("rm_text", dynobuffers.FieldTypeString, false)
-	s.AddField("rm_font_size", dynobuffers.FieldTypeInt, false)
-	s.AddField("id_packing", dynobuffers.FieldTypeLong, false)
-	s.AddField("id_commission", dynobuffers.FieldTypeLong, false)
-	s.AddField("id_promotions", dynobuffers.FieldTypeLong, false)
-	s.AddField("savepoints", dynobuffers.FieldTypeInt, false)
-	s.AddField("quantity", dynobuffers.FieldTypeInt, false)
+	s.AddField("rm_font_size", dynobuffers.FieldTypeInt32, false)
+	s.AddField("id_packing", dynobuffers.FieldTypeInt64, false)
+	s.AddField("id_commission", dynobuffers.FieldTypeInt64, false)
+	s.AddField("id_promotions", dynobuffers.FieldTypeInt64, false)
+	s.AddField("savepoints", dynobuffers.FieldTypeInt32, false)
+	s.AddField("quantity", dynobuffers.FieldTypeInt32, false)
 	s.AddField("hideonhold", dynobuffers.FieldTypeBool, false)
 	s.AddField("barcode", dynobuffers.FieldTypeString, false)
 	s.AddField("time_active", dynobuffers.FieldTypeBool, false)
-	s.AddField("aftermin", dynobuffers.FieldTypeInt, false)
-	s.AddField("periodmin", dynobuffers.FieldTypeInt, false)
-	s.AddField("roundmin", dynobuffers.FieldTypeInt, false)
-	s.AddField("id_currency", dynobuffers.FieldTypeLong, false)
+	s.AddField("aftermin", dynobuffers.FieldTypeInt32, false)
+	s.AddField("periodmin", dynobuffers.FieldTypeInt32, false)
+	s.AddField("roundmin", dynobuffers.FieldTypeInt32, false)
+	s.AddField("id_currency", dynobuffers.FieldTypeInt64, false)
 	s.AddField("control_active", dynobuffers.FieldTypeBool, false)
-	s.AddField("control_time", dynobuffers.FieldTypeInt, false)
-	s.AddField("plu_number_vanduijnen", dynobuffers.FieldTypeInt, false)
-	s.AddField("sequence", dynobuffers.FieldTypeInt, false)
-	s.AddField("rm_sequence", dynobuffers.FieldTypeInt, false)
-	s.AddField("purchase_price", dynobuffers.FieldTypeFloat, false)
-	s.AddField("id_vd_group", dynobuffers.FieldTypeLong, false)
+	s.AddField("control_time", dynobuffers.FieldTypeInt32, false)
+	s.AddField("plu_number_vanduijnen", dynobuffers.FieldTypeInt32, false)
+	s.AddField("sequence", dynobuffers.FieldTypeInt32, false)
+	s.AddField("rm_sequence", dynobuffers.FieldTypeInt32, false)
+	s.AddField("purchase_price", dynobuffers.FieldTypeFloat32, false)
+	s.AddField("id_vd_group", dynobuffers.FieldTypeInt64, false)
 	s.AddField("menu", dynobuffers.FieldTypeBool, false)
 	s.AddField("sensitive", dynobuffers.FieldTypeBool, false)
 	s.AddField("sensitive_option", dynobuffers.FieldTypeBool, false)
-	s.AddField("daily_stock", dynobuffers.FieldTypeInt, false)
+	s.AddField("daily_stock", dynobuffers.FieldTypeInt32, false)
 	s.AddField("info", dynobuffers.FieldTypeString, false)
-	s.AddField("warning_level", dynobuffers.FieldTypeInt, false)
-	s.AddField("free_after_pay", dynobuffers.FieldTypeInt, false)
-	s.AddField("id_food_group", dynobuffers.FieldTypeLong, false)
+	s.AddField("warning_level", dynobuffers.FieldTypeInt32, false)
+	s.AddField("free_after_pay", dynobuffers.FieldTypeInt32, false)
+	s.AddField("id_food_group", dynobuffers.FieldTypeInt64, false)
 	s.AddField("article_type", dynobuffers.FieldTypeByte, false)
-	s.AddField("id_inventory_item", dynobuffers.FieldTypeLong, false)
-	s.AddField("id_recipe", dynobuffers.FieldTypeLong, false)
-	s.AddField("id_unity_sales", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_inventory_item", dynobuffers.FieldTypeInt64, false)
+	s.AddField("id_recipe", dynobuffers.FieldTypeInt64, false)
+	s.AddField("id_unity_sales", dynobuffers.FieldTypeInt64, false)
 	s.AddField("can_savepoints", dynobuffers.FieldTypeBool, false)
 	s.AddField("show_in_kitchen_screen", dynobuffers.FieldTypeBool, false)
-	s.AddField("decrease_savepoints", dynobuffers.FieldTypeInt, false)
-	s.AddField("hht_color", dynobuffers.FieldTypeInt, false)
+	s.AddField("decrease_savepoints", dynobuffers.FieldTypeInt32, false)
+	s.AddField("hht_color", dynobuffers.FieldTypeInt32, false)
 	s.AddField("hht_font_name", dynobuffers.FieldTypeString, false)
-	s.AddField("hht_font_size", dynobuffers.FieldTypeInt, false)
-	s.AddField("hht_font_attr", dynobuffers.FieldTypeInt, false)
-	s.AddField("hht_font_color", dynobuffers.FieldTypeInt, false)
+	s.AddField("hht_font_size", dynobuffers.FieldTypeInt32, false)
+	s.AddField("hht_font_attr", dynobuffers.FieldTypeInt32, false)
+	s.AddField("hht_font_color", dynobuffers.FieldTypeInt32, false)
 	s.AddField("tip", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_beco_group", dynobuffers.FieldTypeLong, false)
-	s.AddField("id_beco_location", dynobuffers.FieldTypeLong, false)
-	s.AddField("bc_standard_dosage", dynobuffers.FieldTypeInt, false)
-	s.AddField("bc_alternative_dosage", dynobuffers.FieldTypeInt, false)
+	s.AddField("id_beco_group", dynobuffers.FieldTypeInt64, false)
+	s.AddField("id_beco_location", dynobuffers.FieldTypeInt64, false)
+	s.AddField("bc_standard_dosage", dynobuffers.FieldTypeInt32, false)
+	s.AddField("bc_alternative_dosage", dynobuffers.FieldTypeInt32, false)
 	s.AddField("bc_disablebalance", dynobuffers.FieldTypeBool, false)
 	s.AddField("bc_use_locations", dynobuffers.FieldTypeBool, false)
-	s.AddField("time_rate", dynobuffers.FieldTypeFloat, false)
-	s.AddField("id_free_option", dynobuffers.FieldTypeLong, false)
+	s.AddField("time_rate", dynobuffers.FieldTypeFloat32, false)
+	s.AddField("id_free_option", dynobuffers.FieldTypeInt64, false)
 	s.AddField("party_article", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_pua_groups", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_pua_groups", dynobuffers.FieldTypeInt64, false)
 	s.AddField("promo", dynobuffers.FieldTypeBool, false)
-	s.AddField("one_hand_limit", dynobuffers.FieldTypeInt, false)
-	s.AddField("consolidate_quantity", dynobuffers.FieldTypeInt, false)
+	s.AddField("one_hand_limit", dynobuffers.FieldTypeInt32, false)
+	s.AddField("consolidate_quantity", dynobuffers.FieldTypeInt32, false)
 	s.AddField("consolidate_alias_name", dynobuffers.FieldTypeString, false)
 	s.AddField("hq_id", dynobuffers.FieldTypeString, false)
 	s.AddField("is_active", dynobuffers.FieldTypeBool, false)
-	s.AddField("is_active_modified", dynobuffers.FieldTypeInt, false) // timestamp
+	s.AddField("is_active_modified", dynobuffers.FieldTypeInt32, false) // timestamp
 	s.AddField("is_active_modifier", dynobuffers.FieldTypeString, false)
 	s.AddField("rent_price_type", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_rental_group", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_rental_group", dynobuffers.FieldTypeInt64, false)
 	s.AddField("condition_check_in_order", dynobuffers.FieldTypeBool, false)
 	s.AddField("weight_required", dynobuffers.FieldTypeBool, false)
-	s.AddField("daily_numeric_1", dynobuffers.FieldTypeFloat, false)
-	s.AddField("daily_numeric_2", dynobuffers.FieldTypeFloat, false)
-	s.AddField("prep_min", dynobuffers.FieldTypeInt, false)
-	s.AddField("id_article_ksp", dynobuffers.FieldTypeLong, false)
-	s.AddField("warn_min", dynobuffers.FieldTypeInt, false)
+	s.AddField("daily_numeric_1", dynobuffers.FieldTypeFloat32, false)
+	s.AddField("daily_numeric_2", dynobuffers.FieldTypeFloat32, false)
+	s.AddField("prep_min", dynobuffers.FieldTypeInt32, false)
+	s.AddField("id_article_ksp", dynobuffers.FieldTypeInt64, false)
+	s.AddField("warn_min", dynobuffers.FieldTypeInt32, false)
 	s.AddField("empty_article", dynobuffers.FieldTypeBool, false)
 	s.AddField("bc_debitcredit", dynobuffers.FieldTypeBool, false)
-	s.AddField("prep_sec", dynobuffers.FieldTypeInt, false)
-	s.AddField("id_suppliers", dynobuffers.FieldTypeLong, false)
+	s.AddField("prep_sec", dynobuffers.FieldTypeInt32, false)
+	s.AddField("id_suppliers", dynobuffers.FieldTypeInt64, false)
 	s.AddField("main_price", dynobuffers.FieldTypeBool, false)
 	s.AddField("oman_text", dynobuffers.FieldTypeString, false)
-	s.AddField("id_age_groups", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_age_groups", dynobuffers.FieldTypeInt64, false)
 	s.AddField("surcharge", dynobuffers.FieldTypeBool, false)
 	s.AddField("info_data", dynobuffers.FieldTypeString, false) //blob
 	s.AddField("pos_disabled", dynobuffers.FieldTypeBool, false)
 	s.AddField("ml_name", dynobuffers.FieldTypeString, false)    // blob
 	s.AddField("ml_ks_name", dynobuffers.FieldTypeString, false) // blob
-	s.AddField("alt_articles", dynobuffers.FieldTypeLong, false)
+	s.AddField("alt_articles", dynobuffers.FieldTypeInt64, false)
 	s.AddField("alt_alias", dynobuffers.FieldTypeString, false)
 	s.AddField("need_prep", dynobuffers.FieldTypeBool, false)
 	s.AddField("auto_onhold", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_ks_wf", dynobuffers.FieldTypeLong, false)
-	s.AddField("ks_wf_type", dynobuffers.FieldTypeInt, false)
+	s.AddField("id_ks_wf", dynobuffers.FieldTypeInt64, false)
+	s.AddField("ks_wf_type", dynobuffers.FieldTypeInt32, false)
 	s.AddField("ask_course", dynobuffers.FieldTypeBool, false)
 	s.AddField("popup_info", dynobuffers.FieldTypeString, false)
 	s.AddField("allow_order_items", dynobuffers.FieldTypeBool, false)
@@ -837,9 +837,9 @@ func getArticleSchemeDynoBuffer() *dynobuffers.Scheme {
 	s.AddField("has_default_options", dynobuffers.FieldTypeBool, false)
 	s.AddField("hht_default_setting", dynobuffers.FieldTypeBool, false)
 	s.AddField("oman_default_setting", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_rent_periods", dynobuffers.FieldTypeLong, false)
-	s.AddField("delay_separate_mins", dynobuffers.FieldTypeInt, false)
-	s.AddField("id_ksc", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_rent_periods", dynobuffers.FieldTypeInt64, false)
+	s.AddField("delay_separate_mins", dynobuffers.FieldTypeInt32, false)
+	s.AddField("id_ksc", dynobuffers.FieldTypeInt64, false)
 	s.AddField("ml_pc_text", dynobuffers.FieldTypeString, false)   // blob
 	s.AddField("ml_rm_text", dynobuffers.FieldTypeString, false)   // blob
 	s.AddField("ml_oman_text", dynobuffers.FieldTypeString, false) // blob
@@ -849,15 +849,15 @@ func getArticleSchemeDynoBuffer() *dynobuffers.Scheme {
 	s.AddField("allergen", dynobuffers.FieldTypeBool, false)
 	s.AddField("auto_resetcourse", dynobuffers.FieldTypeBool, false)
 	s.AddField("block_transfer", dynobuffers.FieldTypeBool, false)
-	s.AddField("id_size_modifier", dynobuffers.FieldTypeLong, false)
+	s.AddField("id_size_modifier", dynobuffers.FieldTypeInt64, false)
 	return s
 }
 
 func getSimpleScheme() *dynobuffers.Scheme {
 	s, _ := dynobuffers.YamlToScheme(`
 name: string
-price: float
-quantity: int
+price: float32
+quantity: int32
 `)
 	return s
 }

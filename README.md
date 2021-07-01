@@ -31,19 +31,19 @@
 # Usage
 - Describe Scheme
   - By yaml. Field types:
-    - `int` -> `int32`
-    - `long` -> `int64`
-    - `float` -> `float32`
-    - `double` -> `float64`
-    - `bool` -> `bool`
-    - `string` -> `string`
-    - `byte` -> `byte`
+    - `int32`
+    - `int64`
+    - `float32`
+    - `float64`
+    - `bool`
+    - `string`
+    - `byte`
 	```go
 	var schemeStr = `
 	name: string
-	price: float
-	quantity: int
-	Id: long # first letter is capital -> field is mandatory
+	price: float32
+	quantity: int32
+	Id: int64 # first letter is capital -> field is mandatory
 	`
 	scheme, err := dynobuffers.YamlToScheme(schemeStr)
 	if err != nil {
@@ -135,7 +135,8 @@
 - Return `Buffer` to pool to prevent additional memory allocations
   ```go
   b.Release()
-  // b itself, all objects created manually and used in b.Set(), all objects got using `b.Get()` are released also. Nor these objects neither result of `b.ToBytes()` must not be used from now on
+  // b itself, all objects created manually and used in b.Set(), all objects got using `b.Get()` are released also.
+  // nor these objects neither result of `b.ToBytes()` must not be used from now on
   ```
 - Iterate over fields which has value
   ```go
@@ -158,9 +159,9 @@
 	var schemeStr := `
 	name: string
 	Nested:
-	  nes1: int
-	  Nes2: int
-	Id: long
+	  nes1: int32
+	  Nes2: int32
+	Id: int64
 	`
 	schemeRoot := dynobuffers.YamlToScheme(schemeStr)
   - manually
@@ -210,9 +211,9 @@
 	var schemeStr = `
 	name: string
 	Nested..:
-	  nes1: int
-	  Nes2: int
-	Ids..: long
+	  nes1: int32
+	  Nes2: int32
+	Ids..: int64
 	`
 	schemeRoot := dynobuffers.YamlToScheme(schemeStr)
   - manually
@@ -250,11 +251,13 @@
 	}
 	```
 - Read array
-  - By index
+  - By iterator
 	```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-	assert.Equal(t, int64(5), bRoot.GetByIndex("ids", 0))
-	assert.Equal(t, int32(1), bRoot.GetByIndex("nested", 0).(*Buffer).Get("nes1"))
+	int64Arr := assert.Equal(t, int64(5), bRoot.GetInt64Array("ids"))
+	for i := 0; i < int64Arr.Len(); i++ {
+		assertEqual(t, ids[i], int64Arr.At(i))
+	}
 	```
   - Read filled array of non-objects
     ```go
@@ -264,7 +267,7 @@
   - Read array of objects using iterator
     ```go
 	bRoot = dynobuffers.ReadBuffer(bytes, schemeRoot)
-	arr := bRoot.Get("nested").(*dynobuffers.ObjectArray)
+	arr := bRoot.Get("nested").(*dynobuffers.ObjectArray) // ObjectArray is iterator over nested entities
 	for arr.Next() {
 		// arr.Buffer is switched on each arr.Next()
 		assert.Equal(t, int32(1), arr.Buffer.Get("nes1"))
@@ -307,13 +310,10 @@
 			panic(err)
 		}
 		```
- - Nils as array elements are not supported
- - Null array element is met on `ApplyJSONAndToBytes()` or nil array element is met on `ApplyMap()` -> error, not supported
+ - Null\nil array element is met on `ApplyJSONAndToBytes()`, `Set()`, `Append()` or `ApplyMap()` -> error, not supported
  - Byte arrays are decoded to JSON as base64 strings
  - Byte array value could be set from either byte array and base64-encoded string
  - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
- - Arrays of scalars are stored as byte arrays
-   - e.g. []int: []byte is taken starting from [0] with length 4*len
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 # TODO
@@ -321,7 +321,7 @@
 - For now `ToBytes()` result must not be stored if `Release()` is used because on next `ToBytes()` the stored previous `ToBytes()` result will be damaged. See `TestPreviousResultDamageOnReuse()`. The better soultion is to make `ToBytes()` return not `[]byte` but an `interface {Bytes() []byte; Release()}`.
   - use [bytebufferpool](https://github.com/valyala/bytebufferpool) on `flatbuffers.Builder.Bytes`?
 - `ToJSON()`: use bytebufferpool?
-- The only way to modify an element of array of nested objects - is to read all elements to `[]*Buffer` using `GetByIndex()` (not `ObjectArray`!), modify, then `Set(name, []*Buffer))`
+- Array of nested entities modification is not supported
 
 # Benchmarks
 

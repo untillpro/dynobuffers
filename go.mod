@@ -1,6 +1,6 @@
 module github.com/untillpro/dynobuffers
 
-go 1.14
+go 1.16
 
 require (
 	github.com/golang/snappy v0.0.2 // indirect

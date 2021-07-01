@@ -87,7 +87,11 @@ func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 	pb.Release()
 
 	pb = dynobuffers.ReadBuffer(bytes, s)
-	pbillItem := pb.GetByIndex("pbill_item", 0).(*dynobuffers.Buffer)
+	oa := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
+	oa.Next()
+	pbillItemBytes := oa.Buffer.GetBytes()
+	pbillItemBytes = copyBytes(pbillItemBytes)
+	pbillItem := dynobuffers.ReadBuffer(pbillItemBytes, oa.Buffer.Scheme)
 	pbillItems := []*dynobuffers.Buffer{}
 	for i := 0; i < 9; i++ {
 		pbillItems = append(pbillItems, pbillItem)
@@ -106,9 +110,9 @@ func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 		sum := float32(0)
 		for p.Next() {
 			pb := dynobuffers.ReadBuffer(bytes, s)
-			for i := 0; i < 10; i++ {
-				pbillItem := pb.GetByIndex("pbill_item", i).(*dynobuffers.Buffer)
-				s, _ := pbillItem.GetFloat("price")
+			oa := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
+			for oa.Next() {
+				s, _ := oa.Buffer.GetFloat32("price")
 				sum += s
 			}
 			pb.Release()
@@ -128,7 +132,11 @@ func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 	bytes = copyBytes(bytes)
 	pb.Release()
 	pb = dynobuffers.ReadBuffer(bytes, s)
-	pbillItem := pb.GetByIndex("pbill_item", 0).(*dynobuffers.Buffer)
+	oa := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
+	oa.Next()
+	pbillItemBytes := oa.Buffer.GetBytes()
+	pbillItemBytes = copyBytes(pbillItemBytes)
+	pbillItem := dynobuffers.ReadBuffer(pbillItemBytes, oa.Buffer.Scheme)
 	pbillItems := []*dynobuffers.Buffer{}
 	for i := 0; i < 9; i++ {
 		pbillItems = append(pbillItems, pbillItem)
@@ -150,7 +158,7 @@ func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 			pb := dynobuffers.ReadBuffer(bytes, s)
 			pbillItems := pb.Get("pbill_item").(*dynobuffers.ObjectArray)
 			for pbillItems.Next() {
-				s, _ := pbillItems.Buffer.GetFloat("price")
+				s, _ := pbillItems.Buffer.GetFloat32("price")
 				sum += s
 			}
 			pb.Release()

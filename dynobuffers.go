@@ -31,14 +31,14 @@ const (
 	FieldTypeUnspecified FieldType = iota
 	// FieldTypeObject field is nested Scheme
 	FieldTypeObject
-	// FieldTypeInt int32
-	FieldTypeInt
-	// FieldTypeLong int64
-	FieldTypeLong
-	// FieldTypeFloat float32
-	FieldTypeFloat
-	// FieldTypeDouble float64
-	FieldTypeDouble
+	// FieldTypeInt32 int32
+	FieldTypeInt32
+	// FieldTypeInt64 int64
+	FieldTypeInt64
+	// FieldTypeFloat32 float32
+	FieldTypeFloat32
+	// FieldTypeFloat64 float64
+	FieldTypeFloat64
 	// FieldTypeString variable length
 	FieldTypeString
 	// FieldTypeBool bool
@@ -53,15 +53,17 @@ const (
 var storeObjectsAsBytes = false
 
 var yamlFieldTypesMap = map[string]FieldType{
-	"int":    FieldTypeInt,
-	"long":   FieldTypeLong,
-	"float":  FieldTypeFloat,
-	"double": FieldTypeDouble,
-	"string": FieldTypeString,
-	"bool":   FieldTypeBool,
-	"byte":   FieldTypeByte,
-	"":       FieldTypeObject,
+	"int32":   FieldTypeInt32,
+	"int64":   FieldTypeInt64,
+	"float32": FieldTypeFloat32,
+	"float64": FieldTypeFloat64,
+	"string":  FieldTypeString,
+	"bool":    FieldTypeBool,
+	"byte":    FieldTypeByte,
+	"":        FieldTypeObject,
 }
+
+var fieldTypesNamesMap = map[FieldType]string{}
 
 // Buffer is wrapper for FlatBuffers
 type Buffer struct {
@@ -132,7 +134,7 @@ func (oa *ObjectArray) Next() bool {
 	if oa.curElem >= oa.Len {
 		return false
 	}
-	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start + flatbuffers.UOffsetT(oa.curElem)*flatbuffers.SizeUOffsetT)
+	oa.Buffer.tab.Pos = oa.Buffer.tab.Indirect(oa.start + flatbuffers.UOffsetT(oa.Len-1-oa.curElem)*flatbuffers.SizeUOffsetT)
 	return true
 }
 
@@ -152,51 +154,51 @@ func (oa *ObjectArray) Release() {
 	}
 }
 
-func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, arrLen int, f *Field) interface{} {
-	bytesSlice := b.tab.Bytes[start:]
+func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, f *Field) interface{} {
 	switch f.Ft {
-	case FieldTypeInt:
-		src := *(*[]int32)(unsafe.Pointer(&bytesSlice))
-		src = src[:arrLen]
-		res := make([]int32, len(src))
-		copy(res, src)
+	case FieldTypeInt32:
+		intf := getImplIInt32Array(b, start)
+		res := make([]int32, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
+		}
 		return res
-	case FieldTypeFloat:
-		src := *(*[]float32)(unsafe.Pointer(&bytesSlice))
-		src = src[:arrLen]
-		res := make([]float32, len(src))
-		copy(res, src)
+	case FieldTypeFloat32:
+		intf := getImplIFloat32Array(b, start)
+		res := make([]float32, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
+		}
 		return res
-	case FieldTypeDouble:
-		src := *(*[]float64)(unsafe.Pointer(&bytesSlice))
-		src = src[:arrLen]
-		res := make([]float64, len(src))
-		copy(res, src)
+	case FieldTypeFloat64:
+		intf := getImplIFloat64Array(b, start)
+		res := make([]float64, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
+		}
 		return res
 	case FieldTypeByte:
-		// return b.tab.Bytes[start : arrLen+int(start)] -> race condition on byte array append. See Benchmark_MapToBytes_ArraysAppend_Dyno()
-		res := make([]byte, arrLen)
-		copy(res, b.tab.Bytes[start:arrLen+int(start)])
-		return res
+		intf := getImplIByteArray(b, start)
+		return intf.Bytes()
 	case FieldTypeBool:
-		src := *(*[]bool)(unsafe.Pointer(&bytesSlice))
-		src = src[:arrLen]
-		res := make([]bool, len(src))
-		copy(res, src)
+		intf := getImplIBoolArray(b, start)
+		res := make([]bool, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
+		}
 		return res
-	case FieldTypeLong:
-		src := *(*[]int64)(unsafe.Pointer(&bytesSlice))
-		src = src[:arrLen]
-		res := make([]int64, len(src))
-		copy(res, src)
+	case FieldTypeInt64:
+		intf := getImplIInt64Array(b, start)
+		res := make([]int64, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
+		}
 		return res
-	default:
-		// string
-		res := make([]string, arrLen)
-		arrayUOffsetT := b.getFieldUOffsetTByOrder(f.Order)
-		for i := 0; i < arrLen; i++ {
-			elementUOffsetT := b.tab.Vector(arrayUOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(i*flatbuffers.SizeUOffsetT)
-			res[i] = byteSliceToString(b.tab.ByteVector(elementUOffsetT))
+	default: // string
+		intf := getImplIStringArray(b, start)
+		res := make([]string, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
 		}
 		return res
 	}
@@ -251,16 +253,16 @@ func (b *Buffer) releaseFields() {
 	}
 }
 
-// GetInt returns int32 value by name and if the Scheme contains the field and the value was set to non-nil
-func (b *Buffer) GetInt(name string) (int32, bool) {
+// GetInt32 returns int32 value by name and if the Scheme contains the field and the value was set to non-nil
+func (b *Buffer) GetInt32(name string) (int32, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetInt32(o), true
 	}
 	return 0, false
 }
 
-// GetFloat returns float32 value by name and if the Scheme contains the field and if the value was set to non-nil
-func (b *Buffer) GetFloat(name string) (float32, bool) {
+// GetFloat32 returns float32 value by name and if the Scheme contains the field and if the value was set to non-nil
+func (b *Buffer) GetFloat32(name string) (float32, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetFloat32(o), true
 	}
@@ -275,16 +277,16 @@ func (b *Buffer) GetString(name string) (string, bool) {
 	return "", false
 }
 
-// GetLong returns int64 value by name and if the Scheme contains the field and if the value was set to non-nil
-func (b *Buffer) GetLong(name string) (int64, bool) {
+// GetInt64 returns int64 value by name and if the Scheme contains the field and if the value was set to non-nil
+func (b *Buffer) GetInt64(name string) (int64, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetInt64(o), true
 	}
 	return 0, false
 }
 
-// GetDouble returns float64 value by name and if the Scheme contains the field and if the value was set to non-nil
-func (b *Buffer) GetDouble(name string) (float64, bool) {
+// GetFloat64 returns float64 value by name and if the Scheme contains the field and if the value was set to non-nil
+func (b *Buffer) GetFloat64(name string) (float64, bool) {
 	if o := b.getFieldUOffsetT(name); o != 0 {
 		return b.tab.GetFloat64(o), true
 	}
@@ -325,49 +327,36 @@ func (b *Buffer) getFieldUOffsetTByOrder(order int) flatbuffers.UOffsetT {
 	return 0
 }
 
-func (b *Buffer) getByField(f *Field, index int) interface{} {
+func (b *Buffer) getByField(f *Field) interface{} {
 	if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
-		return b.getByUOffsetT(f, index, uOffsetT)
+		return b.getByUOffsetT(f, uOffsetT)
 	}
 	return nil
 }
 
-func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffsetT) interface{} {
+func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interface{} {
 	if f.IsArray {
-		arrayLen := b.tab.VectorLen(uOffsetT - b.tab.Pos)
-		elemSize := getFBFieldSize(f.Ft)
-		if isFixedSizeField(f) {
-			// arrays with fixed-size elements are stored as byte arrays
-			arrayLen = arrayLen / elemSize
+		if f.Ft == FieldTypeObject {
+			arr := getObjectArray()
+			arr.Buffer = NewBuffer(f.FieldScheme)
+			arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
+			arr.curElem = -1
+			arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
+			arr.Buffer.tab.Bytes = b.tab.Bytes
+			arr.Buffer.isModified = true // to force build correct bytes array on arr.Buffer.ToBytes(). Otherwise the entire b.tab.Bytes will be returned (if unmodified) instead of arr.Buffer
+			b.toRelease = append(b.toRelease, arr)
+			return arr
 		}
-		if index > arrayLen-1 {
-			return nil
-		}
-		if index < 0 {
-			if f.Ft == FieldTypeObject {
-				arr := getObjectArray()
-				arr.Buffer = NewBuffer(f.FieldScheme)
-				arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
-				arr.curElem = -1
-				arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
-				arr.Buffer.tab.Bytes = b.tab.Bytes
-				arr.Buffer.isModified = true // to force build correct bytes array on arr.Buffer.ToBytes(). Otherwise the entire b.tab.Bytes will be returned (if unmodified) instead of arr.Buffer
-				b.toRelease = append(b.toRelease, arr)
-				return arr
-			}
-			uOffsetT = b.tab.Vector(uOffsetT - b.tab.Pos)
-			return b.getAllValues(uOffsetT, arrayLen, f)
-		}
-		uOffsetT = b.tab.Vector(uOffsetT-b.tab.Pos) + flatbuffers.UOffsetT(index*elemSize)
+		return b.getAllValues(uOffsetT, f)
 	}
 	switch f.Ft {
-	case FieldTypeInt:
+	case FieldTypeInt32:
 		return b.tab.GetInt32(uOffsetT)
-	case FieldTypeLong:
+	case FieldTypeInt64:
 		return b.tab.GetInt64(uOffsetT)
-	case FieldTypeFloat:
+	case FieldTypeFloat32:
 		return b.tab.GetFloat32(uOffsetT)
-	case FieldTypeDouble:
+	case FieldTypeFloat64:
 		return b.tab.GetFloat64(uOffsetT)
 	case FieldTypeByte:
 		return b.tab.GetByte(uOffsetT)
@@ -403,28 +392,9 @@ func (b *Buffer) getByUOffsetT(f *Field, index int, uOffsetT flatbuffers.UOffset
 	}
 }
 
-func getFBFieldSize(ft FieldType) int {
-	switch ft {
-	case FieldTypeBool:
-		return flatbuffers.SizeBool
-	case FieldTypeByte:
-		return flatbuffers.SizeByte
-	case FieldTypeDouble:
-		return flatbuffers.SizeFloat64
-	case FieldTypeFloat:
-		return flatbuffers.SizeFloat32
-	case FieldTypeInt:
-		return flatbuffers.SizeInt32
-	case FieldTypeLong:
-		return flatbuffers.SizeInt64
-	default:
-		return flatbuffers.SizeUOffsetT
-	}
-}
-
 // GetByField is an analogue of Get() but accepts a known Field
 func (b *Buffer) GetByField(f *Field) interface{} {
-	return b.getByField(f, -1)
+	return b.getByField(f)
 }
 
 // Get returns stored field value by name.
@@ -439,18 +409,158 @@ func (b *Buffer) Get(name string) interface{} {
 	if !ok {
 		return nil
 	}
-	return b.getByField(f, -1)
+	return b.getByField(f)
 }
 
-// GetByIndex returns array field element by its index
-// no such field, index out of bounds, array field is not set or unset -> nil
-// note: array element could not be nil (not supported by Flatbuffers)
-func (b *Buffer) GetByIndex(name string, index int) interface{} {
-	f, ok := b.Scheme.FieldsMap[name]
-	if !ok || index < 0 {
+func (b *Buffer) getArrIntf(f *Field) interface{} {
+	uOffsetT := b.getFieldUOffsetTByOrder(f.Order)
+	if uOffsetT == 0 {
 		return nil
 	}
-	return b.getByField(f, index)
+	switch f.Ft {
+	case FieldTypeInt32:
+		return getImplIInt32Array(b, uOffsetT)
+	case FieldTypeInt64:
+		return getImplIInt64Array(b, uOffsetT)
+	case FieldTypeFloat32:
+		return getImplIFloat32Array(b, uOffsetT)
+	case FieldTypeFloat64:
+		return getImplIFloat64Array(b, uOffsetT)
+	case FieldTypeByte:
+		return getImplIByteArray(b, uOffsetT)
+	case FieldTypeString:
+		return getImplIStringArray(b, uOffsetT)
+	case FieldTypeBool:
+		return getImplIBoolArray(b, uOffsetT)
+	default:
+		return b.getByUOffsetT(f, uOffsetT)
+	}
+}
+
+func (b *Buffer) GetInt32Array(name string) IInt32Array {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIInt32Array(b, uOffsetT)
+}
+
+func (b *Buffer) GetInt64Array(name string) IInt64Array {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIInt64Array(b, uOffsetT)
+}
+
+func (b *Buffer) GetFloat32Array(name string) IFloat32Array {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIFloat32Array(b, uOffsetT)
+}
+
+func (b *Buffer) GetFloat64Array(name string) IFloat64Array {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIFloat64Array(b, uOffsetT)
+}
+
+func (b *Buffer) GetStringArray(name string) IStringArray {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIStringArray(b, uOffsetT)
+}
+
+func (b *Buffer) GetByteArray(name string) IByteArray {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIByteArray(b, uOffsetT)
+}
+
+func (b *Buffer) GetBoolArray(name string) IBoolArray {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIBoolArray(b, uOffsetT)
+}
+
+func getImplIInt32Array(b *Buffer, uOffsetT flatbuffers.UOffsetT) IInt32Array {
+	return implIInt32Array{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
+}
+
+func getImplIInt64Array(b *Buffer, uOffsetT flatbuffers.UOffsetT) IInt64Array {
+	return implIInt64Array{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
+}
+
+func getImplIFloat32Array(b *Buffer, uOffsetT flatbuffers.UOffsetT) IFloat32Array {
+	return implIFloat32Array{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
+}
+
+func getImplIFloat64Array(b *Buffer, uOffsetT flatbuffers.UOffsetT) IFloat64Array {
+	return implIFloat64Array{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
+}
+
+func getImplIStringArray(b *Buffer, uOffsetT flatbuffers.UOffsetT) IStringArray {
+	return implIStringArray{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
+}
+
+func getImplIByteArray(b *Buffer, uOffsetT flatbuffers.UOffsetT) IByteArray {
+	return implIByteArray{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
+}
+
+func getImplIBoolArray(b *Buffer, uOffsetT flatbuffers.UOffsetT) IBoolArray {
+	return implIBoolArray{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
 }
 
 // ReadBuffer creates Buffer from bytes using provided Scheme
@@ -517,6 +627,7 @@ func (b *Buffer) set(f *Field, value interface{}) {
 // Value for byte array field could be base64 string or []byte
 // Rewrites previous modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
+// Nil or empty array is provided -> equals to unset the field
 func (b *Buffer) Append(name string, toAppend interface{}) {
 	f, ok := b.Scheme.FieldsMap[name]
 	if !ok {
@@ -595,6 +706,8 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 // Note: float is provided for an int field -> error, whereas no error on ApplyJSONAndToBytes() (gojay feature)
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
 // Rewrites previous modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
+// Non-empty array is applied over an existing array -> incomming array is appended to the existing
+// Nil or empty array is applied over an existing array -> existing array is unset
 func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 	for fn, fv := range data {
 		f, ok := b.Scheme.FieldsMap[fn]
@@ -609,7 +722,6 @@ func (b *Buffer) ApplyMap(data map[string]interface{}) error {
 		if f.Ft == FieldTypeObject {
 			if f.IsArray {
 				datasNested, ok := fv.([]interface{})
-
 				if !ok {
 					return fmt.Errorf("array of objects required but %#v provided for field %s", fv, f.QualifiedName())
 				}
@@ -737,7 +849,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 						b.append(f, arr)
 					}
 				}
-			case FieldTypeDouble:
+			case FieldTypeFloat64:
 				arr := []float64{}
 				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
 					val, isNull, err := dec.Float64OrNull()
@@ -756,7 +868,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 						b.append(f, arr)
 					}
 				}
-			case FieldTypeFloat:
+			case FieldTypeFloat32:
 				arr := []float32{}
 				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
 					val, isNull, err := dec.Float32OrNull()
@@ -775,7 +887,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 						b.append(f, arr)
 					}
 				}
-			case FieldTypeInt:
+			case FieldTypeInt32:
 				arr := []int32{}
 				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
 					val, isNull, err := dec.Int32OrNull()
@@ -794,7 +906,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 						b.append(f, arr)
 					}
 				}
-			case FieldTypeLong:
+			case FieldTypeInt64:
 				arr := []int64{}
 				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
 					val, isNull, err := dec.Int64OrNull()
@@ -849,23 +961,23 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 				if val, isNull, err = dec.BoolOrNull(); err == nil && !isNull {
 					b.set(f, val)
 				}
-			case FieldTypeByte, FieldTypeInt:
+			case FieldTypeByte, FieldTypeInt32:
 				// ok to write int32 into byte field. Will fail on ToBytes() if value does not fit into byte
 				var val int32
 				if val, isNull, err = dec.Int32OrNull(); err == nil && !isNull {
 					b.set(f, float64(val))
 				}
-			case FieldTypeDouble:
+			case FieldTypeFloat64:
 				var val float64
 				if val, isNull, err = dec.Float64OrNull(); err == nil && !isNull {
 					b.set(f, val)
 				}
-			case FieldTypeFloat:
+			case FieldTypeFloat32:
 				var val float32
 				if val, isNull, err = dec.Float32OrNull(); err == nil && !isNull {
 					b.set(f, val)
 				}
-			case FieldTypeLong:
+			case FieldTypeInt64:
 				var val int64
 				if val, isNull, err = dec.Int64OrNull(); err == nil && !isNull {
 					b.set(f, val)
@@ -945,7 +1057,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if modifiedField.value != nil {
 					var toAppendToIntf interface{} = nil
 					if modifiedField.isAppend {
-						toAppendToIntf = b.getByField(f, -1)
+						toAppendToIntf = b.getArrIntf(f)
 					}
 					if arrayUOffsetT, err = b.encodeArray(bl, f, modifiedField.value, toAppendToIntf); err != nil {
 						return 0, err
@@ -959,18 +1071,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
-					// copy from source bytes if not modified and initially existed
-					if isFixedSizeField(f) {
-						// copy fixed-size array as byte array
-						arrayLen := b.tab.VectorLen(uOffsetT - b.tab.Pos)
-						uOffsetT = b.tab.Vector(uOffsetT - b.tab.Pos)
-						arrayUOffsetT = bl.CreateByteVector(b.tab.Bytes[uOffsetT : int(uOffsetT)+arrayLen])
-					} else {
-						// re-encode var-size array
-						if existingArray := b.getByUOffsetT(f, -1, uOffsetT); existingArray != nil {
-							arrayUOffsetT, _ = b.encodeArray(bl, f, existingArray, nil) // no errors should be here
-						}
-					}
+					arrayUOffsetT = b.copyArray(bl, uOffsetT, f)
 				}
 			}
 			(*offsets)[f.Order].arr = arrayUOffsetT
@@ -997,7 +1098,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
-					bufToWrite := b.getByUOffsetT(f, -1, uOffsetT) // can not be nil
+					bufToWrite := b.getByUOffsetT(f, uOffsetT) // can not be nil
 					if storeObjectsAsBytes {
 						nestedBytes, _ := bufToWrite.(*Buffer).ToBytes() // no errors should be here
 						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
@@ -1108,297 +1209,393 @@ func (b *Buffer) Reset(bytes []byte) {
 	b.isModified = false
 }
 
-func intfToStringArr(f *Field, value interface{}) ([]string, bool) {
+func (b *Buffer) copyArray(bl *flatbuffers.Builder, arrayUOffsetT flatbuffers.UOffsetT, f *Field) flatbuffers.UOffsetT {
+	l := b.tab.VectorLen(arrayUOffsetT - b.tab.Pos)
+	uOffsetT := b.tab.Vector(arrayUOffsetT - b.tab.Pos)
+	switch f.Ft {
+	case FieldTypeInt32:
+		bl.StartVector(flatbuffers.SizeInt32, l, flatbuffers.SizeInt32)
+		for i := 0; i < l; i++ {
+			elem := b.tab.GetInt32(uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeInt32))
+			bl.PrependInt32(elem)
+		}
+		return bl.EndVector(l)
+	case FieldTypeBool:
+		bl.StartVector(flatbuffers.SizeBool, l, flatbuffers.SizeBool)
+		for i := 0; i < l; i++ {
+			elem := b.tab.GetBool(uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeBool))
+			bl.PrependBool(elem)
+		}
+		return bl.EndVector(l)
+	case FieldTypeInt64:
+		bl.StartVector(flatbuffers.SizeInt64, l, flatbuffers.SizeInt64)
+		for i := 0; i < l; i++ {
+			elem := b.tab.GetInt64(uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeInt64))
+			bl.PrependInt64(elem)
+		}
+		return bl.EndVector(l)
+	case FieldTypeFloat32:
+		bl.StartVector(flatbuffers.SizeFloat32, l, flatbuffers.SizeFloat32)
+		for i := 0; i < l; i++ {
+			elem := b.tab.GetFloat32(uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeFloat32))
+			bl.PrependFloat32(elem)
+		}
+		return bl.EndVector(l)
+	case FieldTypeFloat64:
+		bl.StartVector(flatbuffers.SizeFloat64, l, flatbuffers.SizeFloat64)
+		for i := 0; i < l; i++ {
+			elem := b.tab.GetFloat64(uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeFloat64))
+			bl.PrependFloat64(elem)
+		}
+		return bl.EndVector(l)
+	case FieldTypeByte:
+		return bl.CreateByteVector(b.tab.Bytes[uOffsetT : l+int(uOffsetT)]) // copied there
+	case FieldTypeString:
+		os := getUOffsetSlice(l)
+		for i := 0; i < l; i++ {
+			elementUOffsetT := uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeUOffsetT)
+			(*os)[i] = bl.CreateByteString(b.tab.ByteVector(elementUOffsetT))
+		}
+		bl.StartVector(flatbuffers.SizeUOffsetT, l, flatbuffers.SizeUOffsetT)
+		for i := 0; i < l; i++ {
+			bl.PrependUOffsetT((*os)[i])
+		}
+		putUOffsetSlice(os)
+		return bl.EndVector(l)
+	default:
+		objectArray := b.getByUOffsetT(f, arrayUOffsetT)
+		resUOffsetT, _ := b.encodeArray(bl, f, objectArray, nil) // no errors should be here
+		return resUOffsetT
+	}
+}
+
+func encodeStringArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IStringArray)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
 	switch valArr := value.(type) {
 	case []string:
-		return valArr, true
-	case []interface{}:
-		arr := make([]string, len(valArr))
-		for i, intf := range valArr {
-			stringSrc, ok := intf.(string)
-			if !ok {
-				return nil, false
-			}
-			arr[i] = stringSrc
+		// on Set, Append, ApplyMap
+		if len(valArr) == 0 {
+			return 0, true
 		}
-		return arr, true
-	case [][]byte:
-		arr := make([]string, len(valArr))
-		for i, bytes := range valArr {
-			arr[i] = string(bytes)
+		l := len(valArr) + toAppendToLen
+		stringUOffsetTs := getUOffsetSlice(l)
+		for i := 0; i < toAppendToLen; i++ {
+			(*stringUOffsetTs)[i] = bl.CreateString(toAppendTo.At(i))
 		}
-		return arr, true
-	default:
-		return nil, false
-	}
-}
-
-func intfToInt32Arr(f *Field, value interface{}) ([]int32, bool) {
-	arr, ok := value.([]int32)
-
-	if !ok {
-		intfs, ok := value.([]interface{})
-		if !ok {
-			return nil, false
+		for i := 0; i < len(valArr); i++ {
+			(*stringUOffsetTs)[i+toAppendToLen] = bl.CreateString(valArr[i])
 		}
-		arr = make([]int32, len(intfs))
-		for i, intf := range intfs {
-			float64Src, ok := intf.(float64)
-			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
-				return nil, false
-			}
-			arr[i] = int32(float64Src)
-		}
-	}
-
-	return arr, true
-}
-
-func intfToBoolArr(f *Field, value interface{}) ([]bool, bool) {
-	arr, ok := value.([]bool)
-	if !ok {
-		intfs, ok := value.([]interface{})
-		if !ok {
-			return nil, false
-		}
-		arr = make([]bool, len(intfs))
-		for i, intf := range intfs {
-			boolVal, ok := intf.(bool)
-			if !ok {
-				return nil, false
-			}
-			arr[i] = boolVal
-		}
-	}
-	return arr, true
-}
-
-func intfToInt64Arr(f *Field, value interface{}) ([]int64, bool) {
-	arr, ok := value.([]int64)
-	if !ok {
-		intfs, ok := value.([]interface{})
-		if !ok {
-			return nil, false
-		}
-		arr = make([]int64, len(intfs))
-		for i, intf := range intfs {
-			float64Src, ok := intf.(float64)
-			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
-				return nil, false
-			}
-			arr[i] = int64(float64Src)
-		}
-	}
-	return arr, true
-}
-
-func intfToFloat32Arr(f *Field, value interface{}) ([]float32, bool) {
-	arr, ok := value.([]float32)
-	if !ok {
-		intfs, ok := value.([]interface{})
-		if !ok {
-			return nil, false
-		}
-		arr = make([]float32, len(intfs))
-		for i, intf := range intfs {
-			float64Src, ok := intf.(float64)
-			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
-				return nil, false
-			}
-			arr[i] = float32(float64Src)
-		}
-	}
-	return arr, true
-}
-
-func intfToFloat64Arr(f *Field, value interface{}) ([]float64, bool) {
-	arr, ok := value.([]float64)
-	if !ok {
-		intfs, ok := value.([]interface{})
-		if !ok {
-			return nil, false
-		}
-		arr = make([]float64, len(intfs))
-		for i, intf := range intfs {
-			float64Src, ok := intf.(float64)
-			if !ok {
-				return nil, false
-			}
-			arr[i] = float64Src
-		}
-	}
-	return arr, true
-}
-
-func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{}, toAppendToIntf interface{}) (flatbuffers.UOffsetT, error) {
-	elemSize := getFBFieldSize(f.Ft)
-	/*
-		hdr := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(&arr[0])), Len: length, Cap: length}
-		target := *(*[]byte)(unsafe.Pointer(&hdr)) <-- problem here is that arr could be garbage collected already since it could be created at intfTo*Arr() and is not used after previous line ^^^
-	*/
-	var target []byte
-	switch f.Ft {
-	case FieldTypeInt:
-		arr, ok := intfToInt32Arr(f, value)
-		if !ok {
-			return 0, fmt.Errorf("[]int32 required but %#v provided for field %s", value, f.QualifiedName())
-		}
-		if len(arr) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]int32)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
-		}
-
-		length := len(arr) * flatbuffers.SizeInt32
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
-		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
-		sh.Len = length
-		sh.Cap = length
-		res := bl.CreateByteVector(target)
-		_ = arr // prevent GC before write to buffer
-		return res, nil
-	case FieldTypeBool:
-		arr, ok := intfToBoolArr(f, value)
-		if !ok {
-			return 0, fmt.Errorf("[]bool required but %#v provided for field %s", value, f.QualifiedName())
-		}
-		if len(arr) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]bool)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
-		}
-		length := len(arr) * flatbuffers.SizeBool
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
-		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
-		sh.Len = length
-		sh.Cap = length
-		res := bl.CreateByteVector(target)
-		_ = arr // prevent GC before write to buffer
-		return res, nil
-	case FieldTypeLong:
-		arr, ok := intfToInt64Arr(f, value)
-		if !ok {
-			return 0, fmt.Errorf("[]int64 required but %#v provided for field %s", value, f.QualifiedName())
-		}
-		if len(arr) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]int64)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
-		}
-		length := len(arr) * flatbuffers.SizeInt64
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
-		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
-		sh.Len = length
-		sh.Cap = length
-		res := bl.CreateByteVector(target)
-		_ = arr // prevent GC before write to buffer
-		return res, nil
-	case FieldTypeFloat:
-		arr, ok := intfToFloat32Arr(f, value)
-		if !ok {
-			return 0, fmt.Errorf("[]float32 required but %#v provided for field %s", value, f.QualifiedName())
-		}
-		if len(arr) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]float32)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
-		}
-		length := len(arr) * flatbuffers.SizeFloat32
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
-		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
-		sh.Len = length
-		sh.Cap = length
-		res := bl.CreateByteVector(target)
-		_ = arr // prevent GC before write to buffer
-		return res, nil
-	case FieldTypeDouble:
-		arr, ok := intfToFloat64Arr(f, value)
-		if !ok {
-			return 0, fmt.Errorf("[]float32 required but %#v provided for field %s", value, f.QualifiedName())
-		}
-		if len(arr) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]float64)
-			toAppendTo = append(toAppendTo, arr...)
-			arr = toAppendTo
-		}
-		length := len(arr) * flatbuffers.SizeFloat64
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&target))
-		sh.Data = uintptr(unsafe.Pointer(&arr[0]))
-		sh.Len = length
-		sh.Cap = length
-		res := bl.CreateByteVector(target)
-		_ = arr // prevent GC before write to buffer
-		return res, nil
-	case FieldTypeByte:
-		var target []byte
-		switch arr := value.(type) {
-		case []byte:
-			target = arr
-		case string:
-			if len(arr) == 0 {
-				return 0, nil // empty base64 string -> skip
-			}
-			var err error
-			if target, err = base64.StdEncoding.DecodeString(arr); err != nil {
-				return 0, fmt.Errorf("the string %s considered as base64-encoded value for field %s: %s", arr, f.QualifiedName(), err)
-			}
-		default:
-			return 0, fmt.Errorf("[]byte or base64-encoded string required but %#v provided for field %s", value, f.QualifiedName())
-
-		}
-		if len(target) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]byte)
-			toAppendTo = append(toAppendTo, target...)
-			target = toAppendTo
-		}
-		return bl.CreateByteVector(target), nil
-	case FieldTypeString:
-		strArr, ok := intfToStringArr(f, value)
-		if !ok {
-			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
-		}
-		if len(strArr) == 0 {
-			return 0, nil
-		}
-		if toAppendToIntf != nil {
-			toAppendTo := toAppendToIntf.([]string)
-			toAppendTo = append(toAppendTo, strArr...)
-			strArr = toAppendTo
-		}
-
-		stringUOffsetTs := getUOffsetSlice(len(strArr))
-
-		for i := 0; i < len(strArr); i++ {
-			(*stringUOffsetTs)[i] = bl.CreateString(strArr[i])
-		}
-		bl.StartVector(elemSize, len(strArr), elemSize)
-
-		for i := len(strArr) - 1; i >= 0; i-- {
+		bl.StartVector(flatbuffers.SizeUOffsetT, l, flatbuffers.SizeUOffsetT)
+		for i := 0; i < l; i++ {
 			bl.PrependUOffsetT((*stringUOffsetTs)[i])
 		}
-
 		putUOffsetSlice(stringUOffsetTs)
-		of := bl.EndVector(len(strArr))
+		return bl.EndVector(l), true
+	case []interface{}:
+		// on ApplyMap
+		if len(valArr) == 0 {
+			return 0, true
+		}
+		l := len(valArr) + toAppendToLen
+		stringUOffsetTs := getUOffsetSlice(l)
+		defer putUOffsetSlice(stringUOffsetTs)
+		for i := 0; i < toAppendToLen; i++ {
+			(*stringUOffsetTs)[i] = bl.CreateString(toAppendTo.At(i))
+		}
+		for i := 0; i < len(valArr); i++ {
+			str, ok := valArr[i].(string)
+			if !ok {
+				return 0, false
+			}
+			(*stringUOffsetTs)[i+toAppendToLen] = bl.CreateString(str)
+		}
+		bl.StartVector(flatbuffers.SizeUOffsetT, l, flatbuffers.SizeUOffsetT)
+		for i := 0; i < l; i++ {
+			bl.PrependUOffsetT((*stringUOffsetTs)[i])
+		}
+		return bl.EndVector(l), true
+	case [][]byte:
+		// came from JSON
+		if len(valArr) == 0 {
+			return 0, true
+		}
+		l := len(valArr) + toAppendToLen
+		stringUOffsetTs := getUOffsetSlice(l)
+		defer putUOffsetSlice(stringUOffsetTs)
+		for i := 0; i < toAppendToLen; i++ {
+			(*stringUOffsetTs)[i] = bl.CreateString(toAppendTo.At(i))
+		}
+		for i := 0; i < len(valArr); i++ {
+			(*stringUOffsetTs)[i+toAppendToLen] = bl.CreateString(string(valArr[i]))
+		}
+		bl.StartVector(flatbuffers.SizeUOffsetT, l, flatbuffers.SizeUOffsetT)
+		for i := 0; i < l; i++ {
+			bl.PrependUOffsetT((*stringUOffsetTs)[i])
+		}
+		return bl.EndVector(l), true
+	}
+	return 0, false
+}
 
-		return of, nil
+func encodeByteArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IByteArray)
+	var target []byte
+	switch arr := value.(type) {
+	case []byte:
+		target = arr
+	case string:
+		var err error
+		if target, err = base64.StdEncoding.DecodeString(arr); err != nil {
+			return 0, false
+		}
+	default:
+		return 0, false
+	}
+	if len(target) == 0 {
+		return 0, true
+	}
+	if toAppendTo != nil {
+		target = append(toAppendTo.Bytes(), target...)
+	}
+	return bl.CreateByteVector(target), true
+}
+
+func encodeInt32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IInt32Array)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
+	if arr, ok := value.([]int32); !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return 0, false
+		}
+		if len(intfs) == 0 {
+			return 0, true // nil or empty array is set or appended -> unset
+		}
+		l := len(intfs) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeInt32, l, flatbuffers.SizeInt32)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependInt32(toAppendTo.At(i))
+		}
+		for _, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
+				return 0, false
+			}
+			bl.PrependInt32(int32(float64Src))
+		}
+		return bl.EndVector(l), true
+	} else {
+		if len(arr) == 0 {
+			return 0, true
+		}
+		l := len(arr) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeInt32, l, flatbuffers.SizeInt32)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependInt32(toAppendTo.At(i))
+		}
+		for _, int32Elem := range arr {
+			bl.PrependInt32(int32Elem)
+		}
+		return bl.EndVector(l), true
+	}
+}
+
+func encodeBoolArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IBoolArray)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
+	if arr, ok := value.([]bool); !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return 0, false
+		}
+		if len(intfs) == 0 {
+			return 0, true
+		}
+		l := len(intfs) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeBool, l, flatbuffers.SizeBool)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependBool(toAppendTo.At(i))
+		}
+		for _, intf := range intfs {
+			b, ok := intf.(bool)
+			if !ok {
+				return 0, false
+			}
+			bl.PrependBool(b)
+		}
+		return bl.EndVector(l), true
+	} else {
+		if len(arr) == 0 {
+			return 0, true
+		}
+		l := len(arr) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeBool, l, flatbuffers.SizeBool)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependBool(toAppendTo.At(i))
+		}
+		for _, boolElem := range arr {
+			bl.PrependBool(boolElem)
+		}
+		return bl.EndVector(l), true
+	}
+}
+
+func encodeInt64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IInt64Array)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
+	if arr, ok := value.([]int64); !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return 0, false
+		}
+		if len(intfs) == 0 {
+			return 0, true
+		}
+		l := len(intfs) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeInt64, l, flatbuffers.SizeInt64)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependInt64(toAppendTo.At(i))
+		}
+		for _, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
+				return 0, false
+			}
+			bl.PrependInt64(int64(float64Src))
+		}
+		return bl.EndVector(l), true
+	} else {
+		if len(arr) == 0 {
+			return 0, true
+		}
+		l := len(arr) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeInt64, l, flatbuffers.SizeInt64)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependInt64(toAppendTo.At(i))
+		}
+		for _, int64Elem := range arr {
+			bl.PrependInt64(int64Elem)
+		}
+		return bl.EndVector(l), true
+	}
+}
+
+func encodeFloat32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IFloat32Array)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
+	if arr, ok := value.([]float32); !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return 0, false
+		}
+		if len(intfs) == 0 {
+			return 0, true
+		}
+		l := len(intfs) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeFloat32, l, flatbuffers.SizeFloat32)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependFloat32(toAppendTo.At(i))
+		}
+		for _, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
+				return 0, false
+			}
+			bl.PrependFloat32(float32(float64Src))
+		}
+		return bl.EndVector(l), true
+	} else {
+		if len(arr) == 0 {
+			return 0, true
+		}
+		l := len(arr) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeFloat32, l, flatbuffers.SizeFloat32)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependFloat32(toAppendTo.At(i))
+		}
+		for _, float32Elem := range arr {
+			bl.PrependFloat32(float32Elem)
+		}
+		return bl.EndVector(l), true
+	}
+}
+
+func encodeFloat64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IFloat64Array)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
+	if arr, ok := value.([]float64); !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return 0, false
+		}
+		if len(intfs) == 0 {
+			return 0, true
+		}
+		l := len(intfs) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeFloat64, l, flatbuffers.SizeFloat64)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependFloat64(toAppendTo.At(i))
+		}
+		for _, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok {
+				return 0, false
+			}
+			bl.PrependFloat64(float64Src)
+		}
+		return bl.EndVector(l), true
+	} else {
+		if len(arr) == 0 {
+			return 0, true
+		}
+		l := len(arr) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeFloat64, l, flatbuffers.SizeFloat64)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependFloat64(toAppendTo.At(i))
+		}
+		for _, float64Elem := range arr {
+			bl.PrependFloat64(float64Elem)
+		}
+		return bl.EndVector(l), true
+	}
+}
+
+func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{}, toAppendToIntf interface{}) (uOffsetT flatbuffers.UOffsetT, err error) {
+	ok := false
+	switch f.Ft {
+	case FieldTypeInt32:
+		uOffsetT, ok = encodeInt32Arr(f, value, bl, toAppendToIntf)
+	case FieldTypeBool:
+		uOffsetT, ok = encodeBoolArr(f, value, bl, toAppendToIntf)
+	case FieldTypeInt64:
+		uOffsetT, ok = encodeInt64Arr(f, value, bl, toAppendToIntf)
+	case FieldTypeFloat32:
+		uOffsetT, ok = encodeFloat32Arr(f, value, bl, toAppendToIntf)
+	case FieldTypeFloat64:
+		uOffsetT, ok = encodeFloat64Arr(f, value, bl, toAppendToIntf)
+	case FieldTypeByte:
+		uOffsetT, ok = encodeByteArr(f, value, bl, toAppendToIntf)
+	case FieldTypeString:
+		uOffsetT, ok = encodeStringArr(f, value, bl, toAppendToIntf)
 	default:
 		nestedUOffsetTs := getUOffsetSlice(0)
 		defer putUOffsetSlice(nestedUOffsetTs)
@@ -1483,8 +1680,8 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			nestedUOffsetTs = toAppendToUOffsetTs
 		}
 
-		bl.StartVector(elemSize, len(*nestedUOffsetTs), elemSize)
-		for i := len(*nestedUOffsetTs) - 1; i >= 0; i-- {
+		bl.StartVector(flatbuffers.SizeUOffsetT, len(*nestedUOffsetTs), flatbuffers.SizeUOffsetT)
+		for i := 0; i < len(*nestedUOffsetTs); i++ {
 			bl.PrependUOffsetT((*nestedUOffsetTs)[i])
 		}
 
@@ -1492,6 +1689,15 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 
 		return o, nil
 	}
+	if !ok {
+		if f.Ft == FieldTypeString {
+			return 0, fmt.Errorf("%#v provided for field %s which can not be converted to []string", value, f.QualifiedName())
+		} else if f.Ft == FieldTypeByte {
+			return 0, fmt.Errorf("[]byte or base64-encoded string required but %#v provided for field %s", value, f.QualifiedName())
+		}
+		return 0, fmt.Errorf("[]%s required but %#v provided for field %s", fieldTypesNamesMap[f.Ft], value, f.QualifiedName())
+	}
+	return
 }
 
 func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, beforePrepend func()) bool {
@@ -1501,13 +1707,13 @@ func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, before
 	}
 	beforePrepend()
 	switch f.Ft {
-	case FieldTypeInt:
+	case FieldTypeInt32:
 		dest.PrependInt32(src.tab.GetInt32(offset))
-	case FieldTypeLong:
+	case FieldTypeInt64:
 		dest.PrependInt64(src.tab.GetInt64(offset))
-	case FieldTypeFloat:
+	case FieldTypeFloat32:
 		dest.PrependFloat32(src.tab.GetFloat32(offset))
-	case FieldTypeDouble:
+	case FieldTypeFloat64:
 		dest.PrependFloat64(src.tab.GetFloat64(offset))
 	case FieldTypeByte:
 		dest.PrependByte(src.tab.GetByte(offset))
@@ -1526,15 +1732,15 @@ func IsFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 		return true
 	}
 	if float64Src == float64(int32(float64Src)) {
-		res := f.Ft == FieldTypeInt || f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
+		res := f.Ft == FieldTypeInt32 || f.Ft == FieldTypeInt64 || f.Ft == FieldTypeFloat64 || f.Ft == FieldTypeFloat32
 		if float64Src > 0 && float64Src <= 255 {
 			return res || f.Ft == FieldTypeByte
 		}
 		return res
 	} else if float64Src == float64(int64(float64Src)) {
-		return f.Ft == FieldTypeLong || f.Ft == FieldTypeDouble
+		return f.Ft == FieldTypeInt64 || f.Ft == FieldTypeFloat64
 	} else {
-		return f.Ft == FieldTypeDouble || f.Ft == FieldTypeFloat
+		return f.Ft == FieldTypeFloat64 || f.Ft == FieldTypeFloat32
 	}
 }
 
@@ -1551,16 +1757,16 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 			return false
 		}
 		switch f.Ft {
-		case FieldTypeInt:
+		case FieldTypeInt32:
 			beforePrepend()
 			bl.PrependInt32(int32(val))
-		case FieldTypeLong:
+		case FieldTypeInt64:
 			beforePrepend()
 			bl.PrependInt64(int64(val))
-		case FieldTypeFloat:
+		case FieldTypeFloat32:
 			beforePrepend()
 			bl.PrependFloat32(float32(val))
-		case FieldTypeDouble:
+		case FieldTypeFloat64:
 			beforePrepend()
 			bl.PrependFloat64(val)
 		default:
@@ -1568,19 +1774,19 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 			bl.PrependByte(byte(val))
 		}
 	case float32:
-		if f.Ft != FieldTypeFloat {
+		if f.Ft != FieldTypeFloat32 {
 			return false
 		}
 		beforePrepend()
 		bl.PrependFloat32(val)
 	case int64:
-		if f.Ft != FieldTypeLong {
+		if f.Ft != FieldTypeInt64 {
 			return false
 		}
 		beforePrepend()
 		bl.PrependInt64(val)
 	case int32:
-		if f.Ft != FieldTypeInt {
+		if f.Ft != FieldTypeInt32 {
 			return false
 		}
 		beforePrepend()
@@ -1593,18 +1799,27 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 		bl.PrependByte(val)
 	case int:
 		switch f.Ft {
-		case FieldTypeInt:
+		case FieldTypeInt32:
 			if math.Abs(float64(val)) > math.MaxInt32 {
 				return false
 			}
 			beforePrepend()
 			bl.PrependInt32(int32(val))
-		case FieldTypeLong:
+		case FieldTypeInt64:
 			if math.Abs(float64(val)) > math.MaxInt64 {
 				return false
 			}
 			beforePrepend()
 			bl.PrependInt64(int64(val))
+		case FieldTypeFloat32:
+			if math.Abs(float64(val)) > math.MaxFloat32 {
+				return false
+			}
+			beforePrepend()
+			bl.PrependFloat32(float32(val))
+		case FieldTypeFloat64:
+			beforePrepend()
+			bl.PrependFloat64(float64(val))
 		default:
 			if math.Abs(float64(val)) > 255 {
 				return false
@@ -1647,43 +1862,47 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 		if modifiedField != nil && !modifiedField.isReleased {
 			value = modifiedField.value
 		} else {
-			value = b.getByField(f, -1)
+			if f.IsArray {
+				value = b.getArrIntf(f)
+			} else {
+				value = b.getByField(f)
+			}
 		}
 		if value == nil {
 			continue
+		}
+		arrLen := 0
+		if f.IsArray {
+			arrLen = getArrayLen(value)
+			if arrLen == 0 {
+				continue
+			}
 		}
 		if f.Ft == FieldTypeObject {
 			if f.IsArray {
 				switch arr := value.(type) {
 				case *ObjectArray:
-					if arr.Len > 0 {
-						enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for arr.Next() {
-								enc.AddObject(arr.Buffer)
-							}
-						}))
-					}
+					enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+						for arr.Next() {
+							enc.AddObject(arr.Buffer)
+						}
+					}))
 				case *buffersSlice:
-					if len(arr.Slice) > 0 {
-						enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, buffer := range arr.Slice {
-								if buffer != nil {
-									enc.AddObject(buffer)
-								}
+					enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+						for _, buffer := range arr.Slice {
+							if buffer != nil {
+								enc.AddObject(buffer)
 							}
-						}))
-					}
+						}
+					}))
 				case []*Buffer:
-					if len(arr) > 0 {
-						enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, buffer := range arr {
-								if buffer != nil {
-									enc.AddObject(buffer)
-								}
+					enc.AddArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+						for _, buffer := range arr {
+							if buffer != nil {
+								enc.AddObject(buffer)
 							}
-						}))
-					}
-
+						}
+					}))
 				}
 			} else {
 				b := value.(*Buffer)
@@ -1693,67 +1912,80 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 			}
 		} else {
 			if f.IsArray {
+				var encodeFunc func(i int, enc *gojay.Encoder)
 				switch f.Ft {
 				case FieldTypeString:
-					arr, _ := intfToStringArr(f, value)
-					if len(arr) > 0 {
-						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, i := range arr {
-								enc.String(i)
-							}
-						}))
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IStringArray:
+							enc.String(arr.At(i))
+						case []string:
+							enc.String(arr[i])
+						}
 					}
-				case FieldTypeInt:
-					arr, _ := intfToInt32Arr(f, value)
-					if len(arr) > 0 {
-						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, i := range arr {
-								enc.Int32(i)
-							}
-						}))
+				case FieldTypeInt32:
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IInt32Array:
+							enc.Int32(arr.At(i))
+						case []int32:
+							enc.Int32(arr[i])
+						}
 					}
 				case FieldTypeBool:
-					arr, _ := intfToBoolArr(f, value)
-					if len(arr) > 0 {
-						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, i := range arr {
-								enc.Bool(i)
-							}
-						}))
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IBoolArray:
+							enc.Bool(arr.At(i))
+						case []bool:
+							enc.Bool(arr[i])
+						}
 					}
-				case FieldTypeByte:
+				case FieldTypeFloat64:
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IFloat64Array:
+							enc.Float64(arr.At(i))
+						case []float64:
+							enc.Float64(arr[i])
+						}
+					}
+				case FieldTypeFloat32:
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IFloat32Array:
+							enc.Float32(arr.At(i))
+						case []float32:
+							enc.Float32(arr[i])
+						}
+					}
+				case FieldTypeInt64:
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IInt64Array:
+							enc.Int64(arr.At(i))
+						case []int64:
+							enc.Int64(arr[i])
+						}
+					}
+				}
+				if f.Ft == FieldTypeByte {
 					// note: val is always []byte here. base64 string decoded to []byte on UnmarshalJSONObject()
-					if val, ok := value.([]byte); ok && len(val) > 0 {
-						base64Str := base64.StdEncoding.EncodeToString(val)
-						enc.StringKey(f.Name, base64Str)
+					var bytes []byte
+					switch val := value.(type) {
+					case []byte:
+						bytes = val
+					case IByteArray:
+						bytes = val.Bytes()
 					}
-				case FieldTypeDouble:
-					arr, _ := intfToFloat64Arr(f, value)
-					if len(arr) > 0 {
-						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, i := range arr {
-								enc.Float64(i)
-							}
-						}))
-					}
-				case FieldTypeFloat:
-					arr, _ := intfToFloat32Arr(f, value)
-					if len(arr) > 0 {
-						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, i := range arr {
-								enc.Float32(i)
-							}
-						}))
-					}
-				case FieldTypeLong:
-					arr, _ := intfToInt64Arr(f, value)
-					if len(arr) > 0 {
-						enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
-							for _, i := range arr {
-								enc.Int64(i)
-							}
-						}))
-					}
+					base64Str := base64.StdEncoding.EncodeToString(bytes)
+					enc.StringKey(f.Name, base64Str)
+				} else {
+					enc.ArrayKey(f.Name, gojay.EncodeArrayFunc(func(enc *gojay.Encoder) {
+						for i := 0; i < arrLen; i++ {
+							encodeFunc(i, enc)
+						}
+					}))
 				}
 			} else {
 				enc.AddInterfaceKey(f.Name, value)
@@ -1792,7 +2024,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 		if modifiedField != nil && !modifiedField.isReleased {
 			storedVal = modifiedField.value
 		} else {
-			storedVal = b.getByField(f, -1)
+			storedVal = b.getByField(f)
 		}
 		if storedVal == nil {
 			continue
@@ -1860,7 +2092,7 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 	}
 	if len(names) == 0 {
 		for _, f := range b.Scheme.Fields {
-			if value := b.getByField(f, -1); value != nil {
+			if value := b.getByField(f); value != nil {
 				if !callback(f.Name, value) {
 					return
 				}
@@ -2050,6 +2282,26 @@ func byteSliceToString(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
 }
 
-func isFixedSizeField(f *Field) bool {
-	return f.Ft != FieldTypeObject && f.Ft != FieldTypeString
+func getArrayLen(value interface{}) int {
+	switch typed := value.(type) {
+	case interface{ Len() int }:
+		return typed.Len()
+	case string:
+		return len(typed)
+	case *ObjectArray:
+		return typed.Len
+	case *buffersSlice:
+		return len(typed.Slice)
+	}
+	v := reflect.ValueOf(value)
+	if v.Type().Kind() == reflect.Array || v.Type().Kind() == reflect.Slice {
+		return v.Len()
+	}
+	return 0
+}
+
+func init() {
+	for name, ft := range yamlFieldTypesMap {
+		fieldTypesNamesMap[ft] = name
+	}
 }
