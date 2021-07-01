@@ -311,9 +311,11 @@
 		}
 		```
  - Null\nil array element is met on `ApplyJSONAndToBytes()`, `Set()`, `Append()` or `ApplyMap()` -> error, not supported
+ - Arrays are appended (set if there is nothing to append to) if met on `ApplyJSONAndToBytes()` and `ApplyMap()`
  - Byte arrays are decoded to JSON as base64 strings
  - Byte array value could be set from either byte array and base64-encoded string
  - Empty array -> no array, `Get()` will return nil, `HasValue()` will return false
+ - `Append()` or `Set()` nil or epmty array means unset the array
  - See [dynobuffers_test.go](dynobuffers_test.go) for usage examples
 
 # TODO
