@@ -206,11 +206,11 @@ func Benchmark_Fill_ToBytes_Read_Simple_Dyno(bench *testing.B) {
 			if str != "cola" {
 				bench.Fatal()
 			}
-			float, _ := b.GetFloat("price")
+			float, _ := b.GetFloat32("price")
 			if float != 0.123 {
 				bench.Fatal()
 			}
-			q, _ := b.GetInt("quantity")
+			q, _ := b.GetInt32("quantity")
 			if q != 42 {
 				bench.Fatal()
 			}

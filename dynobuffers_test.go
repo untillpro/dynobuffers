@@ -21,9 +21,9 @@ func TestBasicUsage(t *testing.T) {
 	// Yaml representation of scheme
 	var schemeYaml = `
 name: string
-price: float
-quantity: int
-weight: long
+price: float32
+quantity: int32
+weight: int64
 `
 
 	var s *Scheme
@@ -94,7 +94,7 @@ weight: long
 
 	// Use typed getter
 	{
-		_, ok := b.GetInt("unknownField")
+		_, ok := b.GetInt32("unknownField")
 		require.False(t, ok)
 	}
 
@@ -135,27 +135,27 @@ weight: long
 
 var schemeStr = `
 name: string
-price: float
-quantity: int
+price: float32
+quantity: int32
 `
 
 var schemeStrNew = `
 name: string
-price: float
-quantity: int
-newField: long
+price: float32
+quantity: int32
+newField: int64
 `
 
 var schemeMandatory = `
 name: string
-Price: float
+Price: float32
 `
 
 var allTypesYaml = `
-int: int
-long: long
-float: float
-double: double
+int: int32
+long: int64
+float: float32
+double: float64
 string: string
 boolTrue: bool
 boolFalse: bool
@@ -163,17 +163,17 @@ byte: byte
 `
 
 var arraysAllTypesYaml = `
-ints..: int
-longs..: long
-floats..: float
-doubles..: double
+ints..: int32
+longs..: int64
+floats..: float32
+doubles..: float64
 strings..: string
 boolTrues..: bool
 boolFalses..: bool
 bytes..: byte
 bytesBase64..: byte
 intsObj..:
-  Int: int
+  Int: int32
 `
 
 func TestWriteNewReadOld(t *testing.T) {
@@ -248,15 +248,67 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 					elementsAmount++
 				}
 				require.Equal(t, nestedArr.Len, elementsAmount)
-				// test by GetByIndex
-				for i := 0; i < nestedArr.Len; i++ {
-					valuesNested := valuesNesteds[i].([]interface{})
-					nestedBuf := b.GetByIndex(f.Name, i).(*Buffer)
-					testFieldValues(t, nestedBuf, valuesNested...)
-				}
-				require.Nil(t, b.GetByIndex(f.Name, nestedArr.Len))
 			} else {
 				require.Equal(t, values[i], b.Get(f.Name))
+				switch f.Ft {
+				case FieldTypeInt32:
+					arr := b.GetInt32Array(f.Name)
+					actualArr := []int32{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(t, values[i], actualArr)
+					require.Panics(t, func() { arr.At(-1) })
+					require.Panics(t, func() { arr.At(arr.Len()) })
+				case FieldTypeInt64:
+					arr := b.GetInt64Array(f.Name)
+					actualArr := []int64{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(t, values[i], actualArr)
+					require.Panics(t, func() { arr.At(-1) })
+					require.Panics(t, func() { arr.At(arr.Len()) })
+				case FieldTypeFloat32:
+					arr := b.GetFloat32Array(f.Name)
+					actualArr := []float32{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(t, values[i], actualArr)
+					require.Panics(t, func() { arr.At(-1) })
+					require.Panics(t, func() { arr.At(arr.Len()) })
+				case FieldTypeFloat64:
+					arr := b.GetFloat64Array(f.Name)
+					actualArr := []float64{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(t, values[i], actualArr)
+					require.Panics(t, func() { arr.At(-1) })
+					require.Panics(t, func() { arr.At(arr.Len()) })
+				case FieldTypeBool:
+					arr := b.GetBoolArray(f.Name)
+					actualArr := []bool{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(t, values[i], actualArr)
+					require.Panics(t, func() { arr.At(-1) })
+					require.Panics(t, func() { arr.At(arr.Len()) })
+				case FieldTypeString:
+					arr := b.GetStringArray(f.Name)
+					actualArr := []string{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(t, values[i], actualArr)
+					require.Panics(t, func() { arr.At(-1) })
+					require.Panics(t, func() { arr.At(arr.Len()) })
+				case FieldTypeByte:
+					arr := b.GetByteArray(f.Name)
+					require.Equal(t, values[i], arr.Bytes())
+				}
 			}
 		} else {
 			// not array
@@ -274,26 +326,26 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 				if values[i] != nil {
 					require.Equal(t, values[i], actual, f.Name)
 				}
-			case FieldTypeDouble:
-				actual, ok := b.GetDouble(f.Name)
+			case FieldTypeFloat64:
+				actual, ok := b.GetFloat64(f.Name)
 				okGlobal = ok
 				if values[i] != nil {
 					require.Equal(t, values[i], actual, f.Name)
 				}
-			case FieldTypeFloat:
-				actual, ok := b.GetFloat(f.Name)
+			case FieldTypeFloat32:
+				actual, ok := b.GetFloat32(f.Name)
 				okGlobal = ok
 				if values[i] != nil {
 					require.Equal(t, values[i], actual, f.Name)
 				}
-			case FieldTypeInt:
-				actual, ok := b.GetInt(f.Name)
+			case FieldTypeInt32:
+				actual, ok := b.GetInt32(f.Name)
 				okGlobal = ok
 				if values[i] != nil {
 					require.Equal(t, values[i], actual, f.Name)
 				}
-			case FieldTypeLong:
-				actual, ok := b.GetLong(f.Name)
+			case FieldTypeInt64:
+				actual, ok := b.GetInt64(f.Name)
 				okGlobal = ok
 				if values[i] != nil {
 					require.Equal(t, values[i], actual, f.Name)
@@ -602,8 +654,8 @@ func TestApplyJSON(t *testing.T) {
 	schemeRoot, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)
 	schemeNested := NewScheme().
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, true)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, true)
 	schemeRoot.AddNested("nested1", schemeNested, false)
 	schemeRoot.AddNested("nested2", schemeNested, false)
 	allFields := []string{}
@@ -706,7 +758,7 @@ func TestAllValues(t *testing.T) {
 	s, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)
 	sNested := NewScheme()
-	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("int", FieldTypeInt32, false)
 	s.AddNested("nes", sNested, false)
 	allFields := []string{}
 	for _, f := range s.Fields {
@@ -743,26 +795,59 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
 
-	// wrong types -> error
+	// wrong types (except float64 for numeric fields) -> error
 	b.Release()
-	wrongs := map[string]interface{}{
-		"int":       "str",
-		"long":      "str",
-		"float":     "str",
-		"double":    "str",
-		"string":    1,
-		"boolTrue":  "str",
-		"boolFalse": "str",
-		"byte":      "str",
-		"nes":       "str",
+	wrongs := map[string][]interface{}{
+		"int":       {int64(1), float32(1), "str", false, byte(1)},
+		"long":      {int32(1), float32(1), "str", false, byte(1)},
+		"float":     {int64(1), int32(1), "str", false, byte(1)},
+		"double":    {int64(1), float32(1), int32(1), "str", false, byte(1)},
+		"string":    {int64(1), float32(1), float64(1), int32(1), false, byte(1)},
+		"boolTrue":  {int64(1), float32(1), float64(1), "str", int32(1), byte(1)},
+		"boolFalse": {int64(1), float32(1), float64(1), "str", int32(1), byte(1)},
+		"byte":      {int64(1), float32(1), "str", false, int32(1)},
+		"nes":       {int64(1), float32(1), float64(1), "str", false, byte(1), int32(1)},
 	}
-	for fn, wrong := range wrongs {
+	for fn, wrongArr := range wrongs {
+		for _, wrong := range wrongArr {
+			b = NewBuffer(s)
+			b.Set(fn, wrong)
+			builderBytes, nilled, err = b.ToBytesNilled()
+			require.Nil(t, builderBytes)
+			require.NotNil(t, err)
+			require.Nil(t, nilled)
+			b.Release()
+		}
+	}
+
+	// set untyped int for numeric fields
+	untypedInts := map[string]int{
+		"int":    1,
+		"long":   2,
+		"float":  3,
+		"double": 4,
+		"byte":   5,
+	}
+	for n, untypedInt := range untypedInts {
 		b = NewBuffer(s)
-		b.Set(fn, wrong)
-		builderBytes, nilled, err = b.ToBytesNilled()
-		require.Nil(t, builderBytes)
-		require.NotNil(t, err)
-		require.Nil(t, nilled)
+		b.Set(n, untypedInt)
+		bytes, err := b.ToBytes()
+		require.Nil(t, err)
+		bytes = copyBytes(bytes)
+		b.Release()
+		b = ReadBuffer(bytes, s)
+		switch s.FieldsMap[n].Ft {
+		case FieldTypeByte:
+			require.Equal(t, byte(untypedInt), b.Get(n).(byte), n)
+		case FieldTypeInt32:
+			require.Equal(t, int32(untypedInt), b.Get(n).(int32), n)
+		case FieldTypeInt64:
+			require.Equal(t, int64(untypedInt), b.Get(n).(int64), n)
+		case FieldTypeFloat32:
+			require.Equal(t, float32(untypedInt), b.Get(n).(float32), n)
+		case FieldTypeFloat64:
+			require.Equal(t, float64(untypedInt), b.Get(n).(float64), n)
+		}
 		b.Release()
 	}
 
@@ -887,13 +972,13 @@ func testEmpty(t *testing.T, b *Buffer) {
 		require.False(t, ok, f.Name)
 		_, ok = b.GetByte(f.Name)
 		require.False(t, ok, f.Name)
-		_, ok = b.GetInt(f.Name)
+		_, ok = b.GetInt32(f.Name)
 		require.False(t, ok, f.Name)
-		_, ok = b.GetLong(f.Name)
+		_, ok = b.GetInt64(f.Name)
 		require.False(t, ok, f.Name)
-		_, ok = b.GetFloat(f.Name)
+		_, ok = b.GetFloat32(f.Name)
 		require.False(t, ok, f.Name)
-		_, ok = b.GetDouble(f.Name)
+		_, ok = b.GetFloat64(f.Name)
 		require.False(t, ok, f.Name)
 	}
 }
@@ -902,7 +987,7 @@ func TestApplyMap(t *testing.T) {
 	s, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)
 	sNested := NewScheme()
-	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("int", FieldTypeInt32, false)
 	s.AddNested("nes", sNested, false)
 	allFields := []string{}
 	for _, f := range s.Fields {
@@ -1193,7 +1278,7 @@ func TestApplyMapArrays(t *testing.T) {
 	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}})
 
-	// append values. Types of all numerics are matched to the scheme
+	// append with typed arrays. Types of all numerics are matched to the scheme
 	m = map[string]interface{}{
 		"ints":        []int32{9, 10},
 		"longs":       []int64{11, 12},
@@ -1219,6 +1304,36 @@ func TestApplyMapArrays(t *testing.T) {
 	b = ReadBuffer(bytesFilled, s)
 	testFieldValues(t, b, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
 		[]bool{false, false, true, true}, []byte{7, 8, 13, 14}, []byte{5, 6, 5, 6}, []interface{}{[]interface{}{int32(7)}, []interface{}{int32(8)}})
+	b.Release()
+
+	// append with []interfaces. Simulate map is unmarshaled from JSON
+	b = ReadBuffer(bytes, s)
+	m = map[string]interface{}{
+		"ints":        []interface{}{float64(9), float64(10)},
+		"longs":       []interface{}{float64(11), float64(12)},
+		"floats":      []interface{}{float64(0.5), float64(0.6)},
+		"doubles":     []interface{}{float64(0.7), float64(0.8)},
+		"strings":     []interface{}{"str3", "str4"},
+		"boolTrues":   []interface{}{false, false},
+		"boolFalses":  []interface{}{true, true},
+		"bytes":       []byte{13, 14}, // []interface{}{byte(13), byte(14)} is nonsence
+		"bytesBase64": "BQY=",
+		"intsObj": []interface{}{
+			map[string]interface{}{
+				"int": int32(8),
+			},
+		},
+	}
+	require.Nil(t, b.ApplyMap(m))
+	bytesFilled, nilled, err = b.ToBytesNilled()
+	require.Nil(t, err)
+	require.Nil(t, nilled)
+	bytesFilled = copyBytes(bytesFilled)
+	b.Release()
+	b = ReadBuffer(bytesFilled, s)
+	testFieldValues(t, b, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
+		[]bool{false, false, true, true}, []byte{7, 8, 13, 14}, []byte{5, 6, 5, 6}, []interface{}{[]interface{}{int32(7)}, []interface{}{int32(8)}})
+	b.Release()
 
 	// unset all by nils
 	m = map[string]interface{}{
@@ -1503,23 +1618,22 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 
 func TestSchemeToFromYAML(t *testing.T) {
 	schemeNested := NewScheme().
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, true)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, true)
 	schemeNested.Name = "nes"
 	schemeNestedArr := NewScheme().
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, true)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, true)
 	schemeNestedArr.Name = "nesarr"
 	schemeRoot := NewScheme().
 		AddField("name", FieldTypeString, false).
 		AddNested("nes", schemeNested, true).
 		AddNestedArray("nesarr", schemeNestedArr, true).
-		AddField("last", FieldTypeInt, false)
+		AddField("last", FieldTypeInt32, false)
 	bytes, err := yaml.Marshal(schemeRoot)
 	require.Nil(t, err)
 	schemeNew := NewScheme()
-	err = yaml.Unmarshal(bytes, &schemeNew)
-	require.Nil(t, err)
+	require.Nil(t, yaml.Unmarshal(bytes, &schemeNew))
 
 	require.Equal(t, schemeRoot.Fields, schemeNew.Fields)
 	require.Equal(t, schemeRoot.FieldsMap, schemeNew.FieldsMap)
@@ -1528,18 +1642,28 @@ func TestSchemeToFromYAML(t *testing.T) {
 	err = yaml.Unmarshal([]byte("wrong "), &schemeNew)
 	require.NotNil(t, err)
 
-	_, err = YamlToScheme("wrong yaml")
+	y := "wrong yaml"
+	_, err = YamlToScheme(y)
 	require.NotNil(t, err)
-	_, err = YamlToScheme("name: wrongType")
+	require.NotNil(t, yaml.Unmarshal([]byte(y), &schemeNew))
+
+	y = "name: wrongType"
+	_, err = YamlToScheme(y)
 	require.NotNil(t, err)
-	_, err = YamlToScheme(`
-		nested:
-		  nestedField: wrongType`)
+	require.NotNil(t, yaml.Unmarshal([]byte(y), &schemeNew))
+
+	y = `
+nested:
+  nestedField: wrongType`
+	_, err = YamlToScheme(y)
 	require.NotNil(t, err)
-	_, err = YamlToScheme(`
-		nested:
-		  wrong`)
+	require.NotNil(t, yaml.Unmarshal([]byte(y), &schemeNew))
+	y = `
+nested:
+  wrong`
+	_, err = YamlToScheme(y)
 	require.NotNil(t, err)
+	require.NotNil(t, yaml.Unmarshal([]byte(y), &schemeNew))
 }
 
 func TestMandatoryFields(t *testing.T) {
@@ -1572,12 +1696,12 @@ func TestMandatoryFields(t *testing.T) {
 
 func TestNestedBasic(t *testing.T) {
 	schemeNested := NewScheme().
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, true)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, true)
 	schemeRoot := NewScheme().
 		AddField("name", FieldTypeString, false).
 		AddNested("nes", schemeNested, false).
-		AddField("last", FieldTypeInt, false)
+		AddField("last", FieldTypeInt32, false)
 
 	// initially nil
 	b := NewBuffer(schemeRoot)
@@ -1623,12 +1747,12 @@ func TestNestedBasic(t *testing.T) {
 func TestNestedAdvanced(t *testing.T) {
 
 	schemeNested := NewScheme().
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, true)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, true)
 	schemeRoot := NewScheme().
 		AddField("name", FieldTypeString, false).
 		AddNested("nes", schemeNested, true).
-		AddField("last", FieldTypeInt, false)
+		AddField("last", FieldTypeInt32, false)
 	b := NewBuffer(schemeRoot)
 
 	// fill
@@ -1695,7 +1819,7 @@ func TestNestedAdvanced(t *testing.T) {
 
 func TestArraysBasic(t *testing.T) {
 	s := NewScheme()
-	s.AddArray("longs", FieldTypeLong, false)
+	s.AddArray("longs", FieldTypeInt64, false)
 
 	// initial
 	b := NewBuffer(s)
@@ -1714,11 +1838,13 @@ func TestArraysBasic(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	require.Equal(t, int64(5), b.GetByIndex("longs", 0))
-	require.Nil(t, b.GetByIndex("longs", 3))
-	require.Equal(t, int64(6), b.GetByIndex("longs", 1))
-	require.Nil(t, b.GetByIndex("longs", -1))
-	require.Nil(t, b.GetByIndex("unexisting", 0))
+	longsArr := b.GetInt64Array("longs")
+	require.Equal(t, 2, longsArr.Len())
+	require.Equal(t, int64(5), longsArr.At(0))
+	require.Equal(t, int64(6), longsArr.At(1))
+	require.Panics(t, func() { longsArr.At(-1) })
+	require.Panics(t, func() { longsArr.At(2) })
+	require.Nil(t, b.GetInt64Array("unexisting"))
 
 	// Non-modified array should be copied on ToBytes()
 	bytes, err = b.ToBytes()
@@ -1726,8 +1852,10 @@ func TestArraysBasic(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	require.Equal(t, int64(5), b.GetByIndex("longs", 0))
-	require.Equal(t, int64(6), b.GetByIndex("longs", 1))
+	longsArr = b.GetInt64Array("longs")
+	require.Equal(t, 2, longsArr.Len())
+	require.Equal(t, int64(5), longsArr.At(0))
+	require.Equal(t, int64(6), longsArr.At(1))
 
 	//test Array struct
 	longsActual := b.Get("longs").([]int64)
@@ -1741,8 +1869,11 @@ func TestArraysBasic(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	require.Equal(t, int64(7), b.GetByIndex("longs", 0))
-	require.Equal(t, int64(8), b.GetByIndex("longs", 1))
+	longsArr = b.GetInt64Array("longs")
+	require.Equal(t, 3, longsArr.Len())
+	require.Equal(t, int64(7), longsArr.At(0))
+	require.Equal(t, int64(8), longsArr.At(1))
+	require.Equal(t, int64(9), longsArr.At(2))
 
 	// unset
 	b.Set("longs", nil)
@@ -1771,6 +1902,15 @@ func TestArrays(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
 	require.Nil(t, err)
 	b := NewBuffer(s)
+
+	// Get*Array on empty -> nil I*Array
+	require.Nil(t, b.GetInt32Array("ints"))
+	require.Nil(t, b.GetInt64Array("longs"))
+	require.Nil(t, b.GetFloat32Array("floats"))
+	require.Nil(t, b.GetFloat64Array("doubles"))
+	require.Nil(t, b.GetStringArray("strings"))
+	require.Nil(t, b.GetBoolArray("boolTrues"))
+	require.Nil(t, b.GetByteArray("bytes"))
 
 	// empty and nil arrays -> nothing
 	tests := map[string][]interface{}{
@@ -1934,8 +2074,7 @@ func TestArrays(t *testing.T) {
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
 
 	// non-modified arrays should be copied
-	// set buffer modified to force re-encode, otherwise underlying byte array wil be returned
-	b.Set("ints", b.Get("ints"))
+	b.isModified = true // set buffer modified to force re-encode, otherwise underlying byte array will be returned
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
 	bytes = copyBytes(bytes)
@@ -1985,9 +2124,9 @@ func TestArrays(t *testing.T) {
 func TestCopyBytes(t *testing.T) {
 	s := NewScheme().
 		AddField("name", FieldTypeString, false).
-		AddField("id", FieldTypeInt, false).
-		AddArray("longs", FieldTypeLong, false).
-		AddField("float", FieldTypeFloat, false)
+		AddField("id", FieldTypeInt32, false).
+		AddArray("longs", FieldTypeInt64, false).
+		AddField("float", FieldTypeFloat32, false)
 
 	// initial
 	b := NewBuffer(s)
@@ -2014,7 +2153,6 @@ func TestCopyBytes(t *testing.T) {
 	arr := b.Get("longs").([]int64)
 	require.Equal(t, int64(45), arr[0])
 	require.Equal(t, int64(46), arr[1])
-	require.Equal(t, int64(45), b.GetByIndex("longs", 0))
 	require.Equal(t, float32(0.123), b.Get("float"))
 
 	b.Release()
@@ -2024,12 +2162,12 @@ func TestCopyBytes(t *testing.T) {
 func TestCorrectBytesFromNested(t *testing.T) {
 	/*
 		nes:
-		  fld: int
+		  fld: int32
 		ReadBuffer(Get("nes").GetBytes()).Get("fld") should work properly
 		was: root bytes returned, there is no fld
 	*/
 	sNested := NewScheme()
-	sNested.AddField("fld", FieldTypeInt, false)
+	sNested.AddField("fld", FieldTypeInt32, false)
 	sRoot := NewScheme()
 	sRoot.AddNested("nes", sNested, false)
 
@@ -2103,11 +2241,11 @@ func TestIterateFields(t *testing.T) {
 	schemeRoot, err := YamlToScheme(allTypesYaml)
 	require.Nil(t, err)
 	schemeNested := NewScheme().
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, true)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, true)
 	schemeRoot.AddNested("nested1", schemeNested, false).
 		AddNested("nested2", schemeNested, false).
-		AddField("nil", FieldTypeInt, false)
+		AddField("nil", FieldTypeInt32, false)
 
 	// iterate on empty does nothing
 	b := NewBuffer(schemeRoot)
@@ -2305,7 +2443,7 @@ func TestRelease(t *testing.T) {
 func Benchmark_ArrayOfObjectsSet_Dyno(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
-	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("int", FieldTypeInt32, false)
 	s.AddNestedArray("ints", sNested, false)
 
 	b.ResetTimer()
@@ -2328,7 +2466,7 @@ func Benchmark_ArrayOfObjectsSet_Dyno(b *testing.B) {
 func BenchmarkS_ArrayOfObjectsAppend_ToBytes_Dyno(b *testing.B) {
 	s := NewScheme()
 	sNested := NewScheme()
-	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("int", FieldTypeInt32, false)
 	s.AddNestedArray("ints", sNested, false)
 
 	bfNested := NewBuffer(sNested)
@@ -2452,8 +2590,8 @@ func Benchmark_Fill_ToBytes_NestedArray_Flat(b *testing.B) {
 func TestReset(t *testing.T) {
 	s := NewScheme().
 		AddField("name", FieldTypeString, false).
-		AddField("price", FieldTypeFloat, false).
-		AddField("quantity", FieldTypeInt, false)
+		AddField("price", FieldTypeFloat32, false).
+		AddField("quantity", FieldTypeInt32, false)
 
 	// create new empty, fill and to bytes1
 	b := NewBuffer(s)
@@ -2522,7 +2660,7 @@ func mapFromArray(strs []string) map[string]struct{} {
 
 func Benchmark_RW_Nested(b *testing.B) {
 	sNested := NewScheme()
-	sNested.AddField("int", FieldTypeInt, false)
+	sNested.AddField("int", FieldTypeInt32, false)
 	sNested.AddField("str", FieldTypeString, false)
 	s := NewScheme()
 	s.AddNested("nes", sNested, false)
