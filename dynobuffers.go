@@ -699,9 +699,11 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 // Resulting buffer has no value (or has nil value) for a mandatory field -> error
 // Value type and field type are incompatible (e.g. string for numberic field) -> error
 // Value and field types differs but value fits into field -> no error. Examples:
-//   255 fits into float, double, int, long, byte;
-//   256 does not fit into byte
-//   math.MaxInt64 does not fit into int32
+//
+//	255 fits into float, double, int, long, byte;
+//	256 does not fit into byte
+//	math.MaxInt64 does not fit into int32
+//
 // Unexisting field is provided -> error
 // Byte arrays could be base64 strings or []byte
 // Array element is nil -> error (not supported)
@@ -1029,9 +1031,10 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 		return nil, err
 	}
 
+	b.isModified = false
+	b.isFinished = true
+
 	if uOffset != 0 {
-		b.isModified = false
-		b.isFinished = true
 		return b.builder.FinishedBytes(), nil
 	}
 
@@ -2127,6 +2130,14 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 	}
 }
 
+// Returns if Buffer was modified since last NewBuffer(), ReadBuffer() or successful ToBytes()
+// note: ToJSON(), ToJSONMap() calls does not change is-modified state
+// note: always returns false after non-nil ApplyJSONAndToBytes() result
+// note: owner.ToBytes() -> owner is not IsModified() but nested is still IsModified bbecause nested.IsModified was not called
+func (b *Buffer) IsModified() bool {
+	return b.isModified
+}
+
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
 	return &Scheme{"", map[string]*Field{}, []*Field{}}
@@ -2234,6 +2245,7 @@ func (f *Field) QualifiedName() string {
 //   - `bool` -> `bool`
 //   - `string` -> `string`
 //   - `byte` -> `byte`
+//
 // Field name starts with the capital letter -> field is mandatory
 // Field name ends with `..` -> field is an array
 // See [dynobuffers_test.go](dynobuffers_test.go) for examples
