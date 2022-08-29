@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"unsafe"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/require"
@@ -1130,6 +1131,27 @@ func TestApplyMap(t *testing.T) {
 
 	b.Release()
 	require.Zero(t, GetObjectsInUse())
+}
+
+func TestToBytesReuseAfterSeccuessToBytes(t *testing.T) {
+	require := require.New(t)
+	s, err := YamlToScheme(schemeStr)
+	require.NoError(err)
+	b := NewBuffer(s)
+	b.Set("name", "str2")
+	b.Set("price", 0.42)
+	b.Set("quantity", 42)
+	bytes1, err := b.ToBytes()
+	require.NoError(err)
+
+	// no modifications since the last success ToBytes() -> just return the last result with no recalculations
+	bytes2, err := b.ToBytes()
+	require.NoError(err)
+	require.Equal(bytes1, bytes2)
+	bytes1Header := (*reflect.SliceHeader)(unsafe.Pointer(&bytes1))
+	bytes2Header := (*reflect.SliceHeader)(unsafe.Pointer(&bytes2))
+	require.Equal(bytes1Header, bytes2Header)
+	b.Release()
 }
 
 func TestApplyMapArrays(t *testing.T) {
