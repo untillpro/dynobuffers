@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
-	"unsafe"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/require"
@@ -379,9 +378,7 @@ func TestToJSONBasic(t *testing.T) {
 
 	b := NewBuffer(scheme)
 	actual := map[string]interface{}{}
-	require.False(t, b.IsModified())
 	jsonBytes := b.ToJSON()
-	require.False(t, b.IsModified())
 	json.Unmarshal(jsonBytes, &actual)
 	require.True(t, len(actual) == 0)
 
@@ -389,9 +386,7 @@ func TestToJSONBasic(t *testing.T) {
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
-	require.True(t, b.IsModified())
 	jsonBytes = b.ToJSON()
-	require.True(t, b.IsModified())
 	json.Unmarshal(jsonBytes, &actual)
 	require.True(t, len(actual) == 3)
 	require.Equal(t, "cola", actual["name"])
@@ -405,9 +400,7 @@ func TestToJSONBasic(t *testing.T) {
 	b.Release()
 
 	b = ReadBuffer(bytes, scheme)
-	require.False(t, b.IsModified())
 	jsonBytes = b.ToJSON()
-	require.False(t, b.IsModified())
 	json.Unmarshal(jsonBytes, &actual)
 	require.True(t, len(actual) == 3)
 	require.Equal(t, "cola", actual["name"])
@@ -470,18 +463,14 @@ func TestToJSONMapBasic(t *testing.T) {
 	require.Nil(t, err)
 
 	b := NewBuffer(scheme)
-	require.False(t, b.IsModified())
 	dest := b.ToJSONMap()
-	require.False(t, b.IsModified())
 	require.True(t, len(dest) == 0)
 
 	// basic test
 	b.Set("name", "cola")
 	b.Set("price", float32(0.123))
 	b.Set("quantity", int32(42))
-	require.True(t, b.IsModified())
 	dest = b.ToJSONMap()
-	require.True(t, b.IsModified())
 	require.True(t, len(dest) == 3)
 	require.Equal(t, "cola", dest["name"])
 	require.Equal(t, float32(0.123), dest["price"])
@@ -490,13 +479,10 @@ func TestToJSONMapBasic(t *testing.T) {
 	// unmodified
 	bytes, err := b.ToBytes()
 	require.Nil(t, err)
-	require.False(t, b.IsModified())
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, scheme)
-	require.False(t, b.IsModified())
 	dest = b.ToJSONMap()
-	require.False(t, b.IsModified())
 	require.True(t, len(dest) == 3)
 	require.Equal(t, "cola", dest["name"])
 	require.Equal(t, float32(0.123), dest["price"])
@@ -602,12 +588,15 @@ func TestApplyJSONArrays(t *testing.T) {
 	}
 	for _, wrong := range wrongs {
 		b.Reset(nil)
-		require.False(t, b.IsModified())
 		bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(wrong.json))
 		require.Nil(t, bytes, wrong)
 		require.NotNil(t, err, wrong)
 		require.Nil(t, nilled)
-		require.Equal(t, wrong.shouldBeNil, b.IsNil(), wrong.json)
+		if wrong.shouldBeNil {
+			require.True(t, b.IsNil(), wrong.json)
+		} else {
+			require.False(t, b.IsNil(), wrong.json)
+		}
 	}
 
 	// apply all values
@@ -646,7 +635,6 @@ func TestApplyJSONArrays(t *testing.T) {
 		bytes, nilled, err = b.ApplyJSONAndToBytes(json)
 		require.Nil(t, err)
 		require.Nil(t, bytes)
-		require.False(t, b.IsModified())
 		require.Equal(t, allFields, nilled)
 
 		// initially not set -> nothing to store
@@ -654,7 +642,6 @@ func TestApplyJSONArrays(t *testing.T) {
 		bytes, nilled, err := b1.ApplyJSONAndToBytes(json)
 		require.Nil(t, err)
 		require.Nil(t, bytes)
-		require.False(t, b1.IsModified())
 		require.Equal(t, allFields, nilled)
 		b1.Release()
 	}
@@ -795,7 +782,6 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	require.False(t, b.IsModified())
 
 	// empty strings are not stored
 	b.Set("string", "")
@@ -803,13 +789,11 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	require.False(t, b.IsModified())
 	b.Set("string", []byte{})
 	builderBytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	require.False(t, b.IsModified())
 
 	// wrong types (except float64 for numeric fields) -> error
 	b.Release()
@@ -832,7 +816,6 @@ func TestAllValues(t *testing.T) {
 			require.Nil(t, builderBytes)
 			require.NotNil(t, err)
 			require.Nil(t, nilled)
-			require.True(t, b.IsModified())
 			b.Release()
 		}
 	}
@@ -881,15 +864,12 @@ func TestAllValues(t *testing.T) {
 	bNested := NewBuffer(sNested)
 	bNested.Set("int", 4)
 	b.Set("nes", bNested)
-	require.True(t, b.IsModified())
 	bytesFilled, nilled, err := b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
-	require.False(t, b.IsModified())
 	bytesFilled = copyBytes(bytesFilled)
 	b.Release()
 	b = ReadBuffer(bytesFilled, s)
-	require.False(t, b.IsModified())
 	expectedValues := []interface{}{int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)}}
 	testFieldValues(t, b, expectedValues...)
 
@@ -1001,7 +981,6 @@ func testEmpty(t *testing.T, b *Buffer) {
 		_, ok = b.GetFloat64(f.Name)
 		require.False(t, ok, f.Name)
 	}
-	require.False(t, b.IsModified())
 }
 
 func TestApplyMap(t *testing.T) {
@@ -1018,21 +997,17 @@ func TestApplyMap(t *testing.T) {
 	// applied nil -> nothing to store
 	b := NewBuffer(s)
 	require.Nil(t, b.ApplyMap(nil))
-	require.False(t, b.IsModified())
 	bytes, nilled, err := b.ToBytesNilled()
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Nil(t, nilled)
-	require.False(t, b.IsModified())
 
 	// applied empty -> nothing to store
 	require.Nil(t, b.ApplyMap(map[string]interface{}{}))
-	require.False(t, b.IsModified())
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Nil(t, nilled)
-	require.False(t, b.IsModified())
 
 	// applied nil fields -> nothing to store
 	require.Nil(t, b.ApplyMap(map[string]interface{}{
@@ -1046,12 +1021,10 @@ func TestApplyMap(t *testing.T) {
 		"byte":      nil,
 		"nes":       nil,
 	}))
-	require.True(t, b.IsModified())
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	require.False(t, b.IsModified())
 
 	// wrong types -> error
 	wrongs := []struct {
@@ -1105,11 +1078,9 @@ func TestApplyMap(t *testing.T) {
 			"int": int32(4),
 		},
 	}))
-	require.True(t, b.IsModified())
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
-	require.False(t, b.IsModified())
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
@@ -1127,12 +1098,10 @@ func TestApplyMap(t *testing.T) {
 		"byte":      nil,
 		"nes":       nil,
 	}))
-	require.True(t, b.IsModified())
 	bytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
-	require.False(t, b.IsModified())
 	b.Release()
 
 	// apply json map
@@ -1161,27 +1130,6 @@ func TestApplyMap(t *testing.T) {
 
 	b.Release()
 	require.Zero(t, GetObjectsInUse())
-}
-
-func TestToBytesReuseAfterSeccuessToBytes(t *testing.T) {
-	require := require.New(t)
-	s, err := YamlToScheme(schemeStr)
-	require.NoError(err)
-	b := NewBuffer(s)
-	b.Set("name", "str2")
-	b.Set("price", 0.42)
-	b.Set("quantity", 42)
-	bytes1, err := b.ToBytes()
-	require.NoError(err)
-
-	// no modifications since the last success ToBytes() -> just return the last result with no recalculations
-	bytes2, err := b.ToBytes()
-	require.NoError(err)
-	require.Equal(bytes1, bytes2)
-	bytes1Header := (*reflect.SliceHeader)(unsafe.Pointer(&bytes1))
-	bytes2Header := (*reflect.SliceHeader)(unsafe.Pointer(&bytes2))
-	require.Equal(bytes1Header, bytes2Header)
-	b.Release()
 }
 
 func TestApplyMapArrays(t *testing.T) {
@@ -1835,11 +1783,8 @@ func TestNestedAdvanced(t *testing.T) {
 	bNested = b.Get("nes").(*Buffer)
 	bNested.Set("quantity", 43)
 	bNested.Set("price", 0.124)
-	require.True(t, b.IsModified()) // nested is modified -> owner is modified
 	bytes, err = b.ToBytes()
 	require.Nil(t, err)
-	require.False(t, b.IsModified())
-	require.True(t, bNested.IsModified()) // owner.ToBytes() -> nested is still modified because we did not call bNested.ToBytes()
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, schemeRoot)

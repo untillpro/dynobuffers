@@ -77,7 +77,6 @@ type Buffer struct {
 	tab            flatbuffers.Table
 	isModified     bool
 	isReleased     bool
-	isFinished     bool
 	owner          *Buffer
 	builder        *flatbuffers.Builder
 	toRelease      []interface{}
@@ -223,7 +222,6 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 	b.Scheme = Scheme
 	b.isReleased = false
 	b.isModified = false
-	b.isFinished = false
 	b.toRelease = b.toRelease[:0]
 	b.owner = nil
 	b.Reset(nil)
@@ -699,11 +697,9 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 // Resulting buffer has no value (or has nil value) for a mandatory field -> error
 // Value type and field type are incompatible (e.g. string for numberic field) -> error
 // Value and field types differs but value fits into field -> no error. Examples:
-//
-//	255 fits into float, double, int, long, byte;
-//	256 does not fit into byte
-//	math.MaxInt64 does not fit into int32
-//
+//   255 fits into float, double, int, long, byte;
+//   256 does not fit into byte
+//   math.MaxInt64 does not fit into int32
 // Unexisting field is provided -> error
 // Byte arrays could be base64 strings or []byte
 // Array element is nil -> error (not supported)
@@ -1006,21 +1002,8 @@ func (b *Buffer) NKeys() int {
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
-// Note: no modifications since last success ToBytes() -> the last result is returned
 func (b *Buffer) ToBytes() ([]byte, error) {
-	if !b.isModified {
-		if b.isFinished {
-			return b.builder.FinishedBytes(), nil
-		}
-		// not isFinished -> need to encode buffer to check mandatory fields
-		for _, f := range b.Scheme.Fields {
-			if !f.IsMandatory {
-				continue
-			}
-			if b.getFieldUOffsetTByOrder(f.Order) == 0 {
-				return nil, fmt.Errorf("no value for a mandatory field %s", f.Name)
-			}
-		}
+	if !b.isModified && len(b.tab.Bytes) > 0 {
 		return b.tab.Bytes, nil
 	}
 
@@ -1031,10 +1014,9 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 		return nil, err
 	}
 
-	b.isModified = false
-	b.isFinished = true
-
 	if uOffset != 0 {
+		b.isModified = false
+		b.isFinished = true
 		return b.builder.FinishedBytes(), nil
 	}
 
@@ -1227,7 +1209,6 @@ func (b *Buffer) Reset(bytes []byte) {
 	}
 
 	b.isModified = false
-	b.isFinished = false
 }
 
 func (b *Buffer) copyArray(bl *flatbuffers.Builder, arrayUOffsetT flatbuffers.UOffsetT, f *Field) flatbuffers.UOffsetT {
@@ -2130,14 +2111,6 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 	}
 }
 
-// Returns if Buffer was modified since last NewBuffer(), ReadBuffer() or successful ToBytes()
-// note: ToJSON(), ToJSONMap() calls does not change is-modified state
-// note: always returns false after non-nil ApplyJSONAndToBytes() result
-// note: owner.ToBytes() -> owner is not IsModified() but nested is still IsModified bbecause nested.IsModified was not called
-func (b *Buffer) IsModified() bool {
-	return b.isModified
-}
-
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
 	return &Scheme{"", map[string]*Field{}, []*Field{}}
@@ -2245,7 +2218,6 @@ func (f *Field) QualifiedName() string {
 //   - `bool` -> `bool`
 //   - `string` -> `string`
 //   - `byte` -> `byte`
-//
 // Field name starts with the capital letter -> field is mandatory
 // Field name ends with `..` -> field is an array
 // See [dynobuffers_test.go](dynobuffers_test.go) for examples
