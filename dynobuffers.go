@@ -1017,7 +1017,6 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	}
 
 	if uOffset != 0 {
-		b.isModified = false
 		return b.builder.FinishedBytes(), nil
 	}
 
@@ -2110,6 +2109,10 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 			}
 		}
 	}
+}
+
+func (b *Buffer) IsModified() bool {
+	return b.isModified
 }
 
 // NewScheme creates new empty Scheme

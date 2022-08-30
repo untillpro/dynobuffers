@@ -773,6 +773,7 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	require.False(t, b.IsModified())
 
 	// all is nil -> nothing
 	for _, f := range s.Fields {
@@ -782,6 +783,7 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
+	require.True(t, b.IsModified())
 
 	// empty strings are not stored
 	b.Set("string", "")
@@ -789,11 +791,13 @@ func TestAllValues(t *testing.T) {
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
+	require.True(t, b.IsModified())
 	b.Set("string", []byte{})
 	builderBytes, nilled, err = b.ToBytesNilled()
 	require.Nil(t, builderBytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
+	require.True(t, b.IsModified())
 
 	// wrong types (except float64 for numeric fields) -> error
 	b.Release()
@@ -816,6 +820,7 @@ func TestAllValues(t *testing.T) {
 			require.Nil(t, builderBytes)
 			require.NotNil(t, err)
 			require.Nil(t, nilled)
+			require.True(t, b.IsModified())
 			b.Release()
 		}
 	}
@@ -867,6 +872,7 @@ func TestAllValues(t *testing.T) {
 	bytesFilled, nilled, err := b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	require.True(t, b.IsModified())
 	bytesFilled = copyBytes(bytesFilled)
 	b.Release()
 	b = ReadBuffer(bytesFilled, s)
@@ -981,6 +987,7 @@ func testEmpty(t *testing.T, b *Buffer) {
 		_, ok = b.GetFloat64(f.Name)
 		require.False(t, ok, f.Name)
 	}
+	require.False(t, b.IsModified())
 }
 
 func TestApplyMap(t *testing.T) {
@@ -1001,6 +1008,7 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	require.False(t, b.IsModified())
 
 	// applied empty -> nothing to store
 	require.Nil(t, b.ApplyMap(map[string]interface{}{}))
@@ -1008,6 +1016,7 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Nil(t, nilled)
+	require.False(t, b.IsModified())
 
 	// applied nil fields -> nothing to store
 	require.Nil(t, b.ApplyMap(map[string]interface{}{
@@ -1025,6 +1034,7 @@ func TestApplyMap(t *testing.T) {
 	require.Nil(t, bytes)
 	require.Nil(t, err)
 	require.Equal(t, allFields, nilled)
+	require.True(t, b.IsModified())
 
 	// wrong types -> error
 	wrongs := []struct {
