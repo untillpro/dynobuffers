@@ -77,7 +77,6 @@ type Buffer struct {
 	tab            flatbuffers.Table
 	isModified     bool
 	isReleased     bool
-	isFinished     bool
 	owner          *Buffer
 	builder        *flatbuffers.Builder
 	toRelease      []interface{}
@@ -223,7 +222,6 @@ func NewBuffer(Scheme *Scheme) *Buffer {
 	b.Scheme = Scheme
 	b.isReleased = false
 	b.isModified = false
-	b.isFinished = false
 	b.toRelease = b.toRelease[:0]
 	b.owner = nil
 	b.Reset(nil)
@@ -1006,21 +1004,8 @@ func (b *Buffer) NKeys() int {
 
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
-// Note: no modifications since last success ToBytes() -> the last result is returned
 func (b *Buffer) ToBytes() ([]byte, error) {
-	if !b.isModified {
-		if b.isFinished {
-			return b.builder.FinishedBytes(), nil
-		}
-		// not isFinished -> need to encode buffer to check mandatory fields
-		for _, f := range b.Scheme.Fields {
-			if !f.IsMandatory {
-				continue
-			}
-			if b.getFieldUOffsetTByOrder(f.Order) == 0 {
-				return nil, fmt.Errorf("no value for a mandatory field %s", f.Name)
-			}
-		}
+	if !b.isModified && len(b.tab.Bytes) > 0 {
 		return b.tab.Bytes, nil
 	}
 
@@ -1030,9 +1015,6 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	b.isModified = false
-	b.isFinished = true
 
 	if uOffset != 0 {
 		return b.builder.FinishedBytes(), nil
@@ -1227,7 +1209,6 @@ func (b *Buffer) Reset(bytes []byte) {
 	}
 
 	b.isModified = false
-	b.isFinished = false
 }
 
 func (b *Buffer) copyArray(bl *flatbuffers.Builder, arrayUOffsetT flatbuffers.UOffsetT, f *Field) flatbuffers.UOffsetT {
@@ -2130,10 +2111,6 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 	}
 }
 
-// Returns if Buffer was modified since last NewBuffer(), ReadBuffer() or successful ToBytes()
-// note: ToJSON(), ToJSONMap() calls does not change is-modified state
-// note: always returns false after non-nil ApplyJSONAndToBytes() result
-// note: owner.ToBytes() -> owner is not IsModified() but nested is still IsModified bbecause nested.IsModified was not called
 func (b *Buffer) IsModified() bool {
 	return b.isModified
 }
