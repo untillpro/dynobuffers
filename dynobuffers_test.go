@@ -48,8 +48,8 @@ weight: int64
 		b.Set("quantity", int32(42))
 		b.Set("unknownField", "some value") // Nothing happens here, nothing will be written to buffer
 		bytes, err = b.ToBytes()
-		bytes = copyBytes(bytes) // ToBytes() result will be obsolete after .Release() so need to copy
 		require.Nil(t, err)
+		bytes = copyBytes(bytes) // ToBytes() result will be obsolete after .Release() so need to copy
 		b.Release()
 	}
 
