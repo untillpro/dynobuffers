@@ -2115,6 +2115,18 @@ func (b *Buffer) IsModified() bool {
 	return b.isModified
 }
 
+// applies all current modifications to the underlying byte array and clears all modifications
+// note: takes one byte array allocation
+func (b *Buffer) CommitChanges() error {
+	bytes, err := b.ToBytes()
+	if err != nil {
+		return err
+	}
+	bytes = copyBytes(bytes)
+	b.Reset(bytes)
+	return nil
+}
+
 // NewScheme creates new empty Scheme
 func NewScheme() *Scheme {
 	return &Scheme{"", map[string]*Field{}, []*Field{}}
@@ -2311,4 +2323,10 @@ func init() {
 	for name, ft := range yamlFieldTypesMap {
 		fieldTypesNamesMap[ft] = name
 	}
+}
+
+func copyBytes(src []byte) []byte {
+	res := make([]byte, len(src))
+	copy(res, src)
+	return res
 }

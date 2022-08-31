@@ -70,11 +70,7 @@ weight: int64
 	{
 		b.Set("price", float32(0.124))
 		b.Set("name", nil) // set to nil means `unset`
-		bytes, err = b.ToBytes()
-		require.Nil(t, err)
-		bytes = copyBytes(bytes)
-		b.Release()
-		b = ReadBuffer(bytes, s)
+		require.NoError(t, b.CommitChanges())
 		require.Nil(t, b.Get("name"))
 		require.Equal(t, float32(0.124), b.Get("price").(float32))
 		require.Equal(t, int32(42), b.Get("quantity").(int32))
@@ -83,11 +79,7 @@ weight: int64
 	// set untyped int value
 	{
 		b.Set("quantity", 45)
-		bytes, err = b.ToBytes()
-		require.Nil(t, err)
-		bytes = copyBytes(bytes)
-		b.Release()
-		b = ReadBuffer(bytes, s)
+		require.NoError(t, b.CommitChanges())
 		actual := b.Get("quantity")
 		require.Equal(t, int32(45), actual.(int32))
 	}
@@ -105,11 +97,7 @@ weight: int64
 		b = NewBuffer(s)
 		b.Set("price", float32(0.123))
 		b.Set("quantity", nil)
-		bytes, err = b.ToBytes()
-		require.Nil(t, err, err)
-		bytes = copyBytes(bytes)
-		b.Release()
-		b = ReadBuffer(bytes, s)
+		require.NoError(t, b.CommitChanges())
 		require.True(t, b.HasValue("price"))
 		require.False(t, b.HasValue("quantity")) // set to nil
 		require.False(t, b.HasValue("name"))     // not set
@@ -122,6 +110,7 @@ weight: int64
 		bytes, err = b.ToBytes()
 		require.NotNil(t, err)
 		require.Nil(t, bytes)
+		require.Error(t, b.CommitChanges())
 	}
 
 	// nil Scheme provided -> panic
@@ -1088,12 +1077,10 @@ func TestApplyMap(t *testing.T) {
 			"int": int32(4),
 		},
 	}))
-	bytes, nilled, err = b.ToBytesNilled()
+	_, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Nil(t, nilled)
-	bytes = copyBytes(bytes)
-	b.Release()
-	b = ReadBuffer(bytes, s)
+	require.NoError(t, b.CommitChanges())
 	testFieldValues(t, b, int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
 
 	// unset values
@@ -1120,12 +1107,10 @@ func TestApplyMap(t *testing.T) {
 	m := map[string]interface{}{}
 	require.Nil(t, json.Unmarshal(jsonStr, &m))
 	require.Nil(t, b.ApplyMap(m))
-	bytes, nilled, err = b.ToBytesNilled()
+	_, nilled, err = b.ToBytesNilled()
 	require.Nil(t, err)
 	require.Empty(t, nilled)
-	bytes = copyBytes(bytes)
-	b.Release()
-	b = ReadBuffer(bytes, s)
+	require.NoError(t, b.CommitChanges())
 	testFieldValues(t, b, int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
 
 	// unset from json
@@ -2688,10 +2673,4 @@ func Benchmark_RW_Nested(b *testing.B) {
 		}
 	})
 	require.Zero(b, GetObjectsInUse())
-}
-
-func copyBytes(src []byte) []byte {
-	res := make([]byte, len(src))
-	copy(res, src)
-	return res
 }
