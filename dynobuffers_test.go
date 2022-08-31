@@ -2129,20 +2129,13 @@ func TestCopyBytes(t *testing.T) {
 	b.Set("id", 42)
 	b.Set("longs", []int64{45, 46})
 	b.Set("float", 0.123)
-	bytes, err := b.ToBytes()
-	require.Nil(t, err)
-	bytes = copyBytes(bytes)
-	b.Release()
 
 	// make buffer unmodified
-	b = ReadBuffer(bytes, s)
+	require.NoError(t, b.CommitChanges())
 
-	// force copy existing unmodified array
-	bytes, err = b.ToBytes()
-	require.Nil(t, err)
-	bytes = copyBytes(bytes)
-	b.Release()
-	b = ReadBuffer(bytes, s)
+	// CommitChanges() on an unmodified buffer -> nothing happens, no error
+	require.NoError(t, b.CommitChanges())
+
 	require.Equal(t, "str", b.Get("name"))
 	require.Equal(t, int32(42), b.Get("id"))
 	arr := b.Get("longs").([]int64)

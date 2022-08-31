@@ -2118,6 +2118,9 @@ func (b *Buffer) IsModified() bool {
 // applies all current modifications to the underlying byte array and clears all modifications
 // note: takes one byte array allocation
 func (b *Buffer) CommitChanges() error {
+	if !b.isModified {
+		return nil
+	}
 	bytes, err := b.ToBytes()
 	if err != nil {
 		return err
