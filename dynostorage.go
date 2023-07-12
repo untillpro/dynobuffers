@@ -38,7 +38,7 @@ var (
 		New: func() interface{} {
 			return &Buffer{
 				builder:        flatbuffers.NewBuilder(0),
-				modifiedFields: make([]*modifiedField, defaultBufferSize),
+				modifiedFields: make([]modifiedField, defaultBufferSize),
 			}
 		},
 	}
