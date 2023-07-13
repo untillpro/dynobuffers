@@ -775,7 +775,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 	if !ok {
 		return fmt.Errorf("field %s does not exist in the scheme", fn)
 	}
-	m := b.modifiedFields[f.Order]
+	m := &b.modifiedFields[f.Order]
 	if f.Ft == FieldTypeObject {
 		if f.IsArray {
 			buffers := getBufferSlice(0)
@@ -1053,7 +1053,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 	for _, f := range b.Scheme.Fields {
 		if f.IsArray {
 			arrayUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedField := b.modifiedFields[f.Order]
+			modifiedField := &b.modifiedFields[f.Order]
 			if modifiedField.hasValue && !modifiedField.isReleased {
 				if modifiedField.value != nil {
 					var toAppendToIntf interface{} = nil
@@ -1078,7 +1078,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			(*offsets)[f.Order].arr = arrayUOffsetT
 		} else if f.Ft == FieldTypeObject {
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedField := b.modifiedFields[f.Order]
+			modifiedField := &b.modifiedFields[f.Order]
 			if modifiedField.hasValue && !modifiedField.isReleased {
 				if modifiedField.value != nil {
 					if nestedBuffer, ok := modifiedField.value.(*Buffer); !ok {
@@ -1111,7 +1111,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			(*offsets)[f.Order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
 			stringUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedStringField := b.modifiedFields[f.Order]
+			modifiedStringField := &b.modifiedFields[f.Order]
 			if modifiedStringField.hasValue && !modifiedStringField.isReleased {
 				if modifiedStringField.value != nil {
 					switch toWrite := modifiedStringField.value.(type) {
@@ -1159,7 +1159,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			case FieldTypeObject:
 				offsetToWrite = (*offsets)[f.Order].obj
 			default:
-				modifiedField := b.modifiedFields[f.Order]
+				modifiedField := &b.modifiedFields[f.Order]
 				if modifiedField.hasValue && !modifiedField.isReleased {
 					if isSet = modifiedField.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, modifiedField.value, beforePrepend) {
@@ -1859,7 +1859,7 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 	b.prepareModifiedFields()
 	for _, f := range b.Scheme.Fields {
 		var value interface{}
-		modifiedField := b.modifiedFields[f.Order]
+		modifiedField := &b.modifiedFields[f.Order]
 		if modifiedField.hasValue && !modifiedField.isReleased {
 			value = modifiedField.value
 		} else {
@@ -2021,7 +2021,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 	b.prepareModifiedFields()
 	for _, f := range b.Scheme.Fields {
 		var storedVal interface{}
-		modifiedField := b.modifiedFields[f.Order]
+		modifiedField := &b.modifiedFields[f.Order]
 		if modifiedField.hasValue && !modifiedField.isReleased {
 			storedVal = modifiedField.value
 		} else {
