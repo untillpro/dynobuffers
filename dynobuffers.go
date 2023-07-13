@@ -247,12 +247,12 @@ func (b *Buffer) Release() {
 }
 
 func (b *Buffer) releaseFields() {
-	for idx, m := range b.modifiedFields {
+	for idx := range b.modifiedFields {
+		m := &b.modifiedFields[idx]
 		if m.hasValue {
-			b.modifiedFields[idx].hasValue = false
+			m.hasValue = false
 			m.Release()
 		}
-
 	}
 }
 
@@ -595,7 +595,7 @@ func (b *Buffer) setModified() {
 
 func (b *Buffer) set(f *Field, value interface{}) {
 	b.prepareModifiedFields()
-	m := b.modifiedFields[f.Order]
+	m := &b.modifiedFields[f.Order]
 
 	m.hasValue = true
 
@@ -619,8 +619,6 @@ func (b *Buffer) set(f *Field, value interface{}) {
 	m.isAppend = false
 	m.isReleased = false
 
-	b.modifiedFields[f.Order] = m
-
 	b.setModified()
 }
 
@@ -641,15 +639,13 @@ func (b *Buffer) append(f *Field, toAppend interface{}) {
 
 	b.prepareModifiedFields()
 
-	m := b.modifiedFields[f.Order]
+	m := &b.modifiedFields[f.Order]
 
 	m.hasValue = true
 
 	m.value = toAppend
 	m.isAppend = true
 	m.isReleased = false
-
-	b.modifiedFields[f.Order] = m
 
 	b.setModified()
 }
@@ -684,7 +680,8 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 	if res, err = b.ToBytes(); err != nil {
 		return
 	}
-	for i, mf := range b.modifiedFields {
+	for i := range b.modifiedFields {
+		mf := &b.modifiedFields[i]
 		if mf.hasValue && !mf.isReleased && mf.value == nil {
 			nilledFields = append(nilledFields, b.Scheme.Fields[i].Name)
 		}
