@@ -404,7 +404,7 @@ func TestToJSONBasic(t *testing.T) {
 	jsonBytes = b.ToJSON()
 	actual = map[string]interface{}{}
 	json.Unmarshal(jsonBytes, &actual)
-	require.True(t, len(actual) == 2)
+	require.Equal(t, 2, len(actual), actual)
 	require.Equal(t, "cola", actual["name"])
 	require.Equal(t, float64(42), actual["quantity"])
 
