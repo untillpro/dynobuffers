@@ -377,7 +377,7 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 		setted := false
 		if !f.IsArray {
 			b.prepareModifiedFields()
-			if b.modifiedFields[f.Order].hasValue || b.modifiedFields[f.Order].isReleased {
+			if !b.modifiedFields[f.Order].hasValue || b.modifiedFields[f.Order].isReleased {
 				setted = true
 				b.set(f, res)
 			}
@@ -404,6 +404,8 @@ func (b *Buffer) GetByField(f *Field) interface{} {
 // field is scalar -> scalar is returned
 // field is an array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned.
+//    note: the retuned object will go to modifications of the root. I.e. few Get() on the same nested object field -> modifications only from the last one will be considered
+//    note: nested objects will be released automatically on root release
 // field is an array of nested objects -> *dynobuffers.ObjectArray is returned.
 // field is not set, set to nil or no such field in the Scheme -> nil
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
