@@ -19,12 +19,12 @@ import (
 
 func Benchmark_MapToBytes_Pbill_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bb := dynobuffers.NewBuffer(s)
 	fillBuffer(bb)
 	jsonBytes := bb.ToJSON()
 	dest := map[string]interface{}{}
-	require.Nil(b, json.Unmarshal(jsonBytes, &dest))
+	require.NoError(b, json.Unmarshal(jsonBytes, &dest))
 	bb.Release()
 
 	b.ResetTimer()
@@ -47,21 +47,21 @@ func Benchmark_MapToBytes_Pbill_Dyno(b *testing.B) {
 
 func Benchmark_MapToBytes_PBill_AppendArrays_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	pb := dynobuffers.NewBuffer(s)
 	fillBuffer(pb)
-	jsonBytes := []byte(pb.ToJSON())
+	jsonBytes := pb.ToJSON()
 	pb.Release()
 	pb = dynobuffers.NewBuffer(s)
 	bytes, _, err := pb.ApplyJSONAndToBytes(jsonBytes)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		dest := map[string]interface{}{}
-		require.Nil(b, json.Unmarshal(jsonBytes, &dest))
+		require.NoError(b, json.Unmarshal(jsonBytes, &dest))
 		for p.Next() {
 			pb := dynobuffers.ReadBuffer(bytes, s)
 			if err := pb.ApplyMap(dest); err != nil {
@@ -78,11 +78,11 @@ func Benchmark_MapToBytes_PBill_AppendArrays_Dyno(b *testing.B) {
 
 func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	pb := dynobuffers.NewBuffer(s)
 	fillBuffer(pb)
 	bytes, err := pb.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 
@@ -98,7 +98,7 @@ func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 	}
 	pb.Append("pbill_item", pbillItems)
 	bytes, err = pb.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 	pb = dynobuffers.ReadBuffer(bytes, s)
@@ -124,11 +124,11 @@ func Benchmark_R_PbillItem_ByIndex_Dyno(b *testing.B) {
 
 func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	pb := dynobuffers.NewBuffer(s)
 	fillBuffer(pb)
 	bytes, err := pb.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 	pb = dynobuffers.ReadBuffer(bytes, s)
@@ -143,7 +143,7 @@ func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 	}
 	pb.Append("pbill_item", pbillItems)
 	bytes, err = pb.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 
@@ -170,7 +170,7 @@ func Benchmark_R_PBillItem_Iter_Dyno(b *testing.B) {
 
 func Benchmark_RW_Pbill_Json(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	pb := dynobuffers.NewBuffer(s)
 
@@ -198,11 +198,11 @@ func Benchmark_RW_Pbill_Json(b *testing.B) {
 
 func Benchmark_RW_Pbill_Dyno_AllFields(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	pb := dynobuffers.NewBuffer(s)
 	fillBuffer(pb)
 	bytes, err := pb.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 
@@ -222,11 +222,11 @@ func Benchmark_RW_Pbill_Dyno_AllFields(b *testing.B) {
 
 func Benchmark_RW_Pbill_Dyno_NoRead(b *testing.B) {
 	s, err := dynobuffers.YamlToScheme(pbillYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	pb := dynobuffers.NewBuffer(s)
 	fillBuffer(pb)
 	bytes, err := pb.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	pb.Release()
 

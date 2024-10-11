@@ -330,48 +330,53 @@
 ## Reading Many Fields
 
 - cd benchmarks
-- go test -bench=ReadAllArticleFields -benchmem
+- go test -bench=R_Article_AllFields -benchmem
 
 ```
 goos: windows
 goarch: amd64
 pkg: github.com/untillpro/dynobuffers/benchmarks
-Benchmark_ReadAllArticleFields_Avro-8                      71046             23394 ns/op           11257 B/op        149 allocs/op
-Benchmark_ReadAllArticleFields_Dyno_Untyped-8             195801              6437 ns/op             808 B/op         84 allocs/op
-Benchmark_ReadAllArticleFields_Dyno_Typed-8               313376              3776 ns/op               0 B/op          0 allocs/op
-Benchmark_ReadAllArticleFields_Flat-8                    1000000              1132 ns/op               0 B/op          0 allocs/op
-Benchmark_ReadAllArticleFields_Json-8                      14431             87331 ns/op           14145 B/op        603 allocs/op
+cpu: Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz
+Benchmark_R_Article_AllFields_Avro-8              232038              4513 ns/op           10474 B/op         70 allocs/op
+Benchmark_R_Article_AllFields_Dyno_Untyped-8     1000000              1066 ns/op             352 B/op         25 allocs/op
+Benchmark_R_Article_AllFields_Dyno_Typed-8       2086623               591.0 ns/op             0 B/op          0 allocs/op
+Benchmark_R_Article_AllFields_Flat-8             6293341               189.2 ns/op             0 B/op          0 allocs/op
+Benchmark_R_Article_AllFields_Json-8               69828             17292 ns/op            8082 B/op        358 allocs/op
 ```
 
 ## Reading Few of Many Fields
 
 - cd benchmarks
-- go test -bench=ReadFewArticleFields -benchmem
+- go test -bench=R_Article_FewFields -benchmem
 
 ```
 goos: windows
 goarch: amd64
 pkg: github.com/untillpro/dynobuffers/benchmarks
-Benchmark_ReadFewArticleFields_Avro-8              98437             19311 ns/op           11257 B/op        149 allocs/op
-Benchmark_ReadFewArticleFields_Dyno_Typed-8     18520500                62.2 ns/op             0 B/op          0 allocs/op
-Benchmark_ReadFewArticleFields_Flat-8           60032416                19.8 ns/op             0 B/op          0 allocs/op
-Benchmark_ReadFewArticleFields_Json-8              15333             83824 ns/op           11073 B/op        603 allocs/op
+cpu: Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz
+Benchmark_R_Article_FewFields_Avro-8              306034              3489 ns/op           10474 B/op         70 allocs/op
+Benchmark_R_Article_FewFields_Dyno_Typed-8      31276388                40.41 ns/op            0 B/op          0 allocs/op
+Benchmark_R_Article_FewFields_Flat-8            379300796                3.258 ns/op           0 B/op          0 allocs/op
+Benchmark_R_Article_FewFields_Json-8               81368             13618 ns/op            5010 B/op        358 allocs/op
 ```
 
 ## Reading Few Fields
 
 - cd benchmarks
-- go test -bench=ReadSimple -benchmem
+- go test -bench=R_Simple -benchmem
 
 ```
 goos: windows
 goarch: amd64
 pkg: github.com/untillpro/dynobuffers/benchmarks
-Benchmark_ReadSimple_Avro-8              2038466              1193 ns/op             744 B/op         10 allocs/op
-Benchmark_ReadSimple_Dyno_Typed-8       20017480                55.2 ns/op             0 B/op          0 allocs/op
-Benchmark_ReadSimple_Flat-8             59981404                20.2 ns/op             0 B/op          0 allocs/op
-Benchmark_ReadSimple_Flat_String-8      29275360                40.7 ns/op             0 B/op          0 allocs/op
-Benchmark_ReadSimple_Json-8               545769              2423 ns/op             776 B/op         21 allocs/op
+cpu: Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz
+Benchmark_R_Simple_Dyno_Typed_String-8          29157848                40.37 ns/op            0 B/op          0 allocs/op
+Benchmark_R_Simple_Dyno_Untyped-8               28765596                42.42 ns/op            4 B/op          1 allocs/op
+Benchmark_R_Simple_Avro-8                        4177616               257.5 ns/op           720 B/op          8 allocs/op
+Benchmark_R_Simple_Dyno_Typed-8                 31884026                37.57 ns/op            0 B/op          0 allocs/op
+Benchmark_R_Simple_Flat-8                       382280167                3.116 ns/op           0 B/op          0 allocs/op
+Benchmark_R_Simple_Flat_String-8                204295238                5.883 ns/op           0 B/op          0 allocs/op
+Benchmark_R_Simple_Json-8                        2674130               444.1 ns/op           280 B/op         14 allocs/op
 ```
 
 NOTE: DynoBuffers allocs caused by string types

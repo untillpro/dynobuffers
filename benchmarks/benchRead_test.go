@@ -25,7 +25,7 @@ func Benchmark_R_Simple_Dyno_Typed_String(b *testing.B) {
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	bf.Release()
 
@@ -51,7 +51,7 @@ func Benchmark_R_Simple_Dyno_Untyped(b *testing.B) {
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	bf.Release()
 
@@ -83,17 +83,17 @@ intsObj..:
   int: int32
 `
 	s, err := dynobuffers.YamlToScheme(arraysAllTypesYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	buf := dynobuffers.NewBuffer(s)
 	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY="}`))
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	buf.Release()
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY="}`)
-	require.Nil(b, json.Unmarshal(jsonBytes, &dest))
+	require.NoError(b, json.Unmarshal(jsonBytes, &dest))
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -125,16 +125,16 @@ intsObj..:
   int: int32
 `
 	s, err := dynobuffers.YamlToScheme(arraysAllTypesYaml)
-	require.Nil(b, err)
+	require.NoError(b, err)
 	buf := dynobuffers.NewBuffer(s)
 	bytes, _, err := buf.ApplyJSONAndToBytes([]byte(`{"ints":[1,2],"longs":[3,4],"floats":[0.123,0.124],"doubles":[0.125,0.126],"strings":["str1","str2"],"boolTrues":[true,false],"boolFalses":[false,true],"bytes":"BQY=","intsObj":[{"int":7},{"int":8}]}`))
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	buf.Release()
 
 	dest := map[string]interface{}{}
 	jsonBytes := []byte(`{"ints":[-1,-2],"longs":[-3,-4],"floats":[-0.123,-0.124],"doubles":[-0.125,-0.126],"strings":["","str4"],"boolTrues":[true,true],"boolFalses":[false,false],"bytes":"BQY=","intsObj":[{"int":-7},{"int":-8}]}`)
-	require.Nil(b, json.Unmarshal(jsonBytes, &dest))
+	require.NoError(b, json.Unmarshal(jsonBytes, &dest))
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -163,7 +163,7 @@ func Benchmark_R_Simple_Avro(b *testing.B) {
 			{"name": "quantity", "type": "int", "default": 0}
 		]}
 	`)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	data := map[string]interface{}{
 		"name":     string("cola"),
@@ -171,7 +171,7 @@ func Benchmark_R_Simple_Avro(b *testing.B) {
 		"quantity": 1,
 	}
 	bytes, err := codec.BinaryFromNative(nil, data)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -194,7 +194,7 @@ func Benchmark_R_Simple_Dyno_Typed(b *testing.B) {
 	bf.Set("price", float32(0.123))
 	bf.Set("quantity", int32(42))
 	bytes, err := bf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	bf.Release()
 
@@ -260,7 +260,7 @@ func Benchmark_R_Simple_Json(b *testing.B) {
 		"quantity": int32(1),
 	}
 	bytes, err := json.Marshal(data)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -278,19 +278,19 @@ func Benchmark_R_Simple_Json(b *testing.B) {
 
 func Benchmark_R_Article_FewFields_Avro(b *testing.B) {
 	schemaStr, err := ioutil.ReadFile("article.avsc")
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	codec, err := goavro.NewCodec(string(schemaStr))
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	articleData, err := ioutil.ReadFile("articleData.json")
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	native, _, err := codec.NativeFromTextual(articleData)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	bytes, err := codec.BinaryFromNative(nil, native)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -353,7 +353,7 @@ func Benchmark_R_Article_FewFields_Json(b *testing.B) {
 		sum := float64(0)
 		dest := map[string]interface{}{}
 		for p.Next() {
-			if err := json.Unmarshal([]byte(jsonStr), &dest); err != nil {
+			if err := json.Unmarshal(jsonStr, &dest); err != nil {
 				b.Fatal(err)
 			}
 			_ = dest["id_courses"]
@@ -368,19 +368,19 @@ func Benchmark_R_Article_FewFields_Json(b *testing.B) {
 
 func Benchmark_R_Article_AllFields_Avro(b *testing.B) {
 	schemaStr, err := ioutil.ReadFile("article.avsc")
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	codec, err := goavro.NewCodec(string(schemaStr))
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	articleData, err := ioutil.ReadFile("articleData.json")
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	native, _, err := codec.NativeFromTextual(articleData)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	bytes, err := codec.BinaryFromNative(nil, native)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -522,7 +522,7 @@ func Benchmark_R_Article_AllFields_Dyno_Untyped(b *testing.B) {
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	bf.Release()
 	b.ResetTimer()
@@ -664,7 +664,7 @@ func Benchmark_R_Article_AllFields_Dyno_Typed(b *testing.B) {
 	bf := dynobuffers.NewBuffer(s)
 	fillArticleDynoBuffer(bf)
 	bytes, err := bf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(b, err)
 	bytes = copyBytes(bytes)
 	bf.Release()
 	b.ResetTimer()
@@ -936,7 +936,7 @@ func Benchmark_R_Article_AllFields_Flat(b *testing.B) {
 
 func Benchmark_R_Article_AllFields_Json(b *testing.B) {
 	data, err := ioutil.ReadFile("articleData.json")
-	require.Nil(b, err)
+	require.NoError(b, err)
 	jsonStr := string(data)
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
