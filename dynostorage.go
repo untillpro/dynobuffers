@@ -152,7 +152,7 @@ func (b *buffersSlice) Release() {
 		return
 	}
 	for _, buf := range b.Slice {
-		// could be nil e.g. if errors during ApplyMap(): got from pool with lenght 2, 1 ok, second - failed to encode
+		// could be nil e.g. if errors during ApplyMap(): got from pool with length 2, 1 ok, second - failed to encode
 		if buf != nil {
 			buf.Release()
 		}

@@ -104,7 +104,7 @@ func Benchmark_MapToBytes_Simple_Avro(b *testing.B) {
 			{"name": "quantity", "type": "int", "default": 0}
 		]}
 	`)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
@@ -156,6 +156,7 @@ func Benchmark_JSONToBytes_Simple_Dyno(b *testing.B) {
 	require.Zero(b, dynobuffers.GetObjectsInUse())
 }
 func Benchmark_JSONToBytes_Simple_Avro(b *testing.B) {
+
 	codec, err := goavro.NewCodec(`
 		{"namespace": "unTill",
 		"type": "record",
@@ -166,7 +167,7 @@ func Benchmark_JSONToBytes_Simple_Avro(b *testing.B) {
 			{"name": "quantity", "type": "int"}
 		]}
 	`)
-	require.Nil(b, err)
+	require.NoError(b, err)
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -221,18 +222,19 @@ func Benchmark_Fill_ToBytes_Read_Simple_Dyno(bench *testing.B) {
 }
 
 func Benchmark_ToJSON_Simple_Dyno(b *testing.B) {
+	require := require.New(b)
 	scheme := getSimpleScheme()
 
 	buf := dynobuffers.NewBuffer(scheme)
 	actual := map[string]interface{}{}
 	jsonBytes := buf.ToJSON()
 	json.Unmarshal(jsonBytes, &actual)
-	require.True(b, len(actual) == 0)
+	require.Empty(actual)
 	buf.Set("name", "cola")
 	buf.Set("price", float32(0.123))
 	buf.Set("quantity", int32(42))
 	bytes, err := buf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(err)
 	bytes = copyBytes(bytes)
 	buf.Release()
 
@@ -244,22 +246,23 @@ func Benchmark_ToJSON_Simple_Dyno(b *testing.B) {
 		}
 		buf.Release()
 	})
-	require.Zero(b, dynobuffers.GetObjectsInUse())
+	require.Zero(dynobuffers.GetObjectsInUse())
 }
 
 func Benchmark_ToJSONMap_Simple_Dyno(b *testing.B) {
+	require := require.New(b)
 	scheme := getSimpleScheme()
 
 	buf := dynobuffers.NewBuffer(scheme)
 	actual := map[string]interface{}{}
 	jsonBytes := buf.ToJSON()
 	json.Unmarshal(jsonBytes, &actual)
-	require.True(b, len(actual) == 0)
+	require.Empty(actual)
 	buf.Set("name", "cola")
 	buf.Set("price", float32(0.123))
 	buf.Set("quantity", int32(42))
 	bytes, err := buf.ToBytes()
-	require.Nil(b, err)
+	require.NoError(err)
 	bytes = copyBytes(bytes)
 	buf.Release()
 
@@ -271,7 +274,7 @@ func Benchmark_ToJSONMap_Simple_Dyno(b *testing.B) {
 		}
 		buf.Release()
 	})
-	require.Zero(b, dynobuffers.GetObjectsInUse())
+	require.Zero(dynobuffers.GetObjectsInUse())
 }
 
 func copyBytes(src []byte) []byte {

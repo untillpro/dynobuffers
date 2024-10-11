@@ -213,14 +213,14 @@ type Scheme struct {
 }
 
 // NewBuffer creates new empty Buffer
-func NewBuffer(Scheme *Scheme) *Buffer {
-	if Scheme == nil {
+func NewBuffer(scheme *Scheme) *Buffer {
+	if scheme == nil {
 		panic("nil Scheme provided")
 	}
 
 	b := getBuffer()
 
-	b.Scheme = Scheme
+	b.Scheme = scheme
 	b.isReleased = false
 	b.isModified = false
 	b.toRelease = b.toRelease[:0]
@@ -569,8 +569,8 @@ func getImplIBoolArray(b *Buffer, uOffsetT flatbuffers.UOffsetT) IBoolArray {
 }
 
 // ReadBuffer creates Buffer from bytes using provided Scheme
-func ReadBuffer(bytes []byte, Scheme *Scheme) *Buffer {
-	b := NewBuffer(Scheme)
+func ReadBuffer(bytes []byte, scheme *Scheme) *Buffer {
+	b := NewBuffer(scheme)
 	b.Reset(bytes)
 	return b
 }
@@ -663,10 +663,10 @@ func (b *Buffer) ApplyMapBuffer(jsonMap []byte) error {
 		return nil
 	}
 	b.prepareModifiedFields()
-	return gojay.UnmarshalJSONObjectWithPool(jsonMap[:], b)
+	return gojay.UnmarshalJSONObjectWithPool(jsonMap, b)
 }
 
-// ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array with inital + applied data
+// ApplyJSONAndToBytes sets field values described by provided json and returns new FlatBuffer byte array with initial + applied data
 // See `ApplyMapBuffer` for details
 func (b *Buffer) ApplyJSONAndToBytes(jsonBytes []byte) (res []byte, nilled []string, err error) {
 	if err := b.ApplyMapBuffer(jsonBytes); err != nil {
@@ -827,7 +827,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 				bytes := make([]byte, base64.StdEncoding.DecodedLen(len(base64StrBytes)))
 				n, err := base64.StdEncoding.Decode(bytes, base64StrBytes)
 				if err != nil {
-					return fmt.Errorf("the string %s considered as base64-encoded value for field %s: %s", string(base64StrBytes), f.QualifiedName(), err)
+					return fmt.Errorf("the string %s considered as base64-encoded value for field %s: %w", string(base64StrBytes), f.QualifiedName(), err)
 				}
 				b.append(f, bytes[:n])
 			case FieldTypeBool:
@@ -1085,7 +1085,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					} else if storeObjectsAsBytes {
 						nestedBytes, err := nestedBuffer.ToBytes()
 						if err != nil {
-							return 0, fmt.Errorf("failed to encode nested object %s: %s", f.QualifiedName(), err)
+							return 0, fmt.Errorf("failed to encode nested object %s: %w", f.QualifiedName(), err)
 						}
 						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
 					} else if nestedUOffsetT, err = nestedBuffer.encodeBuffer(bl); err != nil {
@@ -1269,7 +1269,7 @@ func (b *Buffer) copyArray(bl *flatbuffers.Builder, arrayUOffsetT flatbuffers.UO
 	}
 }
 
-func encodeStringArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+func encodeStringArr(value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
 	toAppendTo, _ := toAppendToIntf.(IStringArray)
 	toAppendToLen := 0
 	if toAppendTo != nil {
@@ -1341,7 +1341,7 @@ func encodeStringArr(f *Field, value interface{}, bl *flatbuffers.Builder, toApp
 	return 0, false
 }
 
-func encodeByteArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+func encodeByteArr(value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
 	toAppendTo, _ := toAppendToIntf.(IByteArray)
 	var target []byte
 	switch arr := value.(type) {
@@ -1370,7 +1370,8 @@ func encodeInt32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppe
 	if toAppendTo != nil {
 		toAppendToLen = toAppendTo.Len()
 	}
-	if arr, ok := value.([]int32); !ok {
+	arr, ok := value.([]int32)
+	if !ok {
 		intfs, ok := value.([]interface{})
 		if !ok {
 			return 0, false
@@ -1391,29 +1392,29 @@ func encodeInt32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppe
 			bl.PrependInt32(int32(float64Src))
 		}
 		return bl.EndVector(l), true
-	} else {
-		if len(arr) == 0 {
-			return 0, true
-		}
-		l := len(arr) + toAppendToLen
-		bl.StartVector(flatbuffers.SizeInt32, l, flatbuffers.SizeInt32)
-		for i := 0; i < toAppendToLen; i++ {
-			bl.PrependInt32(toAppendTo.At(i))
-		}
-		for _, int32Elem := range arr {
-			bl.PrependInt32(int32Elem)
-		}
-		return bl.EndVector(l), true
 	}
+	if len(arr) == 0 {
+		return 0, true
+	}
+	l := len(arr) + toAppendToLen
+	bl.StartVector(flatbuffers.SizeInt32, l, flatbuffers.SizeInt32)
+	for i := 0; i < toAppendToLen; i++ {
+		bl.PrependInt32(toAppendTo.At(i))
+	}
+	for _, int32Elem := range arr {
+		bl.PrependInt32(int32Elem)
+	}
+	return bl.EndVector(l), true
 }
 
-func encodeBoolArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+func encodeBoolArr(value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
 	toAppendTo, _ := toAppendToIntf.(IBoolArray)
 	toAppendToLen := 0
 	if toAppendTo != nil {
 		toAppendToLen = toAppendTo.Len()
 	}
-	if arr, ok := value.([]bool); !ok {
+	arr, ok := value.([]bool)
+	if !ok {
 		intfs, ok := value.([]interface{})
 		if !ok {
 			return 0, false
@@ -1434,20 +1435,19 @@ func encodeBoolArr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppen
 			bl.PrependBool(b)
 		}
 		return bl.EndVector(l), true
-	} else {
-		if len(arr) == 0 {
-			return 0, true
-		}
-		l := len(arr) + toAppendToLen
-		bl.StartVector(flatbuffers.SizeBool, l, flatbuffers.SizeBool)
-		for i := 0; i < toAppendToLen; i++ {
-			bl.PrependBool(toAppendTo.At(i))
-		}
-		for _, boolElem := range arr {
-			bl.PrependBool(boolElem)
-		}
-		return bl.EndVector(l), true
 	}
+	if len(arr) == 0 {
+		return 0, true
+	}
+	l := len(arr) + toAppendToLen
+	bl.StartVector(flatbuffers.SizeBool, l, flatbuffers.SizeBool)
+	for i := 0; i < toAppendToLen; i++ {
+		bl.PrependBool(toAppendTo.At(i))
+	}
+	for _, boolElem := range arr {
+		bl.PrependBool(boolElem)
+	}
+	return bl.EndVector(l), true
 }
 
 func encodeInt64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
@@ -1456,7 +1456,8 @@ func encodeInt64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppe
 	if toAppendTo != nil {
 		toAppendToLen = toAppendTo.Len()
 	}
-	if arr, ok := value.([]int64); !ok {
+	arr, ok := value.([]int64)
+	if !ok {
 		intfs, ok := value.([]interface{})
 		if !ok {
 			return 0, false
@@ -1477,20 +1478,19 @@ func encodeInt64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppe
 			bl.PrependInt64(int64(float64Src))
 		}
 		return bl.EndVector(l), true
-	} else {
-		if len(arr) == 0 {
-			return 0, true
-		}
-		l := len(arr) + toAppendToLen
-		bl.StartVector(flatbuffers.SizeInt64, l, flatbuffers.SizeInt64)
-		for i := 0; i < toAppendToLen; i++ {
-			bl.PrependInt64(toAppendTo.At(i))
-		}
-		for _, int64Elem := range arr {
-			bl.PrependInt64(int64Elem)
-		}
-		return bl.EndVector(l), true
 	}
+	if len(arr) == 0 {
+		return 0, true
+	}
+	l := len(arr) + toAppendToLen
+	bl.StartVector(flatbuffers.SizeInt64, l, flatbuffers.SizeInt64)
+	for i := 0; i < toAppendToLen; i++ {
+		bl.PrependInt64(toAppendTo.At(i))
+	}
+	for _, int64Elem := range arr {
+		bl.PrependInt64(int64Elem)
+	}
+	return bl.EndVector(l), true
 }
 
 func encodeFloat32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
@@ -1499,7 +1499,8 @@ func encodeFloat32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAp
 	if toAppendTo != nil {
 		toAppendToLen = toAppendTo.Len()
 	}
-	if arr, ok := value.([]float32); !ok {
+	arr, ok := value.([]float32)
+	if !ok {
 		intfs, ok := value.([]interface{})
 		if !ok {
 			return 0, false
@@ -1520,29 +1521,29 @@ func encodeFloat32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAp
 			bl.PrependFloat32(float32(float64Src))
 		}
 		return bl.EndVector(l), true
-	} else {
-		if len(arr) == 0 {
-			return 0, true
-		}
-		l := len(arr) + toAppendToLen
-		bl.StartVector(flatbuffers.SizeFloat32, l, flatbuffers.SizeFloat32)
-		for i := 0; i < toAppendToLen; i++ {
-			bl.PrependFloat32(toAppendTo.At(i))
-		}
-		for _, float32Elem := range arr {
-			bl.PrependFloat32(float32Elem)
-		}
-		return bl.EndVector(l), true
 	}
+	if len(arr) == 0 {
+		return 0, true
+	}
+	l := len(arr) + toAppendToLen
+	bl.StartVector(flatbuffers.SizeFloat32, l, flatbuffers.SizeFloat32)
+	for i := 0; i < toAppendToLen; i++ {
+		bl.PrependFloat32(toAppendTo.At(i))
+	}
+	for _, float32Elem := range arr {
+		bl.PrependFloat32(float32Elem)
+	}
+	return bl.EndVector(l), true
 }
 
-func encodeFloat64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+func encodeFloat64Arr(value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
 	toAppendTo, _ := toAppendToIntf.(IFloat64Array)
 	toAppendToLen := 0
 	if toAppendTo != nil {
 		toAppendToLen = toAppendTo.Len()
 	}
-	if arr, ok := value.([]float64); !ok {
+	arr, ok := value.([]float64)
+	if !ok {
 		intfs, ok := value.([]interface{})
 		if !ok {
 			return 0, false
@@ -1563,20 +1564,19 @@ func encodeFloat64Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAp
 			bl.PrependFloat64(float64Src)
 		}
 		return bl.EndVector(l), true
-	} else {
-		if len(arr) == 0 {
-			return 0, true
-		}
-		l := len(arr) + toAppendToLen
-		bl.StartVector(flatbuffers.SizeFloat64, l, flatbuffers.SizeFloat64)
-		for i := 0; i < toAppendToLen; i++ {
-			bl.PrependFloat64(toAppendTo.At(i))
-		}
-		for _, float64Elem := range arr {
-			bl.PrependFloat64(float64Elem)
-		}
-		return bl.EndVector(l), true
 	}
+	if len(arr) == 0 {
+		return 0, true
+	}
+	l := len(arr) + toAppendToLen
+	bl.StartVector(flatbuffers.SizeFloat64, l, flatbuffers.SizeFloat64)
+	for i := 0; i < toAppendToLen; i++ {
+		bl.PrependFloat64(toAppendTo.At(i))
+	}
+	for _, float64Elem := range arr {
+		bl.PrependFloat64(float64Elem)
+	}
+	return bl.EndVector(l), true
 }
 
 func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{}, toAppendToIntf interface{}) (uOffsetT flatbuffers.UOffsetT, err error) {
@@ -1585,17 +1585,17 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 	case FieldTypeInt32:
 		uOffsetT, ok = encodeInt32Arr(f, value, bl, toAppendToIntf)
 	case FieldTypeBool:
-		uOffsetT, ok = encodeBoolArr(f, value, bl, toAppendToIntf)
+		uOffsetT, ok = encodeBoolArr(value, bl, toAppendToIntf)
 	case FieldTypeInt64:
 		uOffsetT, ok = encodeInt64Arr(f, value, bl, toAppendToIntf)
 	case FieldTypeFloat32:
 		uOffsetT, ok = encodeFloat32Arr(f, value, bl, toAppendToIntf)
 	case FieldTypeFloat64:
-		uOffsetT, ok = encodeFloat64Arr(f, value, bl, toAppendToIntf)
+		uOffsetT, ok = encodeFloat64Arr(value, bl, toAppendToIntf)
 	case FieldTypeByte:
-		uOffsetT, ok = encodeByteArr(f, value, bl, toAppendToIntf)
+		uOffsetT, ok = encodeByteArr(value, bl, toAppendToIntf)
 	case FieldTypeString:
-		uOffsetT, ok = encodeStringArr(f, value, bl, toAppendToIntf)
+		uOffsetT, ok = encodeStringArr(value, bl, toAppendToIntf)
 	default:
 		nestedUOffsetTs := getUOffsetSlice(0)
 		defer putUOffsetSlice(nestedUOffsetTs)
@@ -1728,18 +1728,18 @@ func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, before
 // e.g. float64(1) could be applied to any numeric field, float64(256) to any numeric except FieldTypeByte etc
 // Useful to check float64 values came from JSON
 func IsFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
-	if float64Src == 0 {
+	switch {
+	case float64Src == 0:
 		return true
-	}
-	if float64Src == float64(int32(float64Src)) {
+	case float64Src == float64(int32(float64Src)):
 		res := f.Ft == FieldTypeInt32 || f.Ft == FieldTypeInt64 || f.Ft == FieldTypeFloat64 || f.Ft == FieldTypeFloat32
 		if float64Src > 0 && float64Src <= 255 {
 			return res || f.Ft == FieldTypeByte
 		}
 		return res
-	} else if float64Src == float64(int64(float64Src)) {
+	case float64Src == float64(int64(float64Src)):
 		return f.Ft == FieldTypeInt64 || f.Ft == FieldTypeFloat64
-	} else {
+	default:
 		return f.Ft == FieldTypeFloat64 || f.Ft == FieldTypeFloat32
 	}
 }
@@ -2000,7 +2000,7 @@ func (b *Buffer) ToJSON() []byte {
 	buf := bytes.NewBuffer(nil)
 	enc := gojay.BorrowEncoder(buf)
 	defer enc.Release()
-	enc.EncodeObject(b)
+	enc.EncodeObject(b) // nolint errcheck error impossible
 	return buf.Bytes()
 }
 
@@ -2011,7 +2011,7 @@ func (b *Buffer) GetBytes() []byte {
 }
 
 // ToJSONMap returns map[string]interface{} representation of the buffer compatible to json
-// result map is built using inital data + current modifications
+// result map is built using initial data + current modifications
 // numeric field types are kept (not float64 as json.Unmarshal() does)
 // nested object, array, array element is empty or nil -> skip
 // empty buffer -> empty map is returned
@@ -2083,7 +2083,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 }
 
 // IterateFields calls `callback` for each fields which has a value.
-// `names` empty -> calback is called for all fields which has a value
+// `names` empty -> callback is called for all fields which has a value
 // `names` not empty -> callback is called for each specified name if according field has a value
 // callbeck returns false -> iteration stops
 func (b *Buffer) IterateFields(names []string, callback func(name string, value interface{}) bool) {
@@ -2158,8 +2158,8 @@ func (s *Scheme) AddNestedArray(name string, nested *Scheme, isMandatory bool) *
 }
 
 // AddFieldC adds new finely-tuned field
-func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, IsArray bool) *Scheme {
-	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, IsArray}
+func (s *Scheme) AddFieldC(name string, ft FieldType, nested *Scheme, isMandatory bool, isArray bool) *Scheme {
+	newField := &Field{name, ft, len(s.FieldsMap), isMandatory, nested, s, isArray}
 	s.FieldsMap[name] = newField
 	s.Fields = append(s.Fields, newField)
 	return s
@@ -2178,7 +2178,7 @@ func (s *Scheme) MarshalYAML() (interface{}, error) {
 					fieldName = string(fnBytes)
 				}
 				if f.IsArray {
-					fieldName = fieldName + ".."
+					fieldName += ".."
 				}
 				var val interface{}
 				if f.Ft == FieldTypeObject {
