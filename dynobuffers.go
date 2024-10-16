@@ -47,11 +47,6 @@ const (
 	FieldTypeByte
 )
 
-// storeObjectsAsBytes defines if nested objects will be stored as byte vectors.
-// true:  BenchmarkSimpleDynobuffersArrayOfObjectsSet-4   	 1000000	      1020 ns/op	     272 B/op	      14 allocs/op
-// false: BenchmarkSimpleDynobuffersArrayOfObjectsSet-4   	 1652797	       732 ns/op	     184 B/op	       8 allocs/op
-var storeObjectsAsBytes = false
-
 var yamlFieldTypesMap = map[string]FieldType{
 	"int32":   FieldTypeInt32,
 	"int64":   FieldTypeInt64,
@@ -368,14 +363,8 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 	case FieldTypeBool:
 		return b.tab.GetBool(uOffsetT)
 	case FieldTypeObject:
-		var res *Buffer
-		if storeObjectsAsBytes {
-			bytesNested := b.tab.ByteVector(uOffsetT)
-			res = ReadBuffer(bytesNested, f.FieldScheme)
-		} else {
-			res = ReadBuffer(b.tab.Bytes, f.FieldScheme)
-			res.tab.Pos = b.tab.Indirect(uOffsetT)
-		}
+		res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
+		res.tab.Pos = b.tab.Indirect(uOffsetT)
 		setted := false
 		if !f.IsArray {
 			b.prepareFieldsToBytes()
@@ -1086,12 +1075,6 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				if fieldToBytes.value != nil {
 					if nestedBuffer, ok := fieldToBytes.value.(*Buffer); !ok {
 						return 0, fmt.Errorf("nested object required but %#v provided for field %s", fieldToBytes.value, f.QualifiedName())
-					} else if storeObjectsAsBytes {
-						nestedBytes, err := nestedBuffer.ToBytes()
-						if err != nil {
-							return 0, fmt.Errorf("failed to encode nested object %s: %w", f.QualifiedName(), err)
-						}
-						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
 					} else if nestedUOffsetT, err = nestedBuffer.encodeBuffer(bl); err != nil {
 						return 0, err
 					}
@@ -1102,13 +1085,8 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
-					bufToWrite := b.getByUOffsetT(f, uOffsetT) // can not be nil
-					if storeObjectsAsBytes {
-						nestedBytes, _ := bufToWrite.(*Buffer).ToBytes() // no errors should be here
-						nestedUOffsetT = bl.CreateByteVector(nestedBytes)
-					} else {
-						nestedUOffsetT, _ = bufToWrite.(*Buffer).encodeBuffer(bl) // no errors should be here
-					}
+					bufToWrite := b.getByUOffsetT(f, uOffsetT)                // can not be nil
+					nestedUOffsetT, _ = bufToWrite.(*Buffer).encodeBuffer(bl) // no errors should be here
 				}
 			}
 			(*offsets)[f.Order].obj = nestedUOffsetT
@@ -1610,19 +1588,11 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 				if arr.Slice[i] == nil {
 					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
 				}
-				if storeObjectsAsBytes {
-					nestedBytes, err := arr.Slice[i].ToBytes()
-					if err != nil {
-						return 0, err
-					}
-					*nestedUOffsetTs = append(*nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
-				} else {
-					nestedUOffsetT, err := arr.Slice[i].encodeBuffer(bl)
-					if err != nil {
-						return 0, err
-					}
-					*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
+				nestedUOffsetT, err := arr.Slice[i].encodeBuffer(bl)
+				if err != nil {
+					return 0, err
 				}
+				*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
 			}
 		case []*Buffer:
 			// explicit Set\Append("", []*Buffer) was called
@@ -1630,30 +1600,17 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 				if arr[i] == nil {
 					return 0, fmt.Errorf("nil element of array field %s is provided. Nils are not supported for array elements", f.QualifiedName())
 				}
-				if storeObjectsAsBytes {
-					nestedBytes, err := arr[i].ToBytes()
-					if err != nil {
-						return 0, err
-					}
-					*nestedUOffsetTs = append(*nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
-				} else {
-					nestedUOffsetT, err := arr[i].encodeBuffer(bl)
-					if err != nil {
-						return 0, err
-					}
-					*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
+				nestedUOffsetT, err := arr[i].encodeBuffer(bl)
+				if err != nil {
+					return 0, err
 				}
+				*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
 			}
 		case *ObjectArray:
 			// re-encoding existing array
 			for arr.Next() {
-				if storeObjectsAsBytes {
-					nestedBytes, _ := arr.Buffer.ToBytes()
-					*nestedUOffsetTs = append(*nestedUOffsetTs, bl.CreateByteVector(nestedBytes))
-				} else {
-					nestedUOffsetT, _ := arr.Buffer.encodeBuffer(bl) // should be no errors here
-					*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
-				}
+				nestedUOffsetT, _ := arr.Buffer.encodeBuffer(bl) // should be no errors here
+				*nestedUOffsetTs = append(*nestedUOffsetTs, nestedUOffsetT)
 			}
 
 		default:
@@ -1671,12 +1628,7 @@ func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{
 			defer putUOffsetSlice(toAppendToUOffsetTs)
 
 			for i := 0; toAppendToArr.Next(); i++ {
-				if storeObjectsAsBytes {
-					bufBytes, _ := toAppendToArr.Buffer.ToBytes()
-					(*toAppendToUOffsetTs)[i] = bl.CreateByteVector(bufBytes)
-				} else {
-					(*toAppendToUOffsetTs)[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
-				}
+				(*toAppendToUOffsetTs)[i], _ = toAppendToArr.Buffer.encodeBuffer(bl)
 			}
 
 			*toAppendToUOffsetTs = append(*toAppendToUOffsetTs, *nestedUOffsetTs...)
