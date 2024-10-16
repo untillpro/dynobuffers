@@ -37,8 +37,8 @@ var (
 	bufferPool = sync.Pool{
 		New: func() interface{} {
 			return &Buffer{
-				builder:        flatbuffers.NewBuilder(0),
-				modifiedFields: make([]modifiedField, defaultBufferSize),
+				builder:       flatbuffers.NewBuilder(0),
+				fieldsToBytes: make([]fieldToBytes, defaultBufferSize),
 			}
 		},
 	}
