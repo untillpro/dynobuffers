@@ -368,6 +368,9 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 		setted := false
 		if !f.IsArray {
 			b.prepareFieldsToBytes()
+			if b.fieldsToBytes[f.Order].hasValue && !b.fieldsToBytes[f.Order].isReleased {
+
+			}
 			if !b.fieldsToBytes[f.Order].hasValue || b.fieldsToBytes[f.Order].isReleased {
 				setted = true
 				b.set(f, res)
@@ -395,10 +398,10 @@ func (b *Buffer) GetByField(f *Field) interface{} {
 // field is scalar -> scalar is returned
 // field is an array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned.
-//
-//	note: the retuned object will go to modifications of the root. I.e. few Get() on the same nested object field -> modifications only from the last one will be considered
-//	note: nested objects will be released automatically on root release
-//
+//	 note: the retuned object will be automatically considered on root.ToBytes. Not necessary to implicitly call root.Set(nestedBuffer)
+//   note: nested objects from Get() will be released automatically on root release
+//   note: few Get() on the same nested object field -> only the first one will be considered on release
+//   note: root.Get(nestedObjectField), then root.Set(nestedObjectField, <any nestedBuffer or nil>) -> the value provided to Set() will be considered on root.ToBytes()
 // field is an array of nested objects -> *dynobuffers.ObjectArray is returned.
 // field is not set, set to nil or no such field in the Scheme -> nil
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
