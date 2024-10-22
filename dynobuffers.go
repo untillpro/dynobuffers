@@ -72,7 +72,6 @@ type Buffer struct {
 	// - impossible to write strings, arrays and nested objects because it must be written before the root object started (flatbuffers feature)
 	fieldsToBytes []fieldToBytes
 	tab           flatbuffers.Table
-	isModified    bool
 	isReleased    bool
 	owner         *Buffer
 	builder       *flatbuffers.Builder
@@ -219,7 +218,6 @@ func NewBuffer(scheme *Scheme) *Buffer {
 
 	b.Scheme = scheme
 	b.isReleased = false
-	b.isModified = false
 	b.toRelease = b.toRelease[:0]
 	b.owner = nil
 	b.Reset(nil)
@@ -233,7 +231,7 @@ func (b *Buffer) Release() {
 	if b.isReleased {
 		return
 	}
-	b.releaseFields()
+	b.releaseFieldsToBytes()
 	for _, releaseableIntf := range b.toRelease {
 		if releaseable, ok := releaseableIntf.(interface{ Release() }); ok {
 			releaseable.Release()
@@ -243,7 +241,7 @@ func (b *Buffer) Release() {
 	putBuffer(b)
 }
 
-func (b *Buffer) releaseFields() {
+func (b *Buffer) releaseFieldsToBytes() {
 	for idx := range b.fieldsToBytes {
 		m := &b.fieldsToBytes[idx]
 		if m.hasValue {
@@ -343,7 +341,6 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 			arr.curElem = -1
 			arr.start = b.tab.Vector(uOffsetT - b.tab.Pos)
 			arr.Buffer.tab.Bytes = b.tab.Bytes
-			arr.Buffer.isModified = true // to force build correct bytes array on arr.Buffer.ToBytes(). Otherwise the entire b.tab.Bytes will be returned (if unmodified) instead of arr.Buffer
 			b.toRelease = append(b.toRelease, arr)
 			return arr
 		}
@@ -373,7 +370,6 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 				b.set(f, res)
 			}
 		}
-		res.setModified() // to force new correct bytes generation on GetBytes(). Otherwise the entire b.tab.Bytes will be returned - it is not res, it _contains_ res
 		res.owner = b
 		if !setted {
 			// in modified fields _. will be released by modifiedFields.Release(). Otherwise will be released on b.Release()
@@ -581,13 +577,6 @@ func (b *Buffer) Set(name string, value interface{}) {
 	b.set(f, value)
 }
 
-func (b *Buffer) setModified() {
-	b.isModified = true
-	if b.owner != nil {
-		b.owner.setModified()
-	}
-}
-
 func (b *Buffer) set(f *Field, value interface{}) {
 	b.prepareFieldsToBytes()
 	m := &b.fieldsToBytes[f.Order]
@@ -613,8 +602,6 @@ func (b *Buffer) set(f *Field, value interface{}) {
 	m.value = value
 	m.isAppend = false
 	m.isReleased = false
-
-	b.setModified()
 }
 
 // Append appends an array field. toAppend could be a single value or an array of values
@@ -641,8 +628,6 @@ func (b *Buffer) append(f *Field, toAppend interface{}) {
 	m.value = toAppend
 	m.isAppend = true
 	m.isReleased = false
-
-	b.setModified()
 }
 
 // ApplyMapBuffer modifies Buffer with JSON specified by jsonMap
@@ -996,10 +981,6 @@ func (b *Buffer) NKeys() int {
 // ToBytes returns new FlatBuffer byte array with fields modified by Set() and fields which initially had values
 // Note: initial byte array and current modifications are kept
 func (b *Buffer) ToBytes() ([]byte, error) {
-	if !b.isModified && len(b.tab.Bytes) > 0 {
-		return b.tab.Bytes, nil
-	}
-
 	b.builder.Reset()
 
 	uOffset, err := b.encodeBuffer(b.builder)
@@ -1015,18 +996,16 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 }
 
 // ToBytesWithBuilder same as ToBytes but uses builder
-// builder.Reset() is invoked
+// note: caller side must use `builder.FinishedBytes()` instead of `builder.Bytes`
 func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) error {
-	if !b.isModified && len(b.tab.Bytes) > 0 { // mandatory fields should be checked
-		builder.Bytes = b.tab.Bytes
-		return nil
-	}
 	_, err := b.encodeBuffer(builder)
 	return err
 }
 
 func (b *Buffer) prepareFieldsToBytes() {
-	if len(b.Scheme.Fields) > cap(b.fieldsToBytes) {
+	if len(b.Scheme.Fields) == len(b.fieldsToBytes) {
+		return
+	} else if len(b.Scheme.Fields) > cap(b.fieldsToBytes) {
 		b.fieldsToBytes = make([]fieldToBytes, len(b.Scheme.Fields))
 	} else {
 		b.fieldsToBytes = b.fieldsToBytes[:len(b.Scheme.Fields)]
@@ -1183,12 +1162,7 @@ func (b *Buffer) Reset(bytes []byte) {
 	} else {
 		b.tab.Pos = flatbuffers.GetUOffsetT(b.tab.Bytes)
 	}
-
-	if b.fieldsToBytes != nil {
-		b.releaseFields()
-	}
-
-	b.isModified = false
+	b.releaseFieldsToBytes()
 }
 
 func (b *Buffer) copyArray(bl *flatbuffers.Builder, arrayUOffsetT flatbuffers.UOffsetT, f *Field) flatbuffers.UOffsetT {
@@ -1793,9 +1767,6 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 // IsNil returns if current buffer means nothing
 // need to comply to gojay.MarshalerJSONObject
 func (b *Buffer) IsNil() bool {
-	if b.isModified {
-		return false
-	}
 	if len(b.tab.Bytes) > 0 {
 		// same approach is used on GetNames()
 		vTable := flatbuffers.UOffsetT(flatbuffers.SOffsetT(b.tab.Pos) - b.tab.GetSOffsetT(b.tab.Pos))
@@ -1806,7 +1777,7 @@ func (b *Buffer) IsNil() bool {
 			}
 		}
 	}
-	return true
+	return !b.IsModified()
 }
 
 // MarshalJSONObject encodes current Buffer into JSON using gojay. Complies to gojay.MarshalerJSONObject interface
@@ -2066,15 +2037,17 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 }
 
 func (b *Buffer) IsModified() bool {
-	return b.isModified
+	for _, fieldToBytes := range b.fieldsToBytes {
+		if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+			return true
+		}
+	}
+	return false
 }
 
 // applies all current modifications to the underlying byte array and clears all modifications
 // note: takes one byte array allocation
 func (b *Buffer) CommitChanges() error {
-	if !b.isModified {
-		return nil
-	}
 	bytes, err := b.ToBytes()
 	if err != nil {
 		return err
