@@ -881,10 +881,9 @@ func TestAllValues(t *testing.T) {
 	b.Reset(bytesFilled)
 	bl := flatbuffers.NewBuilder(0)
 	require.NoError(b.ToBytesWithBuilder(bl))
-	builderBytes = copyBytes(bl.Bytes)
+	builderBytes = copyBytes(bl.FinishedBytes())
 	b.Release()
 	b = ReadBuffer(builderBytes, s)
-	b.Get("int")
 	testFieldValues(t, b, expectedValues...)
 
 	// GetBytes will return ToBytes() which will return the underlying byte array here
