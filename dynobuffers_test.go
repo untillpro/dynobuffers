@@ -884,6 +884,7 @@ func TestAllValues(t *testing.T) {
 	builderBytes = copyBytes(bl.Bytes)
 	b.Release()
 	b = ReadBuffer(builderBytes, s)
+	b.Get("int")
 	testFieldValues(t, b, expectedValues...)
 
 	// GetBytes will return ToBytes() which will return the underlying byte array here
@@ -2087,7 +2088,6 @@ func TestArrays(t *testing.T) {
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
 
 	// non-modified arrays should be copied
-	b.isModified = true // set buffer modified to force re-encode, otherwise underlying byte array will be returned
 	bytes, err = b.ToBytes()
 	require.NoError(err)
 	bytes = copyBytes(bytes)
