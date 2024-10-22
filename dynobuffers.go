@@ -996,7 +996,7 @@ func (b *Buffer) ToBytes() ([]byte, error) {
 }
 
 // ToBytesWithBuilder same as ToBytes but uses builder
-// builder.Reset() is invoked
+// note: caller side must use `builder.FinishedBytes()` instead of `builder.Bytes`
 func (b *Buffer) ToBytesWithBuilder(builder *flatbuffers.Builder) error {
 	_, err := b.encodeBuffer(builder)
 	return err
