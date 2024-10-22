@@ -363,30 +363,14 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 	case FieldTypeBool:
 		return b.tab.GetBool(uOffsetT)
 	case FieldTypeObject:
-		if f.IsArray {
-			res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
-			res.tab.Pos = b.tab.Indirect(uOffsetT)
+		b.prepareFieldsToBytes()
+		valToBytes := b.fieldsToBytes[f.Order]
+		if valToBytes.hasValue && !valToBytes.isReleased {
+			return valToBytes.value
 		}
-		// res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
-		// res.tab.Pos = b.tab.Indirect(uOffsetT)
-		if !f.IsArray {
-			b.prepareFieldsToBytes()
-			valToBytes := b.fieldsToBytes[f.Order]
-			if valToBytes.hasValue && !valToBytes.isReleased {
-				return valToBytes.value
-			}
-			res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
-			res.tab.Pos = b.tab.Indirect(uOffsetT)
-			b.set(f, res)
-			return res
-		}
-		// res.setModified() // to force new correct bytes generation on GetBytes(). Otherwise the entire b.tab.Bytes will be returned - it is not res, it _contains_ res
-		// res.owner = b
-		// if !setted {
-		// 	// in modified fields _. will be released by modifiedFields.Release(). Otherwise will be released on b.Release()
-		// 	b.toRelease = append(b.toRelease, res)
-		// }
-
+		res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
+		res.tab.Pos = b.tab.Indirect(uOffsetT)
+		b.set(f, res)
 		return res
 	default:
 		return byteSliceToString(b.tab.ByteVector(uOffsetT))
@@ -402,12 +386,10 @@ func (b *Buffer) GetByField(f *Field) interface{} {
 // field is scalar -> scalar is returned
 // field is an array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned.
-//
-//		 note: the retuned object will be automatically considered on root.ToBytes. Not necessary to implicitly call root.Set(nestedBuffer)
-//	  note: nested objects from Get() will be released automatically on root release
-//	  note: few Get() on the same nested object field -> only the first one will be considered on release
-//	  note: root.Get(nestedObjectField), then root.Set(nestedObjectField, <any nestedBuffer or nil>) -> the value provided to Set() will be considered on root.ToBytes()
-//
+//   note: the retuned object will be automatically considered on root.ToBytes. Not necessary to implicitly call root.Set(nestedBuffer)
+//   note: nested objects from Get() will be released automatically on root release
+//   note: further Get() on the same nested object field will return the Buffer that was created on the first Get. Safe to call Get() on the same field multiple times
+//   note: then root.Set(nestedObjectField, <any nestedBuffer or nil>) -> next Get() willl return the value provided to Set()
 // field is an array of nested objects -> *dynobuffers.ObjectArray is returned.
 // field is not set, set to nil or no such field in the Scheme -> nil
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
