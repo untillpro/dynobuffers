@@ -90,14 +90,13 @@ type Field struct {
 }
 
 type fieldToBytes struct {
-	hasValue   bool
-	value      interface{}
-	isAppend   bool
-	isReleased bool // Allows to reuse the `fieldToBytes` instance instead of `fieldToBytes[i] = nil` on release modified fields
+	hasValue bool
+	value    interface{}
+	isAppend bool
 }
 
 func (m *fieldToBytes) Release() {
-	if m.isReleased {
+	if !m.hasValue {
 		return
 	}
 	switch typed := m.value.(type) {
@@ -112,7 +111,7 @@ func (m *fieldToBytes) Release() {
 	}
 	m.value = nil
 	m.isAppend = false
-	m.isReleased = true
+	m.hasValue = false
 }
 
 // ObjectArray used to iterate over array of nested objects
@@ -244,10 +243,7 @@ func (b *Buffer) Release() {
 func (b *Buffer) releaseFieldsToBytes() {
 	for idx := range b.fieldsToBytes {
 		m := &b.fieldsToBytes[idx]
-		if m.hasValue {
-			m.hasValue = false
-			m.Release()
-		}
+		m.Release()
 	}
 }
 
@@ -362,7 +358,7 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 	case FieldTypeObject:
 		b.prepareFieldsToBytes()
 		fieldToBytes := b.fieldsToBytes[f.Order]
-		if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+		if fieldToBytes.hasValue {
 			return fieldToBytes.value
 		}
 		res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
@@ -383,10 +379,12 @@ func (b *Buffer) GetByField(f *Field) interface{} {
 // field is scalar -> scalar is returned
 // field is an array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned.
-//   note: the retuned object will be automatically considered on root.ToBytes. Not necessary to implicitly call root.Set(nestedBuffer)
-//   note: nested objects from Get() will be released automatically on root release
-//   note: further Get() on the same nested object field will return the Buffer that was created on the first Get. Safe to call Get() on the same field multiple times
-//   note: then root.Set(nestedObjectField, <any nestedBuffer or nil>) -> next Get() willl return the value provided to Set()
+//
+//	note: the retuned object will be automatically considered on root.ToBytes. Not necessary to implicitly call root.Set(nestedBuffer)
+//	note: nested objects from Get() will be released automatically on root release
+//	note: further Get() on the same nested object field will return the Buffer that was created on the first Get. Safe to call Get() on the same field multiple times
+//	note: then root.Set(nestedObjectField, <any nestedBuffer or nil>) -> next Get() willl return the value provided to Set()
+//
 // field is an array of nested objects -> *dynobuffers.ObjectArray is returned.
 // field is not set, set to nil or no such field in the Scheme -> nil
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
@@ -593,7 +591,6 @@ func (b *Buffer) set(f *Field, value interface{}) {
 
 	m.value = value
 	m.isAppend = false
-	m.isReleased = false
 }
 
 // Append appends an array field. toAppend could be a single value or an array of values
@@ -619,7 +616,6 @@ func (b *Buffer) append(f *Field, toAppend interface{}) {
 
 	m.value = toAppend
 	m.isAppend = true
-	m.isReleased = false
 }
 
 // ApplyMapBuffer modifies Buffer with JSON specified by jsonMap
@@ -653,8 +649,8 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 		return
 	}
 	for i := range b.fieldsToBytes {
-		mf := &b.fieldsToBytes[i]
-		if mf.hasValue && !mf.isReleased && mf.value == nil {
+		ftb := &b.fieldsToBytes[i]
+		if ftb.hasValue && ftb.value == nil {
 			nilledFields = append(nilledFields, b.Scheme.Fields[i].Name)
 		}
 	}
@@ -1017,7 +1013,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		if f.IsArray {
 			arrayUOffsetT := flatbuffers.UOffsetT(0)
 			fieldToBytes := &b.fieldsToBytes[f.Order]
-			if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+			if fieldToBytes.hasValue {
 				if fieldToBytes.value != nil {
 					var toAppendToIntf interface{} = nil
 					if fieldToBytes.isAppend {
@@ -1042,7 +1038,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 		} else if f.Ft == FieldTypeObject {
 			nestedUOffsetT := flatbuffers.UOffsetT(0)
 			fieldToBytes := &b.fieldsToBytes[f.Order]
-			if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+			if fieldToBytes.hasValue {
 				if fieldToBytes.value != nil {
 					if nestedBuffer, ok := fieldToBytes.value.(*Buffer); !ok {
 						return 0, fmt.Errorf("nested object required but %#v provided for field %s", fieldToBytes.value, f.QualifiedName())
@@ -1063,10 +1059,10 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 			(*offsets)[f.Order].obj = nestedUOffsetT
 		} else if f.Ft == FieldTypeString {
 			stringUOffsetT := flatbuffers.UOffsetT(0)
-			modifiedStringField := &b.fieldsToBytes[f.Order]
-			if modifiedStringField.hasValue && !modifiedStringField.isReleased {
-				if modifiedStringField.value != nil {
-					switch toWrite := modifiedStringField.value.(type) {
+			stringFieldToBytes := &b.fieldsToBytes[f.Order]
+			if stringFieldToBytes.hasValue {
+				if stringFieldToBytes.value != nil {
+					switch toWrite := stringFieldToBytes.value.(type) {
 					case string:
 						if len(toWrite) > 0 {
 							stringUOffsetT = bl.CreateString(toWrite)
@@ -1076,10 +1072,10 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 							stringUOffsetT = bl.CreateByteString(toWrite)
 						}
 					default:
-						return 0, fmt.Errorf("string required but %#v provided for field %s", modifiedStringField.value, f.QualifiedName())
+						return 0, fmt.Errorf("string required but %#v provided for field %s", stringFieldToBytes.value, f.QualifiedName())
 					}
 					if stringUOffsetT == 0 {
-						modifiedStringField.value = nil
+						stringFieldToBytes.value = nil
 					}
 
 				}
@@ -1112,7 +1108,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 				offsetToWrite = (*offsets)[f.Order].obj
 			default:
 				fieldToBytes := &b.fieldsToBytes[f.Order]
-				if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+				if fieldToBytes.hasValue {
 					if isSet = fieldToBytes.value != nil; isSet {
 						if !encodeFixedSizeValue(bl, f, fieldToBytes.value, beforePrepend) {
 							return 0, fmt.Errorf("wrong value %T(%#v) provided for field %s", fieldToBytes.value, fieldToBytes.value, f.QualifiedName())
@@ -1778,7 +1774,7 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 	for _, f := range b.Scheme.Fields {
 		var value interface{}
 		fieldToBytes := &b.fieldsToBytes[f.Order]
-		if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+		if fieldToBytes.hasValue {
 			value = fieldToBytes.value
 		} else {
 			if f.IsArray {
@@ -1940,7 +1936,7 @@ func (b *Buffer) ToJSONMap() map[string]interface{} {
 	for _, f := range b.Scheme.Fields {
 		var storedVal interface{}
 		fieldToBytes := &b.fieldsToBytes[f.Order]
-		if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+		if fieldToBytes.hasValue {
 			storedVal = fieldToBytes.value
 		} else {
 			storedVal = b.getByField(f)
@@ -2030,7 +2026,7 @@ func (b *Buffer) IterateFields(names []string, callback func(name string, value 
 
 func (b *Buffer) IsModified() bool {
 	for _, fieldToBytes := range b.fieldsToBytes {
-		if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+		if fieldToBytes.hasValue {
 			return true
 		}
 	}
