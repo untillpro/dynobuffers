@@ -2417,10 +2417,10 @@ func TestPreviousResultDamageOnReuse(t *testing.T) {
 	bytes1Copy := copyBytes(bytes1) // create ethalon copy of bytes1
 
 	b.Release()
-	// nor `b` neither `bytes1` must not be used from now on
+	// neither `b` nor `bytes1` must not be used from now on
 
 	b = NewBuffer(s)
-	// b is valid, bytes1 - is not
+	// now b is valid, bytes1 - is not
 
 	b.Set("name", "str")
 	b.Set("quantity", 43)
