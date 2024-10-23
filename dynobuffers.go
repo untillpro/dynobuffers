@@ -360,22 +360,14 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 	case FieldTypeBool:
 		return b.tab.GetBool(uOffsetT)
 	case FieldTypeObject:
+		b.prepareFieldsToBytes()
+		fieldToBytes := b.fieldsToBytes[f.Order]
+		if fieldToBytes.hasValue && !fieldToBytes.isReleased {
+			return fieldToBytes.value
+		}
 		res := ReadBuffer(b.tab.Bytes, f.FieldScheme)
 		res.tab.Pos = b.tab.Indirect(uOffsetT)
-		setted := false
-		if !f.IsArray {
-			b.prepareFieldsToBytes()
-			if !b.fieldsToBytes[f.Order].hasValue || b.fieldsToBytes[f.Order].isReleased {
-				setted = true
-				b.set(f, res)
-			}
-		}
-		res.owner = b
-		if !setted {
-			// in modified fields _. will be released by modifiedFields.Release(). Otherwise will be released on b.Release()
-			b.toRelease = append(b.toRelease, res)
-		}
-
+		b.set(f, res)
 		return res
 	default:
 		return byteSliceToString(b.tab.ByteVector(uOffsetT))
@@ -391,10 +383,10 @@ func (b *Buffer) GetByField(f *Field) interface{} {
 // field is scalar -> scalar is returned
 // field is an array of scalars -> []T is returned
 // field is a nested object -> *dynobuffers.Buffer is returned.
-//
-//	note: the retuned object will go to modifications of the root. I.e. few Get() on the same nested object field -> modifications only from the last one will be considered
-//	note: nested objects will be released automatically on root release
-//
+//   note: the retuned object will be automatically considered on root.ToBytes. Not necessary to implicitly call root.Set(nestedBuffer)
+//   note: nested objects from Get() will be released automatically on root release
+//   note: further Get() on the same nested object field will return the Buffer that was created on the first Get. Safe to call Get() on the same field multiple times
+//   note: then root.Set(nestedObjectField, <any nestedBuffer or nil>) -> next Get() willl return the value provided to Set()
 // field is an array of nested objects -> *dynobuffers.ObjectArray is returned.
 // field is not set, set to nil or no such field in the Scheme -> nil
 // `Get()` will not consider modifications made by Set, Append, ApplyJSONAndToBytes, ApplyMapBuffer, ApplyMap
