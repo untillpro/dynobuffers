@@ -75,7 +75,11 @@ type Buffer struct {
 	isReleased    bool
 	owner         *Buffer
 	builder       *flatbuffers.Builder
-	toRelease     []interface{}
+	toRelease     []IRelease
+}
+
+type IRelease interface {
+	Release()
 }
 
 // Field describes a Scheme field
@@ -90,9 +94,10 @@ type Field struct {
 }
 
 type fieldToBytes struct {
-	hasValue bool
-	value    interface{}
-	isAppend bool
+	hasValue         bool
+	value            interface{}
+	isAppend         bool
+	isEffectivelyNil bool // value is empty object, array or string -> true. Used in [Buffer.ToBytesNilled]
 }
 
 func (m *fieldToBytes) Release() {
@@ -100,7 +105,7 @@ func (m *fieldToBytes) Release() {
 		return
 	}
 	switch typed := m.value.(type) {
-	case interface{ Release() }:
+	case IRelease:
 		typed.Release()
 	case []*Buffer:
 		for _, b := range typed {
@@ -112,6 +117,7 @@ func (m *fieldToBytes) Release() {
 	m.value = nil
 	m.isAppend = false
 	m.hasValue = false
+	m.isEffectivelyNil = false
 }
 
 // ObjectArray used to iterate over array of nested objects
@@ -231,10 +237,8 @@ func (b *Buffer) Release() {
 		return
 	}
 	b.releaseFieldsToBytes()
-	for _, releaseableIntf := range b.toRelease {
-		if releaseable, ok := releaseableIntf.(interface{ Release() }); ok {
-			releaseable.Release()
-		}
+	for _, releaseable := range b.toRelease {
+		releaseable.Release()
 	}
 	b.isReleased = true
 	putBuffer(b)
@@ -331,6 +335,7 @@ func (b *Buffer) getByField(f *Field) interface{} {
 func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interface{} {
 	if f.IsArray {
 		if f.Ft == FieldTypeObject {
+			// a new copy is created because ObjectArray is iterated by method Next()
 			arr := getObjectArray()
 			arr.Buffer = NewBuffer(f.FieldScheme)
 			arr.Len = b.tab.VectorLen(uOffsetT - b.tab.Pos)
@@ -584,7 +589,7 @@ func (b *Buffer) set(f *Field, value interface{}) {
 	}
 
 	if m.value != nil {
-		if releaseable, ok := m.value.(interface{ Release() }); ok {
+		if releaseable, ok := m.value.(IRelease); ok {
 			b.toRelease = append(b.toRelease, releaseable)
 		}
 	}
@@ -650,7 +655,7 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 	}
 	for i := range b.fieldsToBytes {
 		ftb := &b.fieldsToBytes[i]
-		if ftb.hasValue && ftb.value == nil {
+		if ftb.hasValue && (ftb.value == nil || ftb.isEffectivelyNil) {
 			nilledFields = append(nilledFields, b.Scheme.Fields[i].Name)
 		}
 	}
@@ -1000,7 +1005,6 @@ func (b *Buffer) prepareFieldsToBytes() {
 	}
 }
 
-// if modifiedField is set to non-nil but the value is empty array, object or string -> set fieldToBytes.value = nil to easier calculate nilledFields at ToBytesNilled()
 func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, error) {
 	offsets := getOffsetSlice(len(b.Scheme.Fields))
 	defer putOffsetSlice(offsets)
@@ -1022,12 +1026,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					if arrayUOffsetT, err = b.encodeArray(bl, f, fieldToBytes.value, toAppendToIntf); err != nil {
 						return 0, err
 					}
-					if arrayUOffsetT == 0 {
-						if f.Ft == FieldTypeObject {
-							b.toRelease = append(b.toRelease, fieldToBytes.value)
-						}
-						fieldToBytes.value = nil
-					}
+					fieldToBytes.isEffectivelyNil = arrayUOffsetT == 0
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
@@ -1045,10 +1044,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					} else if nestedUOffsetT, err = nestedBuffer.encodeBuffer(bl); err != nil {
 						return 0, err
 					}
-					if nestedUOffsetT == 0 {
-						b.toRelease = append(b.toRelease, fieldToBytes.value)
-						fieldToBytes.value = nil
-					}
+					fieldToBytes.isEffectivelyNil = nestedUOffsetT == 0
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
@@ -1074,9 +1070,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					default:
 						return 0, fmt.Errorf("string required but %#v provided for field %s", stringFieldToBytes.value, f.QualifiedName())
 					}
-					if stringUOffsetT == 0 {
-						stringFieldToBytes.value = nil
-					}
+					stringFieldToBytes.isEffectivelyNil = stringUOffsetT == 0
 
 				}
 			} else {
