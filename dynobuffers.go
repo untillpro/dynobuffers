@@ -2148,7 +2148,6 @@ func YamlToScheme(yamlStr string) (*Scheme, error) {
 	return MapSliceToScheme(mapSlice)
 }
 
-// MapSliceToScheme s.e.
 func MapSliceToScheme(mapSlice yaml.MapSlice) (*Scheme, error) {
 	res := NewScheme()
 	for _, mapItem := range mapSlice {
