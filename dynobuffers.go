@@ -23,27 +23,17 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// FieldType s.e.
 type FieldType int
 
 const (
-	// FieldTypeUnspecified - wrong type
 	FieldTypeUnspecified FieldType = iota
-	// FieldTypeObject field is nested Scheme
 	FieldTypeObject
-	// FieldTypeInt32 int32
 	FieldTypeInt32
-	// FieldTypeInt64 int64
 	FieldTypeInt64
-	// FieldTypeFloat32 float32
 	FieldTypeFloat32
-	// FieldTypeFloat64 float64
 	FieldTypeFloat64
-	// FieldTypeString variable length
 	FieldTypeString
-	// FieldTypeBool bool
 	FieldTypeBool
-	// FieldTypeByte byte
 	FieldTypeByte
 )
 
@@ -82,7 +72,6 @@ type IRelease interface {
 	Release()
 }
 
-// Field describes a Scheme field
 type Field struct {
 	Name        string
 	Ft          FieldType
@@ -231,7 +220,7 @@ func NewBuffer(scheme *Scheme) *Buffer {
 }
 
 // Release returns used Buffer into pool
-// Note: Buffer instance itself, result of ToBytes() must not be used after Release()
+// Note: neither Buffer instance itself nor result of ToBytes() must not be used after Release()
 func (b *Buffer) Release() {
 	if b.isReleased {
 		return

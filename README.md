@@ -136,7 +136,7 @@
   ```go
   b.Release()
   // b itself, all objects created manually and used in b.Set(), all objects got using `b.Get()` are released also.
-  // nor these objects neither result of `b.ToBytes()` must not be used from now on
+  // neither these objects nor result of `b.ToBytes()` must not be used from now on
   ```
 - Iterate over fields which has value
   ```go
