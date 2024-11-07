@@ -83,10 +83,10 @@ type Field struct {
 }
 
 type fieldToBytes struct {
-	hasValue         bool
-	value            interface{}
-	isAppend         bool
-	isEffectivelyNil bool // value is empty object, array or string -> true. Used in [Buffer.ToBytesNilled]
+	hasValue     bool
+	value        interface{}
+	isAppend     bool
+	isValueEmpty bool // value is empty object, array or string -> true. Used in [Buffer.ToBytesNilled]
 }
 
 func (m *fieldToBytes) Release() {
@@ -106,7 +106,7 @@ func (m *fieldToBytes) Release() {
 	m.value = nil
 	m.isAppend = false
 	m.hasValue = false
-	m.isEffectivelyNil = false
+	m.isValueEmpty = false
 }
 
 // ObjectArray used to iterate over array of nested objects
@@ -644,7 +644,7 @@ func (b *Buffer) ToBytesNilled() (res []byte, nilledFields []string, err error) 
 	}
 	for i := range b.fieldsToBytes {
 		ftb := &b.fieldsToBytes[i]
-		if ftb.hasValue && (ftb.value == nil || ftb.isEffectivelyNil) {
+		if ftb.hasValue && (ftb.value == nil || ftb.isValueEmpty) {
 			nilledFields = append(nilledFields, b.Scheme.Fields[i].Name)
 		}
 	}
@@ -1015,7 +1015,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					if arrayUOffsetT, err = b.encodeArray(bl, f, fieldToBytes.value, toAppendToIntf); err != nil {
 						return 0, err
 					}
-					fieldToBytes.isEffectivelyNil = arrayUOffsetT == 0
+					fieldToBytes.isValueEmpty = arrayUOffsetT == 0
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
@@ -1033,7 +1033,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					} else if nestedUOffsetT, err = nestedBuffer.encodeBuffer(bl); err != nil {
 						return 0, err
 					}
-					fieldToBytes.isEffectivelyNil = nestedUOffsetT == 0
+					fieldToBytes.isValueEmpty = nestedUOffsetT == 0
 				}
 			} else {
 				if uOffsetT := b.getFieldUOffsetTByOrder(f.Order); uOffsetT != 0 {
@@ -1059,7 +1059,7 @@ func (b *Buffer) encodeBuffer(bl *flatbuffers.Builder) (flatbuffers.UOffsetT, er
 					default:
 						return 0, fmt.Errorf("string required but %#v provided for field %s", stringFieldToBytes.value, f.QualifiedName())
 					}
-					stringFieldToBytes.isEffectivelyNil = stringUOffsetT == 0
+					stringFieldToBytes.isValueEmpty = stringUOffsetT == 0
 
 				}
 			} else {
