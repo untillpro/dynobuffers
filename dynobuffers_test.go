@@ -142,6 +142,7 @@ Price: float32
 `
 
 var allTypesYaml = `
+smallint: int16
 int: int32
 long: int64
 float: float32
@@ -153,6 +154,7 @@ byte: byte
 `
 
 var arraysAllTypesYaml = `
+smallints..: int16
 ints..: int32
 longs..: int64
 floats..: float32
@@ -244,6 +246,15 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 			} else {
 				require.Equal(values[i], b.Get(f.Name))
 				switch f.Ft {
+				case FieldTypeInt16:
+					arr := b.GetInt16Array(f.Name)
+					actualArr := []int16{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(values[i], actualArr)
+					require.Panics(func() { arr.At(-1) })
+					require.Panics(func() { arr.At(arr.Len()) })
 				case FieldTypeInt32:
 					arr := b.GetInt32Array(f.Name)
 					actualArr := []int32{}
@@ -327,6 +338,12 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 				}
 			case FieldTypeFloat32:
 				actual, ok := b.GetFloat32(f.Name)
+				okGlobal = ok
+				if values[i] != nil {
+					require.Equal(values[i], actual, f.Name)
+				}
+			case FieldTypeInt16:
+				actual, ok := b.GetInt16(f.Name)
 				okGlobal = ok
 				if values[i] != nil {
 					require.Equal(values[i], actual, f.Name)
@@ -543,6 +560,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		// wrong types -> error (arrays expected)
 		{json: `{"strings": 42}`},
 		{json: `{"longs": "str"}`},
+		{json: `{"smallints": "str"}`},
 		{json: `{"ints": "str"}`},
 		{json: `{"floats": "str"}`},
 		{json: `{"doubles": "str"}`},
@@ -552,12 +570,14 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"unknown": 42}`, shouldBeNil: true},
 		{json: `{"strings": wrong}`, shouldBeNil: true},
 		{json: `{"longs": wrong}`, shouldBeNil: true},
+		{json: `{"smallints": wrong}`, shouldBeNil: true},
 		{json: `{"ints": wrong}`, shouldBeNil: true},
 		{json: `{"floats": wrong}`, shouldBeNil: true},
 		{json: `{"doubles": wrong}`, shouldBeNil: true},
 		{json: `{"bytes": wrong}`, shouldBeNil: true},
 		{json: `{"boolTrues": wrong}`, shouldBeNil: true},
 		{json: `{"intsObj": wrong}`, shouldBeNil: true},
+		{json: `{"smallints": [wrong]}`, shouldBeNil: true},
 		{json: `{"ints": [wrong]}`, shouldBeNil: true},
 		{json: `{"longs": [wrong]}`, shouldBeNil: true},
 		{json: `{"floats": [wrong]}`, shouldBeNil: true},
@@ -572,6 +592,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"intObjs": [{"int":wrong}]}`, shouldBeNil: true},
 		{json: `{"intObjs": [{"int":"str"}]}`, shouldBeNil: true},
 		// null element is met -> error
+		{json: `{"smallints": [44, null]}`, shouldBeNil: true},
 		{json: `{"ints": [44, null]}`, shouldBeNil: true},
 		{json: `{"longs": [44, null]}`, shouldBeNil: true},
 		{json: `{"floats": [44, null]}`, shouldBeNil: true},
@@ -596,7 +617,7 @@ func TestApplyJSONArrays(t *testing.T) {
 	}
 
 	// apply all values
-	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"ints": [44, 45], "longs": [42, 43], "floats": [0.124, 0.125],
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"smallints": [50, 51], "ints": [44, 45], "longs": [42, 43], "floats": [0.124, 0.125],
 		"doubles": [0.126, 0.127], "strings": ["str1", "str2"], "boolTrues": [true, true], "boolFalses": [false,false],
 		"bytes": "BQY=", "bytesBase64":"BQY=", "intsObj":[{"int":42},{"int":43}]}`))
 	require.NoError(err)
@@ -604,12 +625,12 @@ func TestApplyJSONArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{44, 45}, []int64{42, 43}, []float32{0.124, 0.125}, []float64{0.126, 0.127},
+	testFieldValues(t, b, []int16{50, 51}, []int32{44, 45}, []int64{42, 43}, []float32{0.124, 0.125}, []float64{0.126, 0.127},
 		[]string{"str1", "str2"}, []bool{true, true}, []bool{false, false}, []byte{5, 6}, []byte{5, 6},
 		[]interface{}{[]interface{}{int32(42)}, []interface{}{int32(43)}})
 
 	// append arrays
-	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"ints": [46, 47], "longs": [48, 49], "floats": [0.128, 0.129],
+	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"smallints": [52, 53], "ints": [46, 47], "longs": [48, 49], "floats": [0.128, 0.129],
 		"doubles": [0.130, 0.131], "strings": ["str3", "str4"], "boolTrues": [false, false], "boolFalses": [true, true],
 		"bytes": "BQY=", "bytesBase64":"BQY=", "intsObj":[{"int":50},{"int":51}]}`))
 	require.NoError(err)
@@ -617,14 +638,14 @@ func TestApplyJSONArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{44, 45, 46, 47}, []int64{42, 43, 48, 49}, []float32{0.124, 0.125, 0.128, 0.129}, []float64{0.126, 0.127, 0.130, 0.131},
+	testFieldValues(t, b, []int16{50, 51, 52, 53}, []int32{44, 45, 46, 47}, []int64{42, 43, 48, 49}, []float32{0.124, 0.125, 0.128, 0.129}, []float64{0.126, 0.127, 0.130, 0.131},
 		[]string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false}, []bool{false, false, true, true}, []byte{5, 6, 5, 6}, []byte{5, 6, 5, 6},
 		[]interface{}{[]interface{}{int32(42)}, []interface{}{int32(43)}, []interface{}{int32(50)}, []interface{}{int32(51)}})
 
 	// unset all using nulls and empty arrays
 	jsons := [][]byte{
-		[]byte(`{"ints": null, "longs": null, "floats": null, "doubles": null, "strings": null, "boolTrues": null, "boolFalses": null,"bytes": null, "bytesBase64":null, "intsObj":null}`),
-		[]byte(`{"ints": [], "longs": [], "floats": [],"doubles": [], "strings": [], "boolTrues": [], "boolFalses": [],"bytes": "", "bytesBase64":"", "intsObj":[]}`),
+		[]byte(`{"smallints": null, "ints": null, "longs": null, "floats": null, "doubles": null, "strings": null, "boolTrues": null, "boolFalses": null,"bytes": null, "bytesBase64":null, "intsObj":null}`),
+		[]byte(`{"smallints": [], "ints": [], "longs": [], "floats": [],"doubles": [], "strings": [], "boolTrues": [], "boolFalses": [],"bytes": "", "bytesBase64":"", "intsObj":[]}`),
 	}
 	for _, json := range jsons {
 		// unset all on existing -> nothing to store
@@ -676,7 +697,7 @@ func TestApplyJSON(t *testing.T) {
 	}
 
 	// apply all nulls -> empty, `nilled` contains field names whose values are effectively nil
-	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"string": null, "long": null, "int": null, "float": null,
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"smallint": null, "string": null, "long": null, "int": null, "float": null,
 	"double": null, "byte": null, "boolTrue": null, "boolFalse": null, "nested1": null, "nested2":{}}`))
 	require.NoError(err)
 	require.Nil(bytes)
@@ -689,6 +710,7 @@ func TestApplyJSON(t *testing.T) {
 	}{
 		{json: `{"string": 42}`, shouldBeNil: true},
 		{json: `{"long": "str"}`},
+		{json: `{"smallint": "str"}`},
 		{json: `{"int": "str"}`},
 		{json: `{"float": "str"}`},
 		{json: `{"double": "str"}`},
@@ -698,6 +720,7 @@ func TestApplyJSON(t *testing.T) {
 		{json: `{"nested1": []}`},
 		{json: `{"string": wrong}`, shouldBeNil: true},
 		{json: `{"long": wrong}`, shouldBeNil: true},
+		{json: `{"smallint": wrong}`, shouldBeNil: true},
 		{json: `{"int": wrong}`, shouldBeNil: true},
 		{json: `{"float": wrong}`, shouldBeNil: true},
 		{json: `{"double": wrong}`, shouldBeNil: true},
@@ -725,7 +748,7 @@ func TestApplyJSON(t *testing.T) {
 	}
 
 	// apply all values
-	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124,
+	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"smallint": 46, "string": "str", "long": 42, "int": 43, "float": 0.124,
 		"double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false,
 		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}}`))
 	require.NoError(err)
@@ -734,14 +757,14 @@ func TestApplyJSON(t *testing.T) {
 	b.Release()
 	require.Zero(GetObjectsInUse())
 	b = ReadBuffer(bytes, schemeRoot)
-	testFieldValues(t, b, int32(43), int64(42), float32(0.124), float64(0.125), "str", true, false, byte(6),
+	testFieldValues(t, b, int16(46), int32(43), int64(42), float32(0.124), float64(0.125), "str", true, false, byte(6),
 		[]interface{}{float32(0.126), int32(44)}, []interface{}{float32(0.127), int32(45)})
 	b.Release()
 
 	// unset all
 	// note: nested2:{} - mandatory field is not set but ok because empty object means no object
 	b = ReadBuffer(bytes, schemeRoot)
-	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"string": null, "long": null, "int": null, "float": null,
+	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"smallint": null, "string": null, "long": null, "int": null, "float": null,
 		"double": null, "byte": null, "boolTrue": null, "boolFalse": null, "nested1": null, "nested2":{}}`))
 	require.NoError(err)
 	require.Nil(bytes)

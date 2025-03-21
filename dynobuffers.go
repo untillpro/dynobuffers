@@ -28,6 +28,7 @@ type FieldType int
 const (
 	FieldTypeUnspecified FieldType = iota
 	FieldTypeObject
+	FieldTypeInt16
 	FieldTypeInt32
 	FieldTypeInt64
 	FieldTypeFloat32
@@ -46,6 +47,7 @@ var yamlFieldTypesMap = map[string]FieldType{
 	"bool":    FieldTypeBool,
 	"byte":    FieldTypeByte,
 	"":        FieldTypeObject,
+	"int16":   FieldTypeInt16,
 }
 
 var fieldTypesNamesMap = map[FieldType]string{}
@@ -185,6 +187,13 @@ func (b *Buffer) getAllValues(start flatbuffers.UOffsetT, f *Field) interface{} 
 			res[i] = intf.At(i)
 		}
 		return res
+	case FieldTypeInt16:
+		intf := getImplIInt16Array(b, start)
+		res := make([]int16, intf.Len())
+		for i := 0; i < intf.Len(); i++ {
+			res[i] = intf.At(i)
+		}
+		return res
 	default: // string
 		intf := getImplIStringArray(b, start)
 		res := make([]string, intf.Len())
@@ -238,6 +247,14 @@ func (b *Buffer) releaseFieldsToBytes() {
 		m := &b.fieldsToBytes[idx]
 		m.Release()
 	}
+}
+
+// GetInt16 returns int16 value by name and if the Scheme contains the field and the value was set to non-nil
+func (b *Buffer) GetInt16(name string) (int16, bool) {
+	if o := b.getFieldUOffsetT(name); o != 0 {
+		return b.tab.GetInt16(o), true
+	}
+	return 0, false
 }
 
 // GetInt32 returns int32 value by name and if the Scheme contains the field and the value was set to non-nil
@@ -337,6 +354,8 @@ func (b *Buffer) getByUOffsetT(f *Field, uOffsetT flatbuffers.UOffsetT) interfac
 		return b.getAllValues(uOffsetT, f)
 	}
 	switch f.Ft {
+	case FieldTypeInt16:
+		return b.tab.GetInt16(uOffsetT)
 	case FieldTypeInt32:
 		return b.tab.GetInt32(uOffsetT)
 	case FieldTypeInt64:
@@ -396,6 +415,8 @@ func (b *Buffer) getArrIntf(f *Field) interface{} {
 		return nil
 	}
 	switch f.Ft {
+	case FieldTypeInt16:
+		return getImplIInt16Array(b, uOffsetT)
 	case FieldTypeInt32:
 		return getImplIInt32Array(b, uOffsetT)
 	case FieldTypeInt64:
@@ -413,6 +434,14 @@ func (b *Buffer) getArrIntf(f *Field) interface{} {
 	default:
 		return b.getByUOffsetT(f, uOffsetT)
 	}
+}
+
+func (b *Buffer) GetInt16Array(name string) IInt16Array {
+	uOffsetT := b.getFieldUOffsetT(name)
+	if uOffsetT == 0 {
+		return nil
+	}
+	return getImplIInt16Array(b, uOffsetT)
 }
 
 func (b *Buffer) GetInt32Array(name string) IInt32Array {
@@ -469,6 +498,16 @@ func (b *Buffer) GetBoolArray(name string) IBoolArray {
 		return nil
 	}
 	return getImplIBoolArray(b, uOffsetT)
+}
+
+func getImplIInt16Array(b *Buffer, uOffsetT flatbuffers.UOffsetT) IInt16Array {
+	return implIInt16Array{
+		abstractArray: abstractArray{
+			len:     b.tab.VectorLen(uOffsetT - b.tab.Pos),
+			uOffset: b.tab.Vector(uOffsetT - b.tab.Pos),
+			tab:     b.tab,
+		},
+	}
 }
 
 func getImplIInt32Array(b *Buffer, uOffsetT flatbuffers.UOffsetT) IInt32Array {
@@ -847,6 +886,25 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 						b.append(f, arr)
 					}
 				}
+			case FieldTypeInt16:
+				arr := []int16{}
+				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
+					val, isNull, err := dec.Int32OrNull() // FIXME: implement Int16OrNull()
+					if err != nil {
+						return err
+					}
+					if isNull {
+						return nullArrayElementError(f)
+					}
+					arr = append(arr, int16(val))
+					return nil
+				})); err == nil {
+					if len(arr) == 0 {
+						b.set(f, nil)
+					} else {
+						b.append(f, arr)
+					}
+				}
 			case FieldTypeInt32:
 				arr := []int32{}
 				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
@@ -921,7 +979,7 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 				if val, isNull, err = dec.BoolOrNull(); err == nil && !isNull {
 					b.set(f, val)
 				}
-			case FieldTypeByte, FieldTypeInt32:
+			case FieldTypeByte, FieldTypeInt32, FieldTypeInt16:
 				// ok to write int32 into byte field. Will fail on ToBytes() if value does not fit into byte
 				var val int32
 				if val, isNull, err = dec.Int32OrNull(); err == nil && !isNull {
@@ -1140,6 +1198,13 @@ func (b *Buffer) copyArray(bl *flatbuffers.Builder, arrayUOffsetT flatbuffers.UO
 	l := b.tab.VectorLen(arrayUOffsetT - b.tab.Pos)
 	uOffsetT := b.tab.Vector(arrayUOffsetT - b.tab.Pos)
 	switch f.Ft {
+	case FieldTypeInt16:
+		bl.StartVector(flatbuffers.SizeInt16, l, flatbuffers.SizeInt16)
+		for i := 0; i < l; i++ {
+			elem := b.tab.GetInt16(uOffsetT + flatbuffers.UOffsetT((l-i-1)*flatbuffers.SizeInt16))
+			bl.PrependInt16(elem)
+		}
+		return bl.EndVector(l)
 	case FieldTypeInt32:
 		bl.StartVector(flatbuffers.SizeInt32, l, flatbuffers.SizeInt32)
 		for i := 0; i < l; i++ {
@@ -1289,6 +1354,49 @@ func encodeByteArr(value interface{}, bl *flatbuffers.Builder, toAppendToIntf in
 		target = append(toAppendTo.Bytes(), target...)
 	}
 	return bl.CreateByteVector(target), true
+}
+
+func encodeInt16Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
+	toAppendTo, _ := toAppendToIntf.(IInt16Array)
+	toAppendToLen := 0
+	if toAppendTo != nil {
+		toAppendToLen = toAppendTo.Len()
+	}
+	arr, ok := value.([]int16)
+	if !ok {
+		intfs, ok := value.([]interface{})
+		if !ok {
+			return 0, false
+		}
+		if len(intfs) == 0 {
+			return 0, true // nil or empty array is set or appended -> unset
+		}
+		l := len(intfs) + toAppendToLen
+		bl.StartVector(flatbuffers.SizeInt16, l, flatbuffers.SizeInt16)
+		for i := 0; i < toAppendToLen; i++ {
+			bl.PrependInt16(toAppendTo.At(i))
+		}
+		for _, intf := range intfs {
+			float64Src, ok := intf.(float64)
+			if !ok || !IsFloat64ValueFitsIntoField(f, float64Src) {
+				return 0, false
+			}
+			bl.PrependInt16(int16(float64Src))
+		}
+		return bl.EndVector(l), true
+	}
+	if len(arr) == 0 {
+		return 0, true
+	}
+	l := len(arr) + toAppendToLen
+	bl.StartVector(flatbuffers.SizeInt16, l, flatbuffers.SizeInt16)
+	for i := 0; i < toAppendToLen; i++ {
+		bl.PrependInt16(toAppendTo.At(i))
+	}
+	for _, int32Elem := range arr {
+		bl.PrependInt16(int32Elem)
+	}
+	return bl.EndVector(l), true
 }
 
 func encodeInt32Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppendToIntf interface{}) (flatbuffers.UOffsetT, bool) {
@@ -1509,6 +1617,8 @@ func encodeFloat64Arr(value interface{}, bl *flatbuffers.Builder, toAppendToIntf
 func (b *Buffer) encodeArray(bl *flatbuffers.Builder, f *Field, value interface{}, toAppendToIntf interface{}) (uOffsetT flatbuffers.UOffsetT, err error) {
 	ok := false
 	switch f.Ft {
+	case FieldTypeInt16:
+		uOffsetT, ok = encodeInt16Arr(f, value, bl, toAppendToIntf)
 	case FieldTypeInt32:
 		uOffsetT, ok = encodeInt32Arr(f, value, bl, toAppendToIntf)
 	case FieldTypeBool:
@@ -1608,6 +1718,8 @@ func copyFixedSizeValue(dest *flatbuffers.Builder, src *Buffer, f *Field, before
 	}
 	beforePrepend()
 	switch f.Ft {
+	case FieldTypeInt16:
+		dest.PrependInt16(src.tab.GetInt16(offset))
 	case FieldTypeInt32:
 		dest.PrependInt32(src.tab.GetInt32(offset))
 	case FieldTypeInt64:
@@ -1632,6 +1744,11 @@ func IsFloat64ValueFitsIntoField(f *Field, float64Src float64) bool {
 	switch {
 	case float64Src == 0:
 		return true
+	case float64Src == float64(int16(float64Src)):
+		if f.Ft == FieldTypeInt16 {
+			return true
+		}
+		fallthrough
 	case float64Src == float64(int32(float64Src)):
 		res := f.Ft == FieldTypeInt32 || f.Ft == FieldTypeInt64 || f.Ft == FieldTypeFloat64 || f.Ft == FieldTypeFloat32
 		if float64Src > 0 && float64Src <= 255 {
@@ -1686,6 +1803,12 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 		}
 		beforePrepend()
 		bl.PrependInt64(val)
+	case int16:
+		if f.Ft != FieldTypeInt16 {
+			return false
+		}
+		beforePrepend()
+		bl.PrependInt16(val)
 	case int32:
 		if f.Ft != FieldTypeInt32 {
 			return false
@@ -1700,6 +1823,12 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 		bl.PrependByte(val)
 	case int:
 		switch f.Ft {
+		case FieldTypeInt16:
+			if math.Abs(float64(val)) > math.MaxInt16 {
+				return false
+			}
+			beforePrepend()
+			bl.PrependInt16(int16(val))
 		case FieldTypeInt32:
 			if math.Abs(float64(val)) > math.MaxInt32 {
 				return false
@@ -1819,6 +1948,15 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 							enc.String(arr.At(i))
 						case []string:
 							enc.String(arr[i])
+						}
+					}
+				case FieldTypeInt16:
+					encodeFunc = func(i int, enc *gojay.Encoder) {
+						switch arr := value.(type) {
+						case IInt16Array:
+							enc.Int16(arr.At(i))
+						case []int16:
+							enc.Int16(arr[i])
 						}
 					}
 				case FieldTypeInt32:
@@ -2128,6 +2266,7 @@ func (f *Field) QualifiedName() string {
 
 // YamlToScheme creates Scheme by provided yaml `fieldName: yamlFieldType`
 // Field types:
+//   - `smallint` -> `int16`
 //   - `int` -> `int32`
 //   - `long` -> `int64`
 //   - `float` -> `float32`
