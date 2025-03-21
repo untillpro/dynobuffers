@@ -889,14 +889,14 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 			case FieldTypeInt16:
 				arr := []int16{}
 				if err = dec.Array(gojay.DecodeArrayFunc(func(dec *gojay.Decoder) (err error) {
-					val, isNull, err := dec.Int32OrNull() // FIXME: implement Int16OrNull()
+					val, isNull, err := dec.Int16OrNull()
 					if err != nil {
 						return err
 					}
 					if isNull {
 						return nullArrayElementError(f)
 					}
-					arr = append(arr, int16(val))
+					arr = append(arr, val)
 					return nil
 				})); err == nil {
 					if len(arr) == 0 {
@@ -979,7 +979,12 @@ func (b *Buffer) UnmarshalJSONObject(dec *gojay.Decoder, fn string) (err error) 
 				if val, isNull, err = dec.BoolOrNull(); err == nil && !isNull {
 					b.set(f, val)
 				}
-			case FieldTypeByte, FieldTypeInt32, FieldTypeInt16:
+			case FieldTypeInt16:
+				var val int16
+				if val, isNull, err = dec.Int16OrNull(); err == nil && !isNull {
+					b.set(f, val)
+				}
+			case FieldTypeByte, FieldTypeInt32:
 				// ok to write int32 into byte field. Will fail on ToBytes() if value does not fit into byte
 				var val int32
 				if val, isNull, err = dec.Int32OrNull(); err == nil && !isNull {
@@ -1781,6 +1786,9 @@ func encodeFixedSizeValue(bl *flatbuffers.Builder, f *Field, value interface{}, 
 		case FieldTypeInt64:
 			beforePrepend()
 			bl.PrependInt64(int64(val))
+		case FieldTypeInt16:
+			beforePrepend()
+			bl.PrependInt16(int16(val))
 		case FieldTypeFloat32:
 			beforePrepend()
 			bl.PrependFloat32(float32(val))
