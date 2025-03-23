@@ -824,15 +824,15 @@ func TestAllValues(t *testing.T) {
 	b.Release()
 	wrongs := map[string][]interface{}{
 		"smallint":  {int64(1), float32(1), "str", false, byte(1)},
-		"int":       {int64(1), float32(1), "str", false, byte(1)},
-		"long":      {int32(1), float32(1), "str", false, byte(1)},
-		"float":     {int64(1), int32(1), "str", false, byte(1)},
-		"double":    {int64(1), float32(1), int32(1), "str", false, byte(1)},
-		"string":    {int64(1), float32(1), float64(1), int32(1), false, byte(1)},
-		"boolTrue":  {int64(1), float32(1), float64(1), "str", int32(1), byte(1)},
-		"boolFalse": {int64(1), float32(1), float64(1), "str", int32(1), byte(1)},
-		"byte":      {int64(1), float32(1), "str", false, int32(1)},
-		"nes":       {int64(1), float32(1), float64(1), "str", false, byte(1), int32(1)},
+		"int":       {int64(1), float32(1), "str", false, byte(1), int16(1)},
+		"long":      {int32(1), float32(1), "str", false, byte(1), int16(1)},
+		"float":     {int64(1), int32(1), "str", false, byte(1), int16(1)},
+		"double":    {int64(1), float32(1), int32(1), "str", false, byte(1), int16(1)},
+		"string":    {int64(1), float32(1), float64(1), int32(1), false, byte(1), int16(1)},
+		"boolTrue":  {int64(1), float32(1), float64(1), "str", int32(1), byte(1), int16(1)},
+		"boolFalse": {int64(1), float32(1), float64(1), "str", int32(1), byte(1), int16(1)},
+		"byte":      {int64(1), float32(1), "str", false, int32(1), int16(1)},
+		"nes":       {int64(1), float32(1), float64(1), "str", false, byte(1), int32(1), int16(1)},
 	}
 	for fn, wrongArr := range wrongs {
 		for _, wrong := range wrongArr {
@@ -1428,7 +1428,7 @@ func TestApplyMapArrays(t *testing.T) {
 
 	// unset all by empty arrays from json (check []float64 for numerics)
 	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
-	jsonStr := []byte(`{"smallints": null, "ints":[],"longs":[],"floats":[],"doubles":[],"strings":[],"boolTrues":[],"boolFalses":[],"bytes":null,"bytesBase64": "", "intsObj":[]}`)
+	jsonStr := []byte(`{"smallints": [], "ints":[],"longs":[],"floats":[],"doubles":[],"strings":[],"boolTrues":[],"boolFalses":[],"bytes":null,"bytesBase64": "", "intsObj":[]}`)
 	m = map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
 	b = ReadBuffer(bytesFilled, s)
@@ -1458,7 +1458,7 @@ func TestApplyMapArrays(t *testing.T) {
 
 	// unset all by nulls from json
 	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
-	jsonStr = []byte(`{"smallints": null, "ints":null,"longs":null,"floats":null,"doubles":null,"strings":null,"boolTrues":null,"boolFalses":null,"bytes":null,"bytesBase64": null, "intsObj":null}`)
+	jsonStr = []byte(`{"smallints":null,"ints":null,"longs":null,"floats":null,"doubles":null,"strings":null,"boolTrues":null,"boolFalses":null,"bytes":null,"bytesBase64": null, "intsObj":null}`)
 	m = map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
 	b = ReadBuffer(bytesFilled, s)

@@ -1908,8 +1908,7 @@ func (b *Buffer) MarshalJSONObject(enc *gojay.Encoder) {
 		}
 		arrLen := 0
 		if f.IsArray {
-			arrLen = getArrayLen(value)
-			if arrLen == 0 {
+			if arrLen = getArrayLen(value); arrLen == 0 {
 				continue
 			}
 		}
