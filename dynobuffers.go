@@ -39,6 +39,7 @@ const (
 )
 
 var yamlFieldTypesMap = map[string]FieldType{
+	"int16":   FieldTypeInt16,
 	"int32":   FieldTypeInt32,
 	"int64":   FieldTypeInt64,
 	"float32": FieldTypeFloat32,
@@ -47,7 +48,6 @@ var yamlFieldTypesMap = map[string]FieldType{
 	"bool":    FieldTypeBool,
 	"byte":    FieldTypeByte,
 	"":        FieldTypeObject,
-	"int16":   FieldTypeInt16,
 }
 
 var fieldTypesNamesMap = map[FieldType]string{}
