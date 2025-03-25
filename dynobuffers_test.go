@@ -9,6 +9,7 @@ package dynobuffers
 
 import (
 	"encoding/json"
+	"math"
 	"reflect"
 	"testing"
 
@@ -845,6 +846,24 @@ func TestAllValues(t *testing.T) {
 			require.True(b.IsModified())
 			b.Release()
 		}
+	}
+
+	// int->int16, -> int32 etc overflow
+	b.Release()
+	wrongTypes := map[string]int{
+		"smallint": math.MaxInt64,
+		"int":      math.MaxInt64,
+		"byte":     math.MaxInt64,
+	}
+	for fn, overflowingInt := range wrongTypes {
+		b = NewBuffer(s)
+		b.Set(fn, overflowingInt)
+		builderBytes, nilled, err = b.ToBytesNilled()
+		require.Error(err, fn)
+		require.Nil(builderBytes)
+		require.Nil(nilled)
+		require.True(b.IsModified())
+		b.Release()
 	}
 
 	// set untyped int for numeric fields

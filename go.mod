@@ -6,7 +6,7 @@ require (
 	github.com/google/flatbuffers v24.3.25+incompatible
 	github.com/linkedin/goavro v2.1.0+incompatible
 	github.com/stretchr/testify v1.9.0
-	github.com/untillpro/gojay v1.2.17-0.20201109133446-b1069e05b56c
+	github.com/untillpro/gojay v1.2.17-0.20250325110036-70ad3373aa24
 	gopkg.in/yaml.v2 v2.4.0
 )
 
