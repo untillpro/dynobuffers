@@ -1398,8 +1398,8 @@ func encodeInt16Arr(f *Field, value interface{}, bl *flatbuffers.Builder, toAppe
 	for i := 0; i < toAppendToLen; i++ {
 		bl.PrependInt16(toAppendTo.At(i))
 	}
-	for _, int32Elem := range arr {
-		bl.PrependInt16(int32Elem)
+	for _, int16Elem := range arr {
+		bl.PrependInt16(int16Elem)
 	}
 	return bl.EndVector(l), true
 }
