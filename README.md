@@ -10,7 +10,7 @@
 - No codegen, no compilers, no (de)serialization. Just fields description and get\set by name.
 - In contrast to FlatBuffers tracks if the field was unset or initially not set
 - Supported types
-  - `int32, int64, float32, float64, bool, string, byte`
+  - `int16, int32, int64, float32, float64, bool, string, byte`
   - nested objects
   - arrays
 - Empty strings, nested objects and arrays are not stored (`Get()` returns nil)
@@ -31,6 +31,7 @@
 # Usage
 - Describe Scheme
   - By yaml. Field types:
+    - `int16`
     - `int32`
     - `int64`
     - `float32`

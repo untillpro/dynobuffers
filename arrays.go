@@ -13,6 +13,11 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
+type IInt16Array interface {
+	Len() int
+	At(idx int) int16
+}
+
 type IInt32Array interface {
 	Len() int
 	At(idx int) int32
@@ -53,6 +58,10 @@ type abstractArray struct {
 	tab     flatbuffers.Table
 }
 
+type implIInt16Array struct {
+	abstractArray
+}
+
 type implIInt32Array struct {
 	abstractArray
 }
@@ -89,6 +98,11 @@ func (a abstractArray) check(idx int) {
 	if idx < 0 || idx >= a.len {
 		panic(fmt.Sprintf("index out of range: %d of %d", idx, a.len))
 	}
+}
+
+func (i implIInt16Array) At(idx int) int16 {
+	i.check(idx)
+	return i.tab.GetInt16(i.uOffset + flatbuffers.UOffsetT((i.len-idx-1)*flatbuffers.SizeInt16))
 }
 
 func (i implIInt32Array) At(idx int) int32 {

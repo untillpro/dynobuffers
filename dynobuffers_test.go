@@ -9,6 +9,7 @@ package dynobuffers
 
 import (
 	"encoding/json"
+	"math"
 	"reflect"
 	"testing"
 
@@ -142,6 +143,7 @@ Price: float32
 `
 
 var allTypesYaml = `
+smallint: int16
 int: int32
 long: int64
 float: float32
@@ -153,6 +155,7 @@ byte: byte
 `
 
 var arraysAllTypesYaml = `
+smallints..: int16
 ints..: int32
 longs..: int64
 floats..: float32
@@ -244,6 +247,15 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 			} else {
 				require.Equal(values[i], b.Get(f.Name))
 				switch f.Ft {
+				case FieldTypeInt16:
+					arr := b.GetInt16Array(f.Name)
+					actualArr := []int16{}
+					for i := 0; i < arr.Len(); i++ {
+						actualArr = append(actualArr, arr.At(i))
+					}
+					require.Equal(values[i], actualArr)
+					require.Panics(func() { arr.At(-1) })
+					require.Panics(func() { arr.At(arr.Len()) })
 				case FieldTypeInt32:
 					arr := b.GetInt32Array(f.Name)
 					actualArr := []int32{}
@@ -327,6 +339,12 @@ func testFieldValues(t *testing.T, b *Buffer, values ...interface{}) {
 				}
 			case FieldTypeFloat32:
 				actual, ok := b.GetFloat32(f.Name)
+				okGlobal = ok
+				if values[i] != nil {
+					require.Equal(values[i], actual, f.Name)
+				}
+			case FieldTypeInt16:
+				actual, ok := b.GetInt16(f.Name)
 				okGlobal = ok
 				if values[i] != nil {
 					require.Equal(values[i], actual, f.Name)
@@ -543,6 +561,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		// wrong types -> error (arrays expected)
 		{json: `{"strings": 42}`},
 		{json: `{"longs": "str"}`},
+		{json: `{"smallints": "str"}`},
 		{json: `{"ints": "str"}`},
 		{json: `{"floats": "str"}`},
 		{json: `{"doubles": "str"}`},
@@ -552,12 +571,14 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"unknown": 42}`, shouldBeNil: true},
 		{json: `{"strings": wrong}`, shouldBeNil: true},
 		{json: `{"longs": wrong}`, shouldBeNil: true},
+		{json: `{"smallints": wrong}`, shouldBeNil: true},
 		{json: `{"ints": wrong}`, shouldBeNil: true},
 		{json: `{"floats": wrong}`, shouldBeNil: true},
 		{json: `{"doubles": wrong}`, shouldBeNil: true},
 		{json: `{"bytes": wrong}`, shouldBeNil: true},
 		{json: `{"boolTrues": wrong}`, shouldBeNil: true},
 		{json: `{"intsObj": wrong}`, shouldBeNil: true},
+		{json: `{"smallints": [wrong]}`, shouldBeNil: true},
 		{json: `{"ints": [wrong]}`, shouldBeNil: true},
 		{json: `{"longs": [wrong]}`, shouldBeNil: true},
 		{json: `{"floats": [wrong]}`, shouldBeNil: true},
@@ -572,6 +593,7 @@ func TestApplyJSONArrays(t *testing.T) {
 		{json: `{"intObjs": [{"int":wrong}]}`, shouldBeNil: true},
 		{json: `{"intObjs": [{"int":"str"}]}`, shouldBeNil: true},
 		// null element is met -> error
+		{json: `{"smallints": [44, null]}`, shouldBeNil: true},
 		{json: `{"ints": [44, null]}`, shouldBeNil: true},
 		{json: `{"longs": [44, null]}`, shouldBeNil: true},
 		{json: `{"floats": [44, null]}`, shouldBeNil: true},
@@ -596,7 +618,7 @@ func TestApplyJSONArrays(t *testing.T) {
 	}
 
 	// apply all values
-	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"ints": [44, 45], "longs": [42, 43], "floats": [0.124, 0.125],
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"smallints": [50, 51], "ints": [44, 45], "longs": [42, 43], "floats": [0.124, 0.125],
 		"doubles": [0.126, 0.127], "strings": ["str1", "str2"], "boolTrues": [true, true], "boolFalses": [false,false],
 		"bytes": "BQY=", "bytesBase64":"BQY=", "intsObj":[{"int":42},{"int":43}]}`))
 	require.NoError(err)
@@ -604,12 +626,12 @@ func TestApplyJSONArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{44, 45}, []int64{42, 43}, []float32{0.124, 0.125}, []float64{0.126, 0.127},
+	testFieldValues(t, b, []int16{50, 51}, []int32{44, 45}, []int64{42, 43}, []float32{0.124, 0.125}, []float64{0.126, 0.127},
 		[]string{"str1", "str2"}, []bool{true, true}, []bool{false, false}, []byte{5, 6}, []byte{5, 6},
 		[]interface{}{[]interface{}{int32(42)}, []interface{}{int32(43)}})
 
 	// append arrays
-	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"ints": [46, 47], "longs": [48, 49], "floats": [0.128, 0.129],
+	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"smallints": [52, 53], "ints": [46, 47], "longs": [48, 49], "floats": [0.128, 0.129],
 		"doubles": [0.130, 0.131], "strings": ["str3", "str4"], "boolTrues": [false, false], "boolFalses": [true, true],
 		"bytes": "BQY=", "bytesBase64":"BQY=", "intsObj":[{"int":50},{"int":51}]}`))
 	require.NoError(err)
@@ -617,14 +639,14 @@ func TestApplyJSONArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{44, 45, 46, 47}, []int64{42, 43, 48, 49}, []float32{0.124, 0.125, 0.128, 0.129}, []float64{0.126, 0.127, 0.130, 0.131},
+	testFieldValues(t, b, []int16{50, 51, 52, 53}, []int32{44, 45, 46, 47}, []int64{42, 43, 48, 49}, []float32{0.124, 0.125, 0.128, 0.129}, []float64{0.126, 0.127, 0.130, 0.131},
 		[]string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false}, []bool{false, false, true, true}, []byte{5, 6, 5, 6}, []byte{5, 6, 5, 6},
 		[]interface{}{[]interface{}{int32(42)}, []interface{}{int32(43)}, []interface{}{int32(50)}, []interface{}{int32(51)}})
 
 	// unset all using nulls and empty arrays
 	jsons := [][]byte{
-		[]byte(`{"ints": null, "longs": null, "floats": null, "doubles": null, "strings": null, "boolTrues": null, "boolFalses": null,"bytes": null, "bytesBase64":null, "intsObj":null}`),
-		[]byte(`{"ints": [], "longs": [], "floats": [],"doubles": [], "strings": [], "boolTrues": [], "boolFalses": [],"bytes": "", "bytesBase64":"", "intsObj":[]}`),
+		[]byte(`{"smallints": null, "ints": null, "longs": null, "floats": null, "doubles": null, "strings": null, "boolTrues": null, "boolFalses": null,"bytes": null, "bytesBase64":null, "intsObj":null}`),
+		[]byte(`{"smallints": [], "ints": [], "longs": [], "floats": [],"doubles": [], "strings": [], "boolTrues": [], "boolFalses": [],"bytes": "", "bytesBase64":"", "intsObj":[]}`),
 	}
 	for _, json := range jsons {
 		// unset all on existing -> nothing to store
@@ -676,7 +698,7 @@ func TestApplyJSON(t *testing.T) {
 	}
 
 	// apply all nulls -> empty, `nilled` contains field names whose values are effectively nil
-	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"string": null, "long": null, "int": null, "float": null,
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"smallint": null, "string": null, "long": null, "int": null, "float": null,
 	"double": null, "byte": null, "boolTrue": null, "boolFalse": null, "nested1": null, "nested2":{}}`))
 	require.NoError(err)
 	require.Nil(bytes)
@@ -689,6 +711,7 @@ func TestApplyJSON(t *testing.T) {
 	}{
 		{json: `{"string": 42}`, shouldBeNil: true},
 		{json: `{"long": "str"}`},
+		{json: `{"smallint": "str"}`},
 		{json: `{"int": "str"}`},
 		{json: `{"float": "str"}`},
 		{json: `{"double": "str"}`},
@@ -698,6 +721,7 @@ func TestApplyJSON(t *testing.T) {
 		{json: `{"nested1": []}`},
 		{json: `{"string": wrong}`, shouldBeNil: true},
 		{json: `{"long": wrong}`, shouldBeNil: true},
+		{json: `{"smallint": wrong}`, shouldBeNil: true},
 		{json: `{"int": wrong}`, shouldBeNil: true},
 		{json: `{"float": wrong}`, shouldBeNil: true},
 		{json: `{"double": wrong}`, shouldBeNil: true},
@@ -725,7 +749,7 @@ func TestApplyJSON(t *testing.T) {
 	}
 
 	// apply all values
-	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124,
+	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"smallint": 46, "string": "str", "long": 42, "int": 43, "float": 0.124,
 		"double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false,
 		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}}`))
 	require.NoError(err)
@@ -734,14 +758,14 @@ func TestApplyJSON(t *testing.T) {
 	b.Release()
 	require.Zero(GetObjectsInUse())
 	b = ReadBuffer(bytes, schemeRoot)
-	testFieldValues(t, b, int32(43), int64(42), float32(0.124), float64(0.125), "str", true, false, byte(6),
+	testFieldValues(t, b, int16(46), int32(43), int64(42), float32(0.124), float64(0.125), "str", true, false, byte(6),
 		[]interface{}{float32(0.126), int32(44)}, []interface{}{float32(0.127), int32(45)})
 	b.Release()
 
 	// unset all
 	// note: nested2:{} - mandatory field is not set but ok because empty object means no object
 	b = ReadBuffer(bytes, schemeRoot)
-	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"string": null, "long": null, "int": null, "float": null,
+	bytes, nilled, err = b.ApplyJSONAndToBytes([]byte(`{"smallint": null, "string": null, "long": null, "int": null, "float": null,
 		"double": null, "byte": null, "boolTrue": null, "boolFalse": null, "nested1": null, "nested2":{}}`))
 	require.NoError(err)
 	require.Nil(bytes)
@@ -800,15 +824,16 @@ func TestAllValues(t *testing.T) {
 	// wrong types (except float64 for numeric fields) -> error
 	b.Release()
 	wrongs := map[string][]interface{}{
-		"int":       {int64(1), float32(1), "str", false, byte(1)},
-		"long":      {int32(1), float32(1), "str", false, byte(1)},
-		"float":     {int64(1), int32(1), "str", false, byte(1)},
-		"double":    {int64(1), float32(1), int32(1), "str", false, byte(1)},
-		"string":    {int64(1), float32(1), float64(1), int32(1), false, byte(1)},
-		"boolTrue":  {int64(1), float32(1), float64(1), "str", int32(1), byte(1)},
-		"boolFalse": {int64(1), float32(1), float64(1), "str", int32(1), byte(1)},
-		"byte":      {int64(1), float32(1), "str", false, int32(1)},
-		"nes":       {int64(1), float32(1), float64(1), "str", false, byte(1), int32(1)},
+		"smallint":  {int64(1), float32(1), "str", false, byte(1)},
+		"int":       {int64(1), float32(1), "str", false, byte(1), int16(1)},
+		"long":      {int32(1), float32(1), "str", false, byte(1), int16(1)},
+		"float":     {int64(1), int32(1), "str", false, byte(1), int16(1)},
+		"double":    {int64(1), float32(1), int32(1), "str", false, byte(1), int16(1)},
+		"string":    {int64(1), float32(1), float64(1), int32(1), false, byte(1), int16(1)},
+		"boolTrue":  {int64(1), float32(1), float64(1), "str", int32(1), byte(1), int16(1)},
+		"boolFalse": {int64(1), float32(1), float64(1), "str", int32(1), byte(1), int16(1)},
+		"byte":      {int64(1), float32(1), "str", false, int32(1), int16(1)},
+		"nes":       {int64(1), float32(1), float64(1), "str", false, byte(1), int32(1), int16(1)},
 	}
 	for fn, wrongArr := range wrongs {
 		for _, wrong := range wrongArr {
@@ -823,13 +848,32 @@ func TestAllValues(t *testing.T) {
 		}
 	}
 
+	// int->int16, -> int32 etc overflow
+	b.Release()
+	wrongTypes := map[string]int{
+		"smallint": math.MaxInt64,
+		"int":      math.MaxInt64,
+		"byte":     math.MaxInt64,
+	}
+	for fn, overflowingInt := range wrongTypes {
+		b = NewBuffer(s)
+		b.Set(fn, overflowingInt)
+		builderBytes, nilled, err = b.ToBytesNilled()
+		require.Error(err, fn)
+		require.Nil(builderBytes)
+		require.Nil(nilled)
+		require.True(b.IsModified())
+		b.Release()
+	}
+
 	// set untyped int for numeric fields
 	untypedInts := map[string]int{
-		"int":    1,
-		"long":   2,
-		"float":  3,
-		"double": 4,
-		"byte":   5,
+		"int":      1,
+		"long":     2,
+		"float":    3,
+		"double":   4,
+		"byte":     5,
+		"smallint": 6,
 	}
 	for n, untypedInt := range untypedInts {
 		b = NewBuffer(s)
@@ -842,6 +886,8 @@ func TestAllValues(t *testing.T) {
 		switch s.FieldsMap[n].Ft {
 		case FieldTypeByte:
 			require.Equal(byte(untypedInt), b.Get(n).(byte), n)
+		case FieldTypeInt16:
+			require.Equal(int16(untypedInt), b.Get(n).(int16), n)
 		case FieldTypeInt32:
 			require.Equal(int32(untypedInt), b.Get(n).(int32), n)
 		case FieldTypeInt64:
@@ -856,6 +902,7 @@ func TestAllValues(t *testing.T) {
 
 	// fill values
 	b = NewBuffer(s)
+	b.Set("smallint", int16(5))
 	b.Set("int", int32(1))
 	b.Set("long", int64(2))
 	b.Set("float", float32(0.1))
@@ -874,7 +921,7 @@ func TestAllValues(t *testing.T) {
 	bytesFilled = copyBytes(bytesFilled)
 	b.Release()
 	b = ReadBuffer(bytesFilled, s)
-	expectedValues := []interface{}{int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)}}
+	expectedValues := []interface{}{int16(5), int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)}}
 	testFieldValues(t, b, expectedValues...)
 
 	// ToBytesWithBuilder on unmodified Buffer -> return underlying byte array
@@ -1019,6 +1066,7 @@ func TestApplyMap(t *testing.T) {
 
 	// applied nil fields -> nothing to store
 	require.NoError(b.ApplyMap(map[string]interface{}{
+		"smallint":  nil,
 		"int":       nil,
 		"long":      nil,
 		"float":     nil,
@@ -1040,6 +1088,7 @@ func TestApplyMap(t *testing.T) {
 		m            map[string]interface{}
 		errorOnApply bool
 	}{
+		{m: map[string]interface{}{"smallint": "str"}},
 		{m: map[string]interface{}{"int": "str"}},
 		{m: map[string]interface{}{"long": "str"}},
 		{m: map[string]interface{}{"float": "str"}},
@@ -1075,6 +1124,7 @@ func TestApplyMap(t *testing.T) {
 	// apply values
 	b = NewBuffer(s)
 	require.NoError(b.ApplyMap(map[string]interface{}{
+		"smallint":  int16(5),
 		"int":       int32(1),
 		"long":      int64(2),
 		"float":     float32(0.1),
@@ -1091,10 +1141,11 @@ func TestApplyMap(t *testing.T) {
 	require.NoError(err)
 	require.Nil(nilled)
 	require.NoError(b.CommitChanges())
-	testFieldValues(t, b, int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
+	testFieldValues(t, b, int16(5), int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
 
 	// unset values
 	require.NoError(b.ApplyMap(map[string]interface{}{
+		"smallint":  nil,
 		"int":       nil,
 		"long":      nil,
 		"float":     nil,
@@ -1113,7 +1164,7 @@ func TestApplyMap(t *testing.T) {
 
 	// apply json map
 	b = NewBuffer(s)
-	jsonStr := []byte(`{"int": 1, "long": 2, "float": 0.1, "double": 0.2, "string": "str", "boolTrue": true, "boolFalse": false, "byte": 3, "nes": {"int": 4}}`)
+	jsonStr := []byte(`{"smallint": 5, "int": 1, "long": 2, "float": 0.1, "double": 0.2, "string": "str", "boolTrue": true, "boolFalse": false, "byte": 3, "nes": {"int": 4}}`)
 	m := map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
 	require.NoError(b.ApplyMap(m))
@@ -1121,10 +1172,10 @@ func TestApplyMap(t *testing.T) {
 	require.NoError(err)
 	require.Empty(nilled)
 	require.NoError(b.CommitChanges())
-	testFieldValues(t, b, int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
+	testFieldValues(t, b, int16(5), int32(1), int64(2), float32(0.1), float64(0.2), "str", true, false, byte(3), []interface{}{int32(4)})
 
 	// unset from json
-	jsonStr = []byte(`{"string": null, "long": null, "int": null, "float": null, "double": null, "byte": null, "boolTrue": null, "boolFalse": null, "nes": null}`)
+	jsonStr = []byte(`{"smallint": null, "string": null, "long": null, "int": null, "float": null, "double": null, "byte": null, "boolTrue": null, "boolFalse": null, "nes": null}`)
 	m = map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
 	require.NoError(b.ApplyMap(m))
@@ -1163,6 +1214,7 @@ func TestApplyMapArrays(t *testing.T) {
 	// empty, all nilled
 	ms = []map[string]interface{}{
 		{
+			"smallints":   nil,
 			"ints":        nil,
 			"longs":       nil,
 			"floats":      nil,
@@ -1175,6 +1227,7 @@ func TestApplyMapArrays(t *testing.T) {
 			"intsObj":     nil,
 		},
 		{
+			"smallints":   []int16{},
 			"ints":        []int32{},
 			"longs":       []int64{},
 			"floats":      []float32{},
@@ -1201,6 +1254,7 @@ func TestApplyMapArrays(t *testing.T) {
 		errorOnApply bool
 	}{
 		// wrong types -> error: non-array provided
+		{m: map[string]interface{}{"smallints": "str"}},
 		{m: map[string]interface{}{"longs": "str"}},
 		{m: map[string]interface{}{"ints": "str"}},
 		{m: map[string]interface{}{"floats": "str"}},
@@ -1210,6 +1264,7 @@ func TestApplyMapArrays(t *testing.T) {
 		{m: map[string]interface{}{"intsObj": 42}, errorOnApply: true},
 		{m: map[string]interface{}{"unknown": 42}, errorOnApply: true},
 		// wrong types -> error: array of wrong type provided
+		{m: map[string]interface{}{"smallints": []int64{42}}},
 		{m: map[string]interface{}{"strings": []int16{42}}},
 		{m: map[string]interface{}{"longs": []int16{42}}},
 		{m: map[string]interface{}{"ints": []int16{42}}},
@@ -1226,6 +1281,7 @@ func TestApplyMapArrays(t *testing.T) {
 			map[string]interface{}{"int": "str"},
 		}}},
 		// nil element is met -> error
+		{m: map[string]interface{}{"smallints": []interface{}{44, nil}}},
 		{m: map[string]interface{}{"ints": []interface{}{44, nil}}},
 		{m: map[string]interface{}{"longs": []interface{}{44, nil}}},
 		{m: map[string]interface{}{"floats": []interface{}{44, nil}}},
@@ -1260,6 +1316,7 @@ func TestApplyMapArrays(t *testing.T) {
 
 	// set values
 	m := map[string]interface{}{
+		"smallints":   []int16{9, 10},
 		"ints":        []int32{1, 2},
 		"longs":       []int64{3, 4},
 		"floats":      []float32{0.1, 0.2},
@@ -1283,11 +1340,12 @@ func TestApplyMapArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}})
 
 	// append with typed arrays. Types of all numerics are matched to the scheme
 	m = map[string]interface{}{
+		"smallints":   []int16{15, 16},
 		"ints":        []int32{9, 10},
 		"longs":       []int64{11, 12},
 		"floats":      []float32{0.5, 0.6},
@@ -1310,13 +1368,14 @@ func TestApplyMapArrays(t *testing.T) {
 	bytesFilled = copyBytes(bytesFilled)
 	b.Release()
 	b = ReadBuffer(bytesFilled, s)
-	testFieldValues(t, b, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
+	testFieldValues(t, b, []int16{9, 10, 15, 16}, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
 		[]bool{false, false, true, true}, []byte{7, 8, 13, 14}, []byte{5, 6, 5, 6}, []interface{}{[]interface{}{int32(7)}, []interface{}{int32(8)}})
 	b.Release()
 
 	// append with []interfaces. Simulate map is unmarshaled from JSON
 	b = ReadBuffer(bytes, s)
 	m = map[string]interface{}{
+		"smallints":   []interface{}{float64(15), float64(16)},
 		"ints":        []interface{}{float64(9), float64(10)},
 		"longs":       []interface{}{float64(11), float64(12)},
 		"floats":      []interface{}{float64(0.5), float64(0.6)},
@@ -1339,12 +1398,13 @@ func TestApplyMapArrays(t *testing.T) {
 	bytesFilled = copyBytes(bytesFilled)
 	b.Release()
 	b = ReadBuffer(bytesFilled, s)
-	testFieldValues(t, b, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
+	testFieldValues(t, b, []int16{9, 10, 15, 16}, []int32{1, 2, 9, 10}, []int64{3, 4, 11, 12}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, 0.7, 0.8}, []string{"str1", "str2", "str3", "str4"}, []bool{true, true, false, false},
 		[]bool{false, false, true, true}, []byte{7, 8, 13, 14}, []byte{5, 6, 5, 6}, []interface{}{[]interface{}{int32(7)}, []interface{}{int32(8)}})
 	b.Release()
 
 	// unset all by nils
 	m = map[string]interface{}{
+		"smallints":   nil,
 		"ints":        nil,
 		"longs":       nil,
 		"floats":      nil,
@@ -1366,6 +1426,7 @@ func TestApplyMapArrays(t *testing.T) {
 	// unset all by empty arrays
 	b = ReadBuffer(bytesFilled, s)
 	m = map[string]interface{}{
+		"smallints":   []int16{},
 		"ints":        []int32{},
 		"longs":       []int64{},
 		"floats":      []float32{},
@@ -1386,7 +1447,7 @@ func TestApplyMapArrays(t *testing.T) {
 
 	// unset all by empty arrays from json (check []float64 for numerics)
 	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
-	jsonStr := []byte(`{"ints":[],"longs":[],"floats":[],"doubles":[],"strings":[],"boolTrues":[],"boolFalses":[],"bytes":null,"bytesBase64": "", "intsObj":[]}`)
+	jsonStr := []byte(`{"smallints": [], "ints":[],"longs":[],"floats":[],"doubles":[],"strings":[],"boolTrues":[],"boolFalses":[],"bytes":null,"bytesBase64": "", "intsObj":[]}`)
 	m = map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
 	b = ReadBuffer(bytesFilled, s)
@@ -1398,7 +1459,7 @@ func TestApplyMapArrays(t *testing.T) {
 	b.Release()
 
 	// load from json. All numerics are float64. No errors expected despite type are not matched to the scheme
-	jsonStr = []byte(`{"ints":[1, 2],"longs":[3, 4],"floats":[0.1, 0.2],"doubles":[0.3, 0.4],"strings":["str1", "str2"],"boolTrues":[true, true],"boolFalses":[false, false],
+	jsonStr = []byte(`{"smallints":[6, 7], "ints":[1, 2],"longs":[3, 4],"floats":[0.1, 0.2],"doubles":[0.3, 0.4],"strings":["str1", "str2"],"boolTrues":[true, true],"boolFalses":[false, false],
 		"bytes":"BQY=","bytesBase64": "BQY=", "intsObj":[{"int": 5}]}`)
 	m = map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
@@ -1410,13 +1471,13 @@ func TestApplyMapArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{6, 7}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{5, 6}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}})
 	b.Release()
 
 	// unset all by nulls from json
 	// note: `bytes` will be unmarshaled to []interface{}{}. Should be []byte or base64 string
-	jsonStr = []byte(`{"ints":null,"longs":null,"floats":null,"doubles":null,"strings":null,"boolTrues":null,"boolFalses":null,"bytes":null,"bytesBase64": null, "intsObj":null}`)
+	jsonStr = []byte(`{"smallints":null,"ints":null,"longs":null,"floats":null,"doubles":null,"strings":null,"boolTrues":null,"boolFalses":null,"bytes":null,"bytesBase64": null, "intsObj":null}`)
 	m = map[string]interface{}{}
 	require.NoError(json.Unmarshal(jsonStr, &m))
 	b = ReadBuffer(bytesFilled, s)
@@ -1441,6 +1502,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	empties := []map[string]interface{}{
 		nil,
 		{
+			"smallints":   []int16{},
 			"ints":        []int32{},
 			"longs":       []int64{},
 			"floats":      []float32{},
@@ -1455,6 +1517,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 		},
 		{},
 		{
+			"smallints":   nil,
 			"ints":        nil,
 			"longs":       nil,
 			"floats":      nil,
@@ -1478,6 +1541,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 
 	// set values
 	m := map[string]interface{}{
+		"smallints":   []int16{9, 10},
 		"ints":        []int32{1, 2},
 		"longs":       []int64{3, 4},
 		"floats":      []float32{0.1, 0.2},
@@ -1513,7 +1577,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}}, []interface{}{int32(-7)})
 
 	// case when intsObj is []*Buffer: Set(name, []*Buffer) is called
@@ -1530,7 +1594,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(8)}}, []interface{}{int32(-7)})
 	b.Release()
 
@@ -1554,7 +1618,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(8)}}, []interface{}{int32(-7)})
 	b.Release()
 
@@ -1575,7 +1639,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}}, []interface{}{int32(-7)})
 
 	// case when intsObj is []*Buffer: Set(name, []*Buffer) called
@@ -1593,7 +1657,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(9)}}, []interface{}{int32(-7)})
 	b.Release()
 
@@ -1618,7 +1682,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
+	testFieldValues(t, b, []int16{9, 10}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true},
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(9)}}, []interface{}{int32(-7)})
 
 	b.Release()
@@ -1919,6 +1983,7 @@ func TestArrays(t *testing.T) {
 	b := NewBuffer(s)
 
 	// Get*Array on empty -> nil I*Array
+	require.Nil(b.GetInt16Array("smallints"))
 	require.Nil(b.GetInt32Array("ints"))
 	require.Nil(b.GetInt64Array("longs"))
 	require.Nil(b.GetFloat32Array("floats"))
@@ -1929,6 +1994,7 @@ func TestArrays(t *testing.T) {
 
 	// empty and nil arrays -> nothing
 	tests := map[string][]interface{}{
+		"smallints": {nil, []int16{}},
 		"ints":      {nil, []int32{}},
 		"longs":     {nil, []int64{}},
 		"floats":    {nil, []float32{}},
@@ -1959,6 +2025,10 @@ func TestArrays(t *testing.T) {
 	}
 
 	testsErrors := map[string][]func(b *Buffer){
+		"smallints": {
+			func(b *Buffer) { b.Set("smallints", 42) },
+			func(b *Buffer) { b.Set("smallints", []int64{}) },
+		},
 		"ints": {
 			func(b *Buffer) { b.Set("ints", 42) },
 			func(b *Buffer) { b.Set("ints", []int16{}) },
@@ -2032,6 +2102,7 @@ func TestArrays(t *testing.T) {
 	// append to nothing is equal to Set()
 	b = NewBuffer(s)
 	b.Append("unknown", 42) // nothing happens, no error
+	b.Append("smallints", []int16{7, 8})
 	b.Append("ints", []int32{1, 2})
 	b.Append("longs", []int64{3, 4})
 	b.Append("floats", []float32{0.1, 0.2})
@@ -2054,12 +2125,13 @@ func TestArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
+	testFieldValues(t, b, []int16{7, 8}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
 	b.Release()
 
 	// set values
 	b = NewBuffer(s)
+	b.Set("smallints", []int16{7, 8})
 	b.Set("ints", []int32{1, 2})
 	b.Set("longs", []int64{3, 4})
 	b.Set("floats", []float32{0.1, 0.2})
@@ -2085,7 +2157,7 @@ func TestArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
+	testFieldValues(t, b, []int16{7, 8}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
 
 	// non-modified arrays should be copied
@@ -2094,7 +2166,7 @@ func TestArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
+	testFieldValues(t, b, []int16{7, 8}, []int32{1, 2}, []int64{3, 4}, []float32{0.1, 0.2}, []float64{0.3, 0.4}, []string{"str1", "str2"}, []bool{true, true}, []bool{false, false},
 		[]byte{1, 2}, []byte{5, 6}, []interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}})
 
 	// check the correct bytes are returned on (array element).GetBytes(). Was: the entire `bytes` returned
@@ -2104,6 +2176,7 @@ func TestArrays(t *testing.T) {
 	require.Equal(bNestedBytes, bb)
 
 	// append existing
+	b.Append("smallints", []int16{13, 14})
 	b.Append("ints", []int32{7, 8})
 	b.Append("longs", []int64{9, 10})
 	b.Append("floats", []float32{0.5, 0.6})
@@ -2126,7 +2199,7 @@ func TestArrays(t *testing.T) {
 	bytes = copyBytes(bytes)
 	b.Release()
 	b = ReadBuffer(bytes, s)
-	testFieldValues(t, b, []int32{1, 2, 7, 8}, []int64{3, 4, 9, 10}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, .7, 0.8}, []string{"str1", "str2", "str3", "str4"},
+	testFieldValues(t, b, []int16{7, 8, 13, 14}, []int32{1, 2, 7, 8}, []int64{3, 4, 9, 10}, []float32{0.1, 0.2, 0.5, 0.6}, []float64{0.3, 0.4, .7, 0.8}, []string{"str1", "str2", "str3", "str4"},
 		[]bool{true, true, false, false}, []bool{false, false, true, true}, []byte{1, 2, 11, 12}, []byte{5, 6, 5, 6},
 		[]interface{}{[]interface{}{int32(5)}, []interface{}{int32(6)}, []interface{}{int32(11)}, []interface{}{int32(12)}})
 
@@ -2296,7 +2369,7 @@ func TestIterateFields(t *testing.T) {
 	require.Empty(fieldsMap)
 
 	// test filled
-	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"string": "str", "long": 42, "int": 43, "float": 0.124,
+	bytes, nilled, err := b.ApplyJSONAndToBytes([]byte(`{"smallint": 46, "string": "str", "long": 42, "int": 43, "float": 0.124,
 		"double": 0.125, "byte": 6, "boolTrue": true, "boolFalse": false,
 		"nested1": {"price": 0.126,"quantity":44}, "nested2": {"price": 0.127,"quantity":45}, "nil": null}`))
 	require.NoError(err)
@@ -2312,6 +2385,8 @@ func TestIterateFields(t *testing.T) {
 	delete(fieldsMap, "nil")
 	b.IterateFields(nil, func(name string, value interface{}) bool {
 		switch name {
+		case "smallint":
+			require.Equal(int16(46), value)
 		case "string":
 			require.Equal("str", value)
 		case "long":
