@@ -31,7 +31,7 @@
 # Usage
 - Describe Scheme
   - By yaml. Field types:
-	- `int16`
+    - `int16`
     - `int32`
     - `int64`
     - `float32`
