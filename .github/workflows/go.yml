@@ -2,26 +2,7 @@ name: CI-Go
 on: [push, pull_request_target]
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-
-    - name: Set up Go 1.23.1
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.23.1
-
-    - name: Checkout
-      uses: actions/checkout@v3
-
-    - name: Cache Go - Modules
-      uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: CI
-      uses: untillpro/ci-action@master
-      with:
-        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+    uses: untillpro/ci-action/.github/workflows/ci_reuse_go.yml@main
+    with:
+      go_race: "true"
+      short_test: "false"
