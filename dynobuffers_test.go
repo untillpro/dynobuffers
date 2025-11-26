@@ -2482,7 +2482,7 @@ func TestGetNestedScheme(t *testing.T) {
 }
 
 func TestPreviousResultDamageOnReuse(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint SA4006 bug??
 	t.Skip("unstable. Use as an example only")
 	s, err := YamlToScheme(schemeStr)
 	require.NoError(err)

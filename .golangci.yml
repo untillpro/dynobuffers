@@ -1,87 +1,105 @@
-# options for analysis running
-# https://golangci-lint.run/usage/linters/
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
-    - govet
-    - revive
-    - gosec
-    - stylecheck
-    - misspell
-    - errcheck
-    - bidichk
     - asciicheck
+    - bidichk
     - durationcheck
-    - unconvert
-    - predeclared
-    - mirror
-    - testifylint
-    - prealloc
-    - nilnil
-    - gocritic
+    - errcheck
     - errorlint
     - goconst
-  fast: true
-linters-settings:
-  gosec:
-    excludes:
-      - G101
-      - G601
-      - G602
-      - G115
-  staticcheck:
-    checks: [ "all", "-SA1019"]
-  stylecheck:
-    checks: [ "all", "-ST1003", "-ST1023" ]
-  unparam:
-    check-exported: true
-  misspell:
-    ignore-words:
-      - untill
-  revive:
-    ignore-generated-header: true
-    severity: warning
+    - gocritic
+    - gosec
+    - govet
+    - mirror
+    - misspell
+    - nilnil
+    - prealloc
+    - predeclared
+    - revive
+    - staticcheck
+    - testifylint
+    - unconvert
+  settings:
+    gocritic:
+      disabled-checks:
+        - appendAssign
+        - dupArg
+        - ifElseChain
+        - singleCaseSwitch
+        - exitAfterDefer
+        - commentFormatting
+    gosec:
+      excludes:
+        - G101
+        - G601
+        - G602
+        - G115
+    misspell:
+      ignore-rules:
+        - untill
+    nilnil:
+      checked-types:
+        - func
+    revive:
+      severity: warning
+      rules:
+        - name: indent-error-flow
+          severity: warning
+        - name: add-constant
+          disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -SA1019
+        - -ST1003
+        - -ST1023
+        - -QF1003
+    testifylint:
+      disable-all: true
+      enable:
+        - bool-compare
+        - compares
+        - empty
+        - error-is-as
+        - error-nil
+        - expected-actual
+        - len
+        - require-error
+        - suite-dont-use-pkg
+        - suite-extra-assert-call
+        - suite-thelper
+    unparam:
+      check-exported: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: indent-error-flow
-        severity: warning
-      - name: add-constant
-        disabled: true
-  testifylint:
-    disable-all: true
-    enable:
-      - bool-compare
-      - compares
-      - empty
-      - error-is-as
-      - error-nil
-      - expected-actual
-      - len
-      - require-error
-      - suite-dont-use-pkg
-      - suite-extra-assert-call
-      - suite-thelper
-  gocritic:
-    disabled-checks:
-      - appendAssign
-      - dupArg
-      - ifElseChain
-      - singleCaseSwitch
-      - exitAfterDefer
-      - commentFormatting
-  nilnil:
-    checked-types:
-      - func
-  goconst:
-    ignore-tests: true
-issues:
-  exclude:
-   - underscore
-   - underscores
-  exclude-rules:
-   - path: _test.go
-     linters:
-       - revive
-       - gosec
-       - errcheck
-       - forcetypeassert
+      - linters:
+          - errcheck
+          - forcetypeassert
+          - gosec
+          - revive
+        path: _test.go
+      - path: (.+)\.go$
+        text: underscore
+      - path: (.+)\.go$
+        text: underscores
+      - linters:
+          - goconst
+        path: (.+)_test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
