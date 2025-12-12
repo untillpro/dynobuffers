@@ -7,4 +7,4 @@ jobs:
       go_race: "true"
       short_test: "false"
     secrets:
-      reporeading_token: ${{ secrets.CODECOV_TOKEN }}
+      reporeading_token: ${{ secrets.REPOREADING_TOKEN }}
