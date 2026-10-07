@@ -548,7 +548,7 @@ func TestApplyJSONArrays(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
 	require.NoError(err)
 	b := NewBuffer(s)
-	allFields := []string{}
+	allFields := make([]string, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		allFields = append(allFields, f.Name)
 	}
@@ -677,7 +677,7 @@ func TestApplyJSON(t *testing.T) {
 		AddField("quantity", FieldTypeInt32, true)
 	schemeRoot.AddNested("nested1", schemeNested, false)
 	schemeRoot.AddNested("nested2", schemeNested, false)
-	allFields := []string{}
+	allFields := make([]string, 0, len(schemeRoot.Fields))
 	for _, f := range schemeRoot.Fields {
 		allFields = append(allFields, f.Name)
 	}
@@ -782,7 +782,7 @@ func TestAllValues(t *testing.T) {
 	sNested := NewScheme()
 	sNested.AddField("int", FieldTypeInt32, false)
 	s.AddNested("nes", sNested, false)
-	allFields := []string{}
+	allFields := make([]string, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		allFields = append(allFields, f.Name)
 	}
@@ -1042,7 +1042,7 @@ func TestApplyMap(t *testing.T) {
 	sNested := NewScheme()
 	sNested.AddField("int", FieldTypeInt32, false)
 	s.AddNested("nes", sNested, false)
-	allFields := []string{}
+	allFields := make([]string, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		allFields = append(allFields, f.Name)
 	}
@@ -1193,7 +1193,7 @@ func TestApplyMapArrays(t *testing.T) {
 	s, err := YamlToScheme(arraysAllTypesYaml)
 	require.NoError(err)
 	b := NewBuffer(s)
-	allFields := []string{}
+	allFields := make([]string, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		allFields = append(allFields, f.Name)
 	}
@@ -1581,7 +1581,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}}, []interface{}{int32(-7)})
 
 	// case when intsObj is []*Buffer: Set(name, []*Buffer) is called
-	intsObjs := []*Buffer{}
+	intsObjs := make([]*Buffer, 0, 1)
 	intsObj := NewBuffer(s.GetNestedScheme("intsObj"))
 	intsObj.Set("int", 8)
 	intsObjs = append(intsObjs, intsObj)
@@ -1643,7 +1643,7 @@ func TestToJSONAndToJSONMap(t *testing.T) {
 		[]bool{false, false}, []byte{7, 8}, []byte{5, 6}, []interface{}{[]interface{}{int32(7)}}, []interface{}{int32(-7)})
 
 	// case when intsObj is []*Buffer: Set(name, []*Buffer) called
-	intsObjs = []*Buffer{}
+	intsObjs = make([]*Buffer, 0, 1)
 	intsObj = NewBuffer(s.GetNestedScheme("intsObj"))
 	intsObj.Set("int", 9)
 	intsObjs = append(intsObjs, intsObj)
@@ -2112,7 +2112,7 @@ func TestArrays(t *testing.T) {
 	b.Append("boolFalses", []bool{false, false})
 	b.Append("bytes", []byte{1, 2})
 	b.Append("bytesBase64", "BQY=")
-	bNestedArr := []*Buffer{}
+	bNestedArr := make([]*Buffer, 0, 2)
 	bNested := NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 5)
 	bNestedArr = append(bNestedArr, bNested)
@@ -2141,7 +2141,7 @@ func TestArrays(t *testing.T) {
 	b.Set("boolFalses", []bool{false, false})
 	b.Set("bytes", []byte{1, 2})
 	b.Set("bytesBase64", "BQY=")
-	bNestedArr = []*Buffer{}
+	bNestedArr = make([]*Buffer, 0, 2)
 	bNested = NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 5)
 	bNestedBytes, err := bNested.ToBytes()
@@ -2186,7 +2186,7 @@ func TestArrays(t *testing.T) {
 	b.Append("boolFalses", []bool{true, true})
 	b.Append("bytes", []byte{11, 12})
 	b.Append("bytesBase64", "BQY=")
-	bNestedArr = []*Buffer{}
+	bNestedArr = make([]*Buffer, 0, 2)
 	bNested = NewBuffer(s.GetNestedScheme("intsObj"))
 	bNested.Set("int", 11)
 	bNestedArr = append(bNestedArr, bNested)
@@ -2377,7 +2377,7 @@ func TestIterateFields(t *testing.T) {
 	b.Release()
 	require.Equal([]string{"nil"}, nilled)
 	b = ReadBuffer(bytes, schemeRoot)
-	fields := []string{}
+	fields := make([]string, 0, len(schemeRoot.Fields))
 	for _, f := range schemeRoot.Fields {
 		fields = append(fields, f.Name)
 	}
