@@ -8,7 +8,6 @@
 package benchmarks
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"testing"
@@ -64,13 +63,13 @@ func Test_MemFewArticleFields_Dyno(t *testing.T) {
 
 func Test_MemAllArticleFields_Avro(t *testing.T) {
 	require := require.New(t)
-	schemaStr, err := ioutil.ReadFile("article.avsc")
+	schemaStr, err := os.ReadFile("article.avsc")
 	require.NoError(err)
 
 	codec, err := goavro.NewCodec(string(schemaStr))
 	require.NoError(err)
 
-	articleData, err := ioutil.ReadFile("articleData.json")
+	articleData, err := os.ReadFile("articleData.json")
 	require.NoError(err)
 
 	native, _, err := codec.NativeFromTextual(articleData)
@@ -79,7 +78,7 @@ func Test_MemAllArticleFields_Avro(t *testing.T) {
 	bytes, err := codec.BinaryFromNative(nil, native)
 	require.NoError(err)
 
-	//	ioutil.WriteFile("article.avro", bytes, 0644)
+	//	os.WriteFile("article.avro", bytes, 0644)
 
 	log.Println("MemAllArticleFields_Avro:", len(bytes))
 }

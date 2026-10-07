@@ -9,7 +9,7 @@ package benchmarks
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	flatbuffers "github.com/google/flatbuffers/go"
@@ -277,13 +277,13 @@ func Benchmark_R_Simple_Json(b *testing.B) {
 }
 
 func Benchmark_R_Article_FewFields_Avro(b *testing.B) {
-	schemaStr, err := ioutil.ReadFile("article.avsc")
+	schemaStr, err := os.ReadFile("article.avsc")
 	require.NoError(b, err)
 
 	codec, err := goavro.NewCodec(string(schemaStr))
 	require.NoError(b, err)
 
-	articleData, err := ioutil.ReadFile("articleData.json")
+	articleData, err := os.ReadFile("articleData.json")
 	require.NoError(b, err)
 
 	native, _, err := codec.NativeFromTextual(articleData)
@@ -367,13 +367,13 @@ func Benchmark_R_Article_FewFields_Json(b *testing.B) {
 }
 
 func Benchmark_R_Article_AllFields_Avro(b *testing.B) {
-	schemaStr, err := ioutil.ReadFile("article.avsc")
+	schemaStr, err := os.ReadFile("article.avsc")
 	require.NoError(b, err)
 
 	codec, err := goavro.NewCodec(string(schemaStr))
 	require.NoError(b, err)
 
-	articleData, err := ioutil.ReadFile("articleData.json")
+	articleData, err := os.ReadFile("articleData.json")
 	require.NoError(b, err)
 
 	native, _, err := codec.NativeFromTextual(articleData)
@@ -935,7 +935,7 @@ func Benchmark_R_Article_AllFields_Flat(b *testing.B) {
 }
 
 func Benchmark_R_Article_AllFields_Json(b *testing.B) {
-	data, err := ioutil.ReadFile("articleData.json")
+	data, err := os.ReadFile("articleData.json")
 	require.NoError(b, err)
 	jsonStr := string(data)
 	b.ResetTimer()

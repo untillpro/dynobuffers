@@ -9,7 +9,7 @@ package benchmarks
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -282,13 +282,13 @@ func Benchmark_RW_Article_FewFields_Json(b *testing.B) {
 }
 
 func Benchmark_RW_Article_FewFields_Avro(b *testing.B) {
-	schemaStr, err := ioutil.ReadFile("article.avsc")
+	schemaStr, err := os.ReadFile("article.avsc")
 	require.NoError(b, err)
 
 	codec, err := goavro.NewCodec(string(schemaStr))
 	require.NoError(b, err)
 
-	articleData, err := ioutil.ReadFile("articleData.json")
+	articleData, err := os.ReadFile("articleData.json")
 	require.NoError(b, err)
 
 	native, _, err := codec.NativeFromTextual(articleData)
@@ -456,7 +456,7 @@ func Benchmark_RW_Article_AllFields_Flat(b *testing.B) {
 }
 
 func Benchmark_RW_Article_AllFields_Json(b *testing.B) {
-	data, err := ioutil.ReadFile("articleData.json")
+	data, err := os.ReadFile("articleData.json")
 	require.NoError(b, err)
 
 	b.ResetTimer()
